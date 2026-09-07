@@ -97,6 +97,25 @@ pnpm --filter @agentops/api test:e2e    # e2e (DB 필요 — 아래 마이그레
 pnpm lint
 ```
 
+## GCS 설정 (Phase 4 전제)
+
+문서 원본은 GCS에 저장되고 클라이언트가 signed URL로 직접 업로드한다. 로그인만 사람이 하고
+나머지는 스크립트가 처리한다:
+
+```bash
+gcloud auth login                                          # 대화형 — 사람이 직접
+./scripts/setup-gcs.sh <project-id> <bucket-name>          # 나머지 전부
+```
+
+스크립트가 하는 일: 버킷 생성(서울 리전, 공개 접근 차단, uniform IAM) → 서비스 계정 생성 →
+버킷 스코프 권한 부여 → 키 없는 signed URL 서명 권한 → CORS. 여러 번 돌려도 안전하다.
+
+**JSON 키 파일을 만들지 않는다** — 키 파일 자체가 평문 자격증명이라 Part 2 §6.2와 충돌한다.
+대신 서비스 계정이 자기 자신에 대해 `serviceAccountTokenCreator`를 갖게 해서 키 없이 서명한다.
+
+**CORS는 선택이 아니다** — 브라우저가 signed URL로 GCS에 직접 PUT 하므로, 없으면 업로드가
+무조건 실패한다.
+
 ## 마이그레이션
 
 ```bash
