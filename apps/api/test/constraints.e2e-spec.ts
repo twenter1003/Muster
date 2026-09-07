@@ -1,6 +1,6 @@
 import { DataSource } from 'typeorm';
 import { dataSourceOptions } from '../src/database/data-source';
-import { Project, ProjectMember, User } from '../src/database/entities';
+import { AUDIT_ACTIONS, Project, ProjectMember, User } from '../src/database/entities';
 
 /**
  * CHECK 제약이 실제로 잘못된 값을 거부하는지 확인한다.
@@ -90,13 +90,47 @@ describe('DB 제약 집행 검증', () => {
     }
   });
 
-  it('정의되지 않은 감사 액션은 거부된다', async () => {
+  /**
+   * 감사 액션은 DB에서 열거형이 아니라 형식만 강제한다. 값 집합의 원천은 enums.ts의
+   * 유니온 타입이고, 오타는 컴파일 타임에 잡힌다. DB가 열거형을 들고 있으면 새 액션이
+   * 생길 때마다 마이그레이션이 필요하고, 빠뜨리면 감사 기록 쓰기가 런타임에 실패한다.
+   */
+  it('형식에 맞지 않는 감사 액션은 거부된다', async () => {
     const userId = await newUser();
-    await expect(
-      ds.query(`INSERT INTO audit_logs (user_id, action) VALUES ($1, 'project.exfiltrate')`, [
-        userId,
-      ]),
-    ).rejects.toThrow(/chk_audit_logs_action/);
+    for (const bad of ['', 'Project.Create', 'project.create.extra', '; DROP TABLE users']) {
+      await expect(
+        ds.query(`INSERT INTO audit_logs (user_id, action) VALUES ($1, $2)`, [userId, bad]),
+      ).rejects.toThrow(/chk_audit_logs_action/);
+    }
+  });
+
+  it('설계서 목록에서 누락됐던 액션들도 기록할 수 있다', async () => {
+    const userId = await newUser();
+    // 이 넷은 대응 엔드포인트가 이미 있는데 v2.1의 18개 목록에는 없었다.
+    for (const action of [
+      'git_integration.create',
+      'git_integration.delete',
+      'document.update',
+      'env_config.execute',
+    ]) {
+      const id = await insert(
+        `INSERT INTO audit_logs (user_id, action) VALUES ($1, $2) RETURNING id`,
+        [userId, action],
+      );
+      created.push(['audit_logs', id]);
+      expect(id).toBeTruthy();
+    }
+  });
+
+  it('코드가 정의한 감사 액션 전부가 DB 제약을 통과한다', async () => {
+    const userId = await newUser();
+    for (const action of AUDIT_ACTIONS) {
+      const id = await insert(
+        `INSERT INTO audit_logs (user_id, action) VALUES ($1, $2) RETURNING id`,
+        [userId, action],
+      );
+      created.push(['audit_logs', id]);
+    }
   });
 
   it('cancelled 실행을 받아들인다', async () => {

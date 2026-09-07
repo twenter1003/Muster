@@ -67,8 +67,15 @@ export const UPLOAD_STATUSES = ['pending', 'completed'] as const;
 export type UploadStatus = (typeof UPLOAD_STATUSES)[number];
 
 /**
- * AUDIT_LOGS.action — 닫힌 값 집합.
- * 새 감사 대상 행위를 추가할 때는 여기와 DB CHECK 제약을 함께 갱신해야 한다.
+ * AUDIT_LOGS.action — `<리소스>.<동작>` 규약. 여기가 값 집합의 단일 원천이다.
+ *
+ * DB는 열거형이 아니라 **형식**만 CHECK로 강제한다. 설계서 v2.1은 18개 닫힌 집합을
+ * 제시했지만 그 목록에 이미 구현된 git-integration 연동/해제, 문서 수정, 환경 구성 실행이
+ * 빠져 있었다. 열거형을 DB에 박으면 감사 기록 쓰기가 CHECK 위반으로 실패하고,
+ * 감사 로그가 실패해서 본 작업까지 막히는 건 감사 추적의 목적과 정반대다.
+ *
+ * 오타는 이 유니온 타입이 컴파일 타임에 잡고, 쓰레기 값은 DB 형식 CHECK가 막는다.
+ * 새 감사 대상이 생기면 이 배열에만 추가하면 된다(마이그레이션 불필요).
  */
 export const AUDIT_ACTIONS = [
   'login',
@@ -76,7 +83,11 @@ export const AUDIT_ACTIONS = [
   'project.create',
   'project.update',
   'project.delete',
+  // 설계서 v2.1 목록에서 누락됐던 것들 — 대응 엔드포인트가 이미 존재한다.
+  'git_integration.create',
+  'git_integration.delete',
   'document.create',
+  'document.update',
   'document.delete',
   'agent.create',
   'agent.update',
@@ -84,6 +95,7 @@ export const AUDIT_ACTIONS = [
   'env_config.create',
   'env_config.approve',
   'env_config.reject',
+  'env_config.execute',
   'template.create',
   'template.delete',
   'budget.update',
