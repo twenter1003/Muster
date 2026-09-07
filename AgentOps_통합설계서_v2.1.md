@@ -1,11 +1,11 @@
 # AgentOps 프로젝트 관리 플랫폼 — 통합 설계서
 
-**버전**: v2.0 (통합본)
+**버전**: v2.1 (통합본)
 **작성일**: 2026-09-07
-**구성**: PRD v1.5 + 기술 사양서 v1.4 + 데이터 모델 v1.1 + API 설계 v1.2
-**변경 이력**: 설계 검토에서 제기된 6개 지적사항(엔티티 개수 불일치, 세션 관리 부재, 예산 스코프 충돌, 템플릿 소유권, 감사로그 nullable, 삭제 정책) 전부 반영
+**구성**: PRD v1.6 + 기술 사양서 v1.5 + 데이터 모델 v1.2 + API 설계 v1.3
+**변경**: 2차 설계 검토 반영 — 엔티티 19개로 확정(WEBHOOK_DELIVERIES·DEPLOYMENT_EVENTS·PROJECT_API_KEYS 신설), enum 전체 정의, 타입·유니크·FK 정책 명시, DORA 등급 구간 확정, 로그·실행이력 쓰기 경로 신설
 
-> 이 문서는 기존 4개 문서를 하나로 합친 것이다. 내용 충돌 시 **Part 4(API) > Part 2(기술 사양) > Part 1(PRD)** 순으로 우선한다.
+> 내용 충돌 시 **Part 4(API) > Part 2(기술 사양) > Part 1(PRD)** 순으로 우선한다.
 
 ---
 
@@ -168,8 +168,7 @@ DORA 등급 매핑의 구체적 구간 완화 수치는 11장 미해결 사항 �
 
 > 검토 과정에서 확인이 필요한 항목.
 
-1. DORA 등급 구간을 1인 사이드 프로젝트에 맞게 얼마나 완화할지 구체적 수치 미정
-2. (플랫폼 배포와는 별개로) EnvCatalog 모듈의 도커 실행 인프라는 해당 모듈 설계 시점에 결정 — 후보로 단일 VM+Docker 데몬, GKE 등을 그때 다시 비교
+1. (플랫폼 배포와는 별개로) EnvCatalog 모듈의 도커 실행 인프라는 해당 모듈 설계 시점에 결정 — 후보로 단일 VM+Docker 데몬, GKE 등을 그때 다시 비교
 
 ---
 
@@ -177,7 +176,7 @@ DORA 등급 매핑의 구체적 구간 완화 수치는 11장 미해결 사항 �
 
 ## 1. 문서 개요
 
-본 문서는 PRD v1.3의 기능·비기능 요구사항을 실제로 구현하기 위한 아키텍처, 데이터 모델, 배포 구조, 보안 설계를 정의한다. PRD가 "무엇을, 왜"를 다뤘다면 본 문서는 "어떻게"를 다룬다. 데이터 모델은 PRD 확정 이후 파생된 모든 요구사항(멀티유저 대비, 진행 단계 이력, 헬스 스코어 산출 방식 등)을 반영해 전면 재설계했다.
+본 문서는 PRD v1.5의 기능·비기능 요구사항을 실제로 구현하기 위한 아키텍처, 데이터 모델, 배포 구조, 보안 설계를 정의한다. PRD가 "무엇을, 왜"를 다뤘다면 본 문서는 "어떻게"를 다룬다. 데이터 모델은 PRD 확정 이후 파생된 모든 요구사항(멀티유저 대비, 진행 단계 이력, 헬스 스코어 산출 방식 등)을 반영해 전면 재설계했다.
 
 ---
 
@@ -226,7 +225,7 @@ PRD 3.6은 "단일 사용자 인증"만 요구하고 구체적 방식은 정하�
 
 ## 4. 데이터 모델 (재설계)
 
-PRD의 모든 기능 요구사항을 근거로 16개 엔티티로 재구성했다. 상세 스키마는 별도 문서 AgentOps_ERD_v1.1.md 참조. 이전 버전(PRD 작성 전 초안) 대비 변경점은 다음과 같다.
+PRD의 모든 기능 요구사항을 근거로 19개 엔티티로 재구성했다. 상세 스키마·enum·제약 규칙은 Part 3(데이터 모델) 참조. 이전 버전(PRD 작성 전 초안) 대비 변경점은 다음과 같다.
 
 - **PROJECTS.owner_id 제거, PROJECT_MEMBERS 신설**: 단일 소유자 구조로는 PRD 3.6(멀티유저 확장 전제)을 충족할 수 없어, 프로젝트-사용자 다대다 관계로 변경. role 컬럼으로 owner/member 구분
 - **PROJECT_STAGE_HISTORY 신설**: PRD 3.4의 "진행 단계 전환 이력 타임라인" 요구사항을 뒷받침. PROJECTS.current_stage는 현재 상태만, 이 테이블이 이력을 담당
@@ -237,6 +236,9 @@ PRD의 모든 기능 요구사항을 근거로 16개 엔티티로 재구성했�
 - **ENV_TEMPLATES.owner_id 추가**: 템플릿 삭제/수정 권한 검사 근거. 템플릿은 프로젝트가 아닌 사용자에 귀속
 - **PROJECTS.deleted_at 추가 (soft delete)**: hard delete + cascade는 감사 로그까지 삭제해 감사 추적 목적과 충돌. 모든 조회에 `deleted_at IS NULL` 적용, GCS 파일만 30일 후 별도 정리
 - **AUDIT_LOGS.project_id는 nullable**: 로그인/로그아웃, 템플릿 CRUD 등 프로젝트 스코프가 아닌 행위도 감사 대상
+- **WEBHOOK_DELIVERIES 신설**: `X-GitHub-Delivery` 기준 멱등성 보장을 위한 저장소. delivery_id 유니크 제약이 중복 처리를 막는 실제 장치
+- **DEPLOYMENT_EVENTS 신설**: 헬스 스코어 산출식은 정했으나 입력 데이터를 담을 곳이 없었음. GitHub `deployment_status`/`workflow_run` 웹훅으로 적재하고 DORA 4지표를 전부 여기서 도출
+- **PROJECT_API_KEYS 신설**: 외부 에이전트가 로그·실행이력을 밀어넣는 쓰기 경로에 사용자 세션 대신 프로젝트 스코프 키를 사용
 
 각 엔티티의 상세 필드와 관계는 위 다이어그램(ERD) 참조. 관계 요약:
 
@@ -300,7 +302,20 @@ LLM 도커 설정 생성
 ### 6.3 웹훅 엔드포인트 보호
 - Ingest 모듈의 GitHub 웹훅 수신 엔드포인트는 공개 URL이므로, 모든 요청에 대해 GitHub가 제공하는 HMAC 서명(`X-Hub-Signature-256`)을 GIT_INTEGRATIONS에 저장된 시크릿으로 검증한다. 서명이 일치하지 않는 요청은 즉시 거부한다.
 
-### 6.4 감사 추적
+### 6.4 헬스 스코어 산출 (DORA)
+
+DEPLOYMENT_EVENTS를 집계해 4지표를 도출하고, 각각을 등급 구간에 매핑해 1~4점(Low~Elite)을 부여한 뒤 평균해 composite_score를 만든다. 1인 사이드 프로젝트 특성을 반영해 원본 DORA 구간보다 완화한 기준을 적용한다.
+
+| 지표 | 도출 방법 | Elite(4) | High(3) | Medium(2) | Low(1) |
+|---|---|---|---|---|---|
+| 배포 빈도 | success 이벤트 수 | 주 1회 이상 | 월 1회 이상 | 분기 1회 이상 | 그 미만 |
+| 변경 리드타임 | `committed_at`→`occurred_at` 중앙값 | 1일 이내 | 1주 이내 | 1개월 이내 | 그 초과 |
+| 변경 실패율 | failure / 전체 | 15% 이하 | 30% 이하 | 45% 이하 | 그 초과 |
+| MTTR | failure→다음 success 중앙값 | 1시간 이내 | 1일 이내 | 1주 이내 | 그 초과 |
+
+데이터가 부족한 경우(이벤트 0건) 해당 지표는 점수 산정에서 제외하고, 남은 지표만으로 평균한다. 4개 모두 없으면 헬스 스코어를 계산하지 않는다.
+
+### 6.5 감사 추적
 - AUDIT_LOGS가 사용자 행위를 기록하며, 확장 단계(멀티유저)에서 "누가 어떤 프로젝트를 변경했는지" 추적의 기반이 된다. MVP 단계부터 기록 체계를 구축해 스키마 변경 없이 확장 가능하게 한다 (PRD 9장 근거).
 
 ---
@@ -339,12 +354,13 @@ LLM 도커 설정 생성
 
 # Part 3. 데이터 모델 (ERD)
 
-## 엔티티 목록 (16개)
+## 엔티티 목록 (19개)
 
 | 엔티티 | 역할 | 관련 모듈 |
 |---|---|---|
 | USERS | 사용자 계정 (GitHub OAuth 기준) | Auth |
 | SESSIONS | 세션 토큰 (로그아웃 시 즉시 무효화용) | Auth |
+| PROJECT_API_KEYS | 외부 에이전트가 로그·실행이력을 밀어넣을 때 쓰는 프로젝트 스코프 키 | Auth, Ingest |
 | PROJECT_MEMBERS | 사용자-프로젝트 다대다 + 역할(owner/member) | Auth, ProjectCore |
 | PROJECTS | 프로젝트 본체, 현재 진행 단계 | ProjectCore |
 | GIT_INTEGRATIONS | GitHub 레포 연동 정보, 웹훅 시크릿 참조 | ProjectCore, Ingest |
@@ -356,6 +372,8 @@ LLM 도커 설정 생성
 | AGENT_RUNS | 에이전트 실행 이력, 토큰·비용 | AgentRegistry |
 | PROJECT_BUDGETS | 프로젝트별 토큰/비용 예산 및 알림 임계치 | AgentRegistry |
 | LOG_ENTRIES | 실행/에러 로그 | Ingest |
+| WEBHOOK_DELIVERIES | 처리 완료한 GitHub delivery ID (멱등성 보장) | Ingest |
+| DEPLOYMENT_EVENTS | 배포·워크플로 성공/실패 이력 (DORA 4지표 산출 입력) | Ingest |
 | PROJECT_STAGE_HISTORY | 진행 단계 전환 이력 (타임라인용) | Ingest |
 | HEALTH_SNAPSHOTS | DORA 4지표 등급 점수 + 종합 점수 시계열 | Ingest |
 | AUDIT_LOGS | 사용자 행위 감사 기록 | Audit |
@@ -367,6 +385,9 @@ LLM 도커 설정 생성
 ```mermaid
 erDiagram
   USERS ||--o{ SESSIONS : has
+  PROJECTS ||--o{ PROJECT_API_KEYS : has
+  PROJECTS ||--o{ WEBHOOK_DELIVERIES : receives
+  PROJECTS ||--o{ DEPLOYMENT_EVENTS : records
   USERS ||--o{ ENV_TEMPLATES : owns
   PROJECTS ||--o| PROJECT_BUDGETS : has
   USERS ||--o{ PROJECT_MEMBERS : "joins as"
@@ -389,43 +410,67 @@ erDiagram
     uuid id PK
     string email
     string github_login
-    timestamp created_at
+    timestamptz created_at
   }
   SESSIONS {
     uuid id PK
     uuid user_id FK
     string token_hash
-    timestamp expires_at
-    timestamp revoked_at
+    timestamptz expires_at
+    timestamptz revoked_at
   }
   PROJECT_BUDGETS {
     uuid id PK
-    uuid project_id FK
+    uuid project_id FK UK
     int token_limit
-    float cost_limit
-    float alert_threshold_pct
+    numeric cost_limit
+    numeric alert_threshold_pct
+  }
+  PROJECT_API_KEYS {
+    uuid id PK
+    uuid project_id FK
+    string key_hash
+    string label
+    timestamptz created_at
+    timestamptz revoked_at
+  }
+  WEBHOOK_DELIVERIES {
+    uuid id PK
+    uuid project_id FK
+    string delivery_id UK
+    string event_type
+    timestamptz received_at
+  }
+  DEPLOYMENT_EVENTS {
+    uuid id PK
+    uuid project_id FK
+    string kind
+    string status
+    string commit_sha
+    timestamptz committed_at
+    timestamptz occurred_at
   }
   PROJECT_MEMBERS {
     uuid id PK
-    uuid project_id FK
-    uuid user_id FK
+    uuid project_id FK UK
+    uuid user_id FK UK
     string role
-    timestamp joined_at
+    timestamptz joined_at
   }
   PROJECTS {
     uuid id PK
     string name
     string current_stage
-    timestamp created_at
-    timestamp updated_at
-    timestamp deleted_at
+    timestamptz created_at
+    timestamptz updated_at
+    timestamptz deleted_at
   }
   GIT_INTEGRATIONS {
     uuid id PK
-    uuid project_id FK
+    uuid project_id FK UK
     string repo_url
     string webhook_secret_ref
-    timestamp connected_at
+    timestamptz connected_at
   }
   DOCUMENTS {
     uuid id PK
@@ -433,8 +478,9 @@ erDiagram
     string title
     string type
     string file_url
+    string upload_status
     string commit_ref
-    timestamp created_at
+    timestamptz created_at
   }
   ENV_TEMPLATES {
     uuid id PK
@@ -442,7 +488,7 @@ erDiagram
     string name
     json stack_preset
     json docker_preset
-    timestamp created_at
+    timestamptz created_at
   }
   PROJECT_ENV_CONFIGS {
     uuid id PK
@@ -451,7 +497,7 @@ erDiagram
     json stack_config
     json docker_config
     string build_status
-    timestamp created_at
+    timestamptz created_at
   }
   POLICY_CHECK_RESULTS {
     uuid id PK
@@ -459,23 +505,23 @@ erDiagram
     string tool
     string verdict
     text risk_notes
-    timestamp checked_at
+    timestamptz checked_at
   }
   AGENTS {
     uuid id PK
     uuid project_id FK
     string name
     text config_md
-    timestamp updated_at
+    timestamptz updated_at
   }
   AGENT_RUNS {
     uuid id PK
     uuid agent_id FK
     string status
     int tokens_used
-    float cost
-    timestamp started_at
-    timestamp ended_at
+    numeric cost
+    timestamptz started_at
+    timestamptz ended_at
   }
   LOG_ENTRIES {
     uuid id PK
@@ -483,13 +529,13 @@ erDiagram
     uuid agent_id FK
     string level
     text message
-    timestamp created_at
+    timestamptz created_at
   }
   PROJECT_STAGE_HISTORY {
     uuid id PK
     uuid project_id FK
     string stage
-    timestamp entered_at
+    timestamptz entered_at
   }
   HEALTH_SNAPSHOTS {
     uuid id PK
@@ -498,15 +544,15 @@ erDiagram
     int lead_time_score
     int change_fail_score
     int mttr_score
-    float composite_score
-    timestamp measured_at
+    numeric composite_score
+    timestamptz measured_at
   }
   AUDIT_LOGS {
     uuid id PK
     uuid user_id FK
     uuid project_id FK "nullable"
     string action
-    timestamp created_at
+    timestamptz created_at
   }
 ```
 
@@ -541,10 +587,43 @@ PRD 3.3이 "프로젝트별 토큰/비용 예산"으로 명시했다. 에이전�
 **프로젝트 삭제는 soft delete (PROJECTS.deleted_at)**
 감사 로그를 MVP부터 두기로 한 결정과 hard delete는 정면 충돌한다(프로젝트를 지우면 감사 추적 자체가 사라짐). 모든 조회에 `deleted_at IS NULL` 필터를 적용하고, GCS 문서 파일만 삭제 후 30일 경과 시 별도 정리한다.
 
+**WEBHOOK_DELIVERIES로 멱등성 보장**
+GitHub는 동일 이벤트를 재전송할 수 있다. `delivery_id`에 유니크 제약을 걸고 삽입 실패 시 해당 요청을 무시하는 방식으로, 중복 로그 적재와 헬스 스코어 이중 계산을 막는다.
+
+**DEPLOYMENT_EVENTS로 DORA 지표 입력 확보**
+헬스 스코어 산출식은 정했지만 그 입력 데이터를 담을 곳이 없었다. GitHub의 `deployment_status`·`workflow_run` 웹훅 이벤트를 이 테이블에 적재하고, 4지표를 전부 여기서 도출한다 — 배포빈도(성공 이벤트 수), 리드타임(`committed_at`→`occurred_at`), 변경실패율(failure 비율), MTTR(failure→다음 success 간격). 별도 리포팅 코드를 각 프로젝트에 심지 않아도 되고, PRD 9장의 GitHub 전제를 그대로 활용한다.
+
+**PROJECT_API_KEYS로 에이전트 쓰기 경로 분리**
+로그·실행 이력을 밀어넣는 주체는 사용자 브라우저가 아니라 외부에서 도는 에이전트다. 사용자 세션 토큰을 에이전트에 심는 건 위험하므로, 프로젝트 스코프로 한정된 별도 API 키를 발급한다. 키는 해시로만 저장한다.
+
 **ENV_TEMPLATES와 PROJECT_ENV_CONFIGS 분리**
 템플릿은 재사용 프리셋이고, 실제 프로젝트에 적용된 구성은 별개다. 한 템플릿에서 파생된 여러 프로젝트가 각자 다르게 커스터마이징한 이력이 남아야 한다.
 
 ---
+
+## Enum 값 정의
+
+| 컬럼 | 허용 값 |
+|---|---|
+| `PROJECTS.current_stage` | `planning`, `design`, `development`, `testing`, `deployment`, `operation` |
+| `PROJECT_MEMBERS.role` | `owner`, `member` |
+| `DOCUMENTS.type` | `prd`, `srs`, `tech_spec`, `other` |
+| `DOCUMENTS.upload_status` | `pending`, `completed` |
+| `PROJECT_ENV_CONFIGS.build_status` | `generated`, `policy_passed`, `policy_blocked`, `approved`, `rejected`, `running`, `succeeded`, `failed` |
+| `POLICY_CHECK_RESULTS.tool` | `trivy`, `conftest` |
+| `POLICY_CHECK_RESULTS.verdict` | `pass`, `fail` |
+| `AGENT_RUNS.status` | `running`, `succeeded`, `failed`, `cancelled` |
+| `LOG_ENTRIES.level` | `error`, `warn`, `info` |
+| `DEPLOYMENT_EVENTS.kind` | `deployment`, `workflow_run` |
+| `DEPLOYMENT_EVENTS.status` | `success`, `failure` |
+| `AUDIT_LOGS.action` | `login`, `logout`, `project.create`, `project.update`, `project.delete`, `document.create`, `document.delete`, `agent.create`, `agent.update`, `agent.delete`, `env_config.create`, `env_config.approve`, `env_config.reject`, `template.create`, `template.delete`, `budget.update`, `api_key.create`, `api_key.revoke` |
+
+## 제약 및 타입 규칙
+
+- **금액 컬럼은 `numeric(12,4)`**: `AGENT_RUNS.cost`, `PROJECT_BUDGETS.cost_limit`. 부동소수점 누적 오차가 예산 임계치 판정을 어긋나게 하므로 float 사용 금지
+- **모든 시각 컬럼은 `timestamptz`**: 배포 환경과 사용자 타임존이 다를 수 있고, DORA 리드타임·MTTR 계산이 시각차에 의존하므로 타임존 정보 필수
+- **유니크 제약**: `PROJECT_MEMBERS(project_id, user_id)` 복합 유니크, `GIT_INTEGRATIONS.project_id` 유니크(1:1), `PROJECT_BUDGETS.project_id` 유니크(1:1), `WEBHOOK_DELIVERIES.delivery_id` 유니크(멱등성 보장의 핵심)
+- **FK 삭제 정책**: `PROJECT_ENV_CONFIGS.template_id`는 `ON DELETE SET NULL`. RESTRICT면 한 번 사용된 템플릿을 영구히 삭제할 수 없게 되고, 환경 구성은 "그때 무엇이 실행됐는가"의 이력이므로 원본 템플릿이 사라져도 보존되어야 한다
 
 ## 확장 시 주의점
 
@@ -558,7 +637,10 @@ PRD 3.3이 "프로젝트별 토큰/비용 예산"으로 명시했다. 에이전�
 ## 1. 공통 규약
 
 - **Base URL**: `/api/v1`
-- **인증**: GitHub OAuth로 발급된 세션 토큰을 `Authorization: Bearer <token>` 헤더로 전달. `POST /webhooks/github`만 예외적으로 GitHub HMAC 서명(`X-Hub-Signature-256`)으로 인증
+- **인증**: 세 가지 방식이 공존한다.
+  - 사용자 API: GitHub OAuth 세션 토큰을 `Authorization: Bearer <token>`으로 전달 (SESSIONS 조회로 검증, `revoked_at`이 있으면 401)
+  - 에이전트 쓰기 API(`POST /projects/:id/logs`, `POST /agents/:id/runs`): 프로젝트 스코프 API 키를 `X-API-Key` 헤더로 전달. 외부에서 도는 에이전트에 사용자 세션을 심지 않기 위함
+  - 웹훅(`POST /webhooks/github`): GitHub HMAC 서명(`X-Hub-Signature-256`) 검증
 - **페이지네이션**: 목록 조회 엔드포인트는 `?cursor=&limit=`(기본 20, 최대 100) 커서 기반 페이지네이션 사용. 응답은 `{ items: [...], next_cursor: string | null }` 형태
 - **에러 포맷**: `{ error: { code: string, message: string } }`, HTTP 상태 코드와 함께 반환
 - **리소스 소유권 검사**: 모든 프로젝트 하위 리소스 요청은 요청자가 해당 프로젝트의 PROJECT_MEMBERS인지 검사 (MVP 단계는 본인 소유 프로젝트만 존재하므로 사실상 owner 검사와 동일하지만, 확장 단계 전환 시 로직 변경 없이 그대로 동작)
@@ -587,6 +669,9 @@ PRD 3.3이 "프로젝트별 토큰/비용 예산"으로 명시했다. 에이전�
 | DELETE | `/projects/:id` | 프로젝트 soft delete (`deleted_at` 기록). 감사 로그 보존을 위해 hard delete 하지 않으며, 모든 조회는 `deleted_at IS NULL` 필터를 적용한다. GCS 문서 파일은 30일 경과 후 별도 정리 |
 | POST | `/projects/:id/git-integration` | GitHub 레포 연동 등록 (repo_url 저장, 웹훅 자동 등록, 시크릿은 Secret Manager에 저장) |
 | DELETE | `/projects/:id/git-integration` | GitHub 연동 해제 |
+| GET | `/projects/:id/api-keys` | 발급된 API 키 목록 (해시만 저장하므로 원문은 재조회 불가, label/생성일만 반환) |
+| POST | `/projects/:id/api-keys` | API 키 발급 — **응답에서만 원문 1회 노출**, 이후 조회 불가 |
+| DELETE | `/api-keys/:id` | API 키 폐기 (`revoked_at` 기록) |
 
 **요청 예시** — `POST /projects`
 ```json
@@ -601,11 +686,12 @@ PRD 3.3이 "프로젝트별 토큰/비용 예산"으로 명시했다. 에이전�
 |---|---|---|
 | GET | `/projects/:id/documents` | 프로젝트의 문서 목록 (타입 필터 `?type=prd\|srs\|tech_spec\|other`) |
 | POST | `/projects/:id/documents` | 문서 메타데이터 생성 + GCS 업로드용 signed URL 발급 |
-| GET | `/documents/:id` | 문서 상세 (GCS 조회용 signed URL 포함) |
+| POST | `/documents/:id/complete` | 업로드 완료 확인 — `upload_status`를 `pending`→`completed`로 전이. 이 호출이 없으면 메타데이터만 남은 고아 레코드가 되며, `pending` 상태로 24시간 경과 시 정리 배치가 삭제한다 |
+| GET | `/documents/:id` | 문서 상세 (GCS 조회용 signed URL 포함). `completed` 상태만 조회 결과에 포함 |
 | PATCH | `/documents/:id` | 문서 메타데이터 수정 (제목/타입/커밋 참조) |
 | DELETE | `/documents/:id` | 문서 삭제 (GCS 객체도 함께 삭제) |
 
-**업로드 플로우**: `POST /projects/:id/documents`로 메타데이터 생성 요청 → 응답으로 GCS signed upload URL 수신 → 클라이언트가 그 URL로 파일 직접 업로드(서버를 거치지 않음, 대용량 파일에 유리).
+**업로드 플로우**: `POST /projects/:id/documents`로 메타데이터 생성(`upload_status=pending`) → 응답으로 GCS signed upload URL 수신 → 클라이언트가 그 URL로 파일 직접 업로드(서버를 거치지 않음) → `POST /documents/:id/complete`로 완료 확인(`completed`). 완료 확인 단계가 없으면 업로드가 중간에 실패해도 메타데이터가 남아 조회 시 깨진 링크가 된다.
 
 ---
 
@@ -628,11 +714,19 @@ PRD 3.3이 "프로젝트별 토큰/비용 예산"으로 명시했다. 에이전�
 | POST | `/projects/:id/env-configs` | 새 환경 구성 생성 — UI 입력값 또는 자연어 입력을 받아 LLM에 전달, Dockerfile/compose 생성 (build_status=`generated`) |
 | GET | `/env-configs/:id` | 환경 구성 상세 (생성된 stack_config, docker_config 포함) |
 | GET | `/env-configs/:id/policy-checks` | 해당 구성에 대한 Trivy/Conftest 검사 결과 목록 |
-| POST | `/env-configs/:id/approve` | 사람 승인 — Policy Gate를 통과(`verdict=pass`)한 구성만 승인 가능, 위반 시 409 반환 |
+| POST | `/env-configs/:id/approve` | 사람 승인 — `build_status=policy_passed`인 구성만 승인 가능, 그 외 상태는 409 |
 | POST | `/env-configs/:id/reject` | 반려 |
 | POST | `/env-configs/:id/execute` | 승인된(`approved`) 구성의 실행을 트리거 — 실제 실행 방식(어떤 인프라에서 docker build/run이 수행되는지)은 기술 사양서 9장의 미해결 사항(EnvCatalog 실행 인프라)에 의존하므로, 본 엔드포인트는 상태 전이 계약만 정의하고 내부 실행 어댑터는 해당 결정 이후 구현 |
 
-**상태 전이**: `generated` → (Policy Gate 자동 실행) → `policy_passed` / `policy_blocked` → (사람 승인, policy_passed에서만 가능) → `approved` → (실행) → `running` / `failed`
+**상태 전이**:
+```
+generated
+  → (Policy Gate 자동 실행) → policy_passed | policy_blocked
+  → (사람 승인, policy_passed에서만 가능) → approved | rejected
+  → (실행) → running → succeeded | failed
+```
+
+**Policy Gate 판정 규칙 (AND)**: `policy_passed`는 **Trivy와 Conftest가 모두 `verdict=pass`일 때만** 부여한다. 하나라도 fail이면 `policy_blocked`. 승인 API는 개별 검사 결과를 다시 보지 않고 `build_status`만 검사하므로, 판정 로직이 두 곳에 흩어지지 않는다.
 
 **요청 예시** — `POST /projects/:id/env-configs`
 ```json
@@ -654,6 +748,8 @@ PRD 3.3이 "프로젝트별 토큰/비용 예산"으로 명시했다. 에이전�
 | GET | `/agents/:id` | 에이전트 상세 (config_md 포함) |
 | PATCH | `/agents/:id` | config_md 수정 |
 | DELETE | `/agents/:id` | 에이전트 삭제 |
+| POST | `/agents/:id/runs` | **실행 시작 기록** (에이전트가 호출, `X-API-Key` 인증) |
+| PATCH | `/agent-runs/:id` | 실행 종료 기록 (status, tokens_used, cost, ended_at) — 갱신 시 프로젝트 예산 대비 사용률을 재계산하고 임계치 초과 시 알림 |
 | GET | `/agents/:id/runs` | 실행 이력(AGENT_RUNS) 조회 — 토큰 사용량/비용/상태 |
 
 
@@ -680,7 +776,9 @@ PRD 3.3이 "프로젝트별 토큰/비용 예산"으로 명시했다. 에이전�
 
 | Method | Path | 설명 |
 |---|---|---|
+| POST | `/projects/:id/logs` | **로그 적재** (에이전트가 호출, `X-API-Key` 인증). 적재 후 SSE `log` 이벤트 발행 |
 | GET | `/projects/:id/logs` | 로그 이력 조회 (레벨 필터 `?level=error\|warn\|info`, 페이지네이션) |
+| GET | `/projects/:id/deployment-events` | DORA 지표 산출 원본 이벤트 조회 |
 | GET | `/projects/:id/health-snapshots` | 헬스 스코어 시계열 조회 (DORA 4개 지표 등급 점수 + composite_score) |
 | GET | `/projects/:id/stage-history` | 진행 단계 전환 이력 |
 

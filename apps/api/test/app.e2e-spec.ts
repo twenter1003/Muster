@@ -1,9 +1,13 @@
-import { Controller, Get, INestApplication, Module, ValidationPipe } from '@nestjs/common';
+import { Controller, Get, INestApplication, Inject, Injectable, Module, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { CurrentUser } from '../src/common/auth/current-user.decorator';
 import type { AuthenticatedUser } from '../src/common/auth/authenticated-user';
+import { DATA_SOURCE } from '../src/database/database.module';
+import { InjectRepository } from '../src/database/inject-repository.decorator';
+import { Project } from '../src/database/entities';
+import type { DataSource, Repository } from 'typeorm';
 
 /**
  * 전역 가드가 "기본 차단"인지 검증하려면 매칭되는 라우트가 필요하다.
@@ -18,7 +22,16 @@ class ProbeController {
   }
 }
 
-@Module({ controllers: [ProbeController] })
+/** 자체 DatabaseModule의 DI가 실제로 주입되는지 확인하기 위한 테스트 전용 프로바이더. */
+@Injectable()
+class ProbeService {
+  constructor(
+    @Inject(DATA_SOURCE) readonly dataSource: DataSource,
+    @InjectRepository(Project) readonly projects: Repository<Project>,
+  ) {}
+}
+
+@Module({ controllers: [ProbeController], providers: [ProbeService] })
 class ProbeModule {}
 
 describe('AgentOps API (e2e)', () => {
@@ -40,6 +53,21 @@ describe('AgentOps API (e2e)', () => {
 
   it('7개 모듈이 모두 로드된 상태로 앱이 부팅된다', () => {
     expect(app).toBeDefined();
+  });
+
+  it('DATA_SOURCE가 초기화된 상태로 주입된다', () => {
+    const probe = app.get(ProbeService);
+    expect(probe.dataSource.isInitialized).toBe(true);
+  });
+
+  it('@InjectRepository가 엔티티 리포지토리를 주입한다', () => {
+    const probe = app.get(ProbeService);
+    expect(probe.projects.metadata.tableName).toBe('projects');
+  });
+
+  it('마이그레이션이 모두 적용된 상태다 (미적용 마이그레이션 0건)', async () => {
+    const probe = app.get(ProbeService);
+    expect(await probe.dataSource.showMigrations()).toBe(false);
   });
 
   it('GET /api/v1/health 는 인증 없이 200을 반환한다', async () => {

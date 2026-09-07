@@ -25,6 +25,11 @@ AgentOps/
 │   │       ├── app.module.ts   # 7개 모듈 + ConfigModule + EventEmitterModule 조립
 │   │       ├── config/
 │   │       │   └── env.schema.ts   # Zod 환경변수 검증 (실패 시 부팅 차단)
+│   │       ├── database/           # 데이터 접근 레이어
+│   │       │   ├── entities/       # 17개 엔티티 + enum 값 집합
+│   │       │   ├── migrations/     # 스키마 변경 이력 (synchronize는 항상 off)
+│   │       │   ├── data-source.ts  # 런타임·CLI 공용 접속 설정
+│   │       │   └── database.module.ts
 │   │       ├── common/             # 공통 레이어 (@Global)
 │   │       │   ├── errors/         # Part 4 1장 에러 포맷
 │   │       │   ├── pagination/     # 커서 기반 페이지네이션 유틸
@@ -88,9 +93,23 @@ pnpm dev:web    # :5173 (/api → :8080 프록시)
 
 ```bash
 pnpm --filter @agentops/api test:cov    # 단위 테스트 + 커버리지
-pnpm --filter @agentops/api test:e2e    # e2e
+pnpm --filter @agentops/api test:e2e    # e2e (DB 필요 — 아래 마이그레이션 선행)
 pnpm lint
 ```
+
+## 마이그레이션
+
+```bash
+docker compose up -d db
+cd apps/api
+pnpm migration:run          # 적용
+pnpm migration:show         # 적용 현황
+pnpm migration:revert       # 마지막 1개 되돌리기
+pnpm migration:generate src/database/migrations/<이름>   # 엔티티 변경분으로 생성
+```
+
+`synchronize`는 어떤 환경에서도 켜지 않는다 — 스키마 변경은 전부 마이그레이션 파일로 남아야
+리뷰와 롤백이 가능하다. 생성된 SQL은 항상 사람이 검토한다 (TypeORM 선택 시 감수하기로 한 부분).
 
 ---
 
