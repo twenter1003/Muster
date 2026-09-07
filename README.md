@@ -72,6 +72,11 @@ Ingest를 별도 서비스로 분리할 때 이 파일이 그대로 메시지 �
 
 ---
 
+## 데스크톱에서 해야 하는 설정
+
+OAuth 자격증명·GCS·배포 리소스 등 사람이 직접 해야 하는 작업은
+[docs/DESKTOP_SETUP.md](docs/DESKTOP_SETUP.md)에 정리해 두었다.
+
 ## 로컬 실행
 
 ```bash
