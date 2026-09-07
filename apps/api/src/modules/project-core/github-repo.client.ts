@@ -33,24 +33,21 @@ export class HttpGitHubRepoClient implements GitHubRepoClient {
   private readonly logger = new Logger(HttpGitHubRepoClient.name);
 
   async createWebhook(params: CreateWebhookParams): Promise<{ id: number }> {
-    const res = await fetch(
-      `https://api.github.com/repos/${params.owner}/${params.repo}/hooks`,
-      {
-        method: 'POST',
-        headers: this.headers(params.accessToken),
-        body: JSON.stringify({
-          name: 'web',
-          active: true,
-          events: [...WEBHOOK_EVENTS],
-          config: {
-            url: params.deliveryUrl,
-            content_type: 'json',
-            secret: params.secret,
-            insecure_ssl: '0',
-          },
-        }),
-      },
-    );
+    const res = await fetch(`https://api.github.com/repos/${params.owner}/${params.repo}/hooks`, {
+      method: 'POST',
+      headers: this.headers(params.accessToken),
+      body: JSON.stringify({
+        name: 'web',
+        active: true,
+        events: [...WEBHOOK_EVENTS],
+        config: {
+          url: params.deliveryUrl,
+          content_type: 'json',
+          secret: params.secret,
+          insecure_ssl: '0',
+        },
+      }),
+    });
 
     if (res.status !== 201) {
       throw await this.toApiException(res, '웹훅 등록에 실패했습니다.');

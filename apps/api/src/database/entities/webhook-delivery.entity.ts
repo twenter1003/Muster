@@ -1,4 +1,13 @@
-import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
+import { Project } from './project.entity';
 
 /**
  * 처리한 GitHub 웹훅 배달 ID. 설계서 16개 엔티티에는 없으나
@@ -16,10 +25,21 @@ export class WebhookDelivery {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
+  @Column({ type: 'uuid' })
+  project_id!: string;
+
+  /** GitHub의 X-GitHub-Event 헤더 값 (push, pull_request, workflow_run 등). */
+  @Column({ type: 'varchar', length: 50 })
+  event_type!: string;
+
   /** GitHub의 X-GitHub-Delivery 헤더 값 (UUID 형식이지만 문자열로 그대로 보관). */
   @Column({ type: 'varchar', length: 100, unique: true })
   delivery_id!: string;
 
   @CreateDateColumn({ type: 'timestamptz' })
   received_at!: Date;
+
+  @ManyToOne(() => Project, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'project_id' })
+  project!: Project;
 }

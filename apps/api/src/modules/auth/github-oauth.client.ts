@@ -79,7 +79,9 @@ export class HttpGitHubOAuthClient implements GitHubOAuthClient {
 
     if (!body.access_token) {
       // error_description은 사용자에게 노출하지 않고 로그에만 남긴다.
-      this.logger.warn(`토큰 교환 실패: ${body.error ?? 'unknown'} — ${body.error_description ?? ''}`);
+      this.logger.warn(
+        `토큰 교환 실패: ${body.error ?? 'unknown'} — ${body.error_description ?? ''}`,
+      );
       throw ApiException.unauthenticated('GitHub 인가 코드가 유효하지 않습니다.');
     }
 

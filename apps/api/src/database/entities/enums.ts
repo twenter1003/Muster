@@ -6,8 +6,15 @@
  * 값이 늘어날 여지가 있는 도메인(진행 단계, 감사 액션 등)에 부담이 크다.
  */
 
-/** PROJECTS.current_stage — Part 1 §3.4의 "기획 → 개발 → 테스트 → 배포" */
-export const PROJECT_STAGES = ['planning', 'development', 'testing', 'deployment'] as const;
+/** PROJECTS.current_stage — 설계서 Part 3 Enum 값 정의 */
+export const PROJECT_STAGES = [
+  'planning',
+  'design',
+  'development',
+  'testing',
+  'deployment',
+  'operation',
+] as const;
 export type ProjectStage = (typeof PROJECT_STAGES)[number];
 
 /** PROJECT_MEMBERS.role — Part 1 §3.6 */
@@ -47,13 +54,40 @@ export type PolicyTool = (typeof POLICY_TOOLS)[number];
 export const POLICY_VERDICTS = ['pass', 'fail'] as const;
 export type PolicyVerdict = (typeof POLICY_VERDICTS)[number];
 
-/**
- * AGENT_RUNS.status — 설계서에 값 집합이 없어 여기서 확정한다.
- * ended_at이 null인 동안 running, 종료 시 succeeded/failed.
- */
-export const AGENT_RUN_STATUSES = ['running', 'succeeded', 'failed'] as const;
+/** AGENT_RUNS.status — ended_at이 null인 동안 running, 종료 시 나머지 셋 중 하나. */
+export const AGENT_RUN_STATUSES = ['running', 'succeeded', 'failed', 'cancelled'] as const;
 export type AgentRunStatus = (typeof AGENT_RUN_STATUSES)[number];
 
 /** LOG_ENTRIES.level — Part 4 §7.2의 레벨 필터 `?level=error|warn|info` */
 export const LOG_LEVELS = ['error', 'warn', 'info'] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
+
+/** DOCUMENTS.upload_status — signed URL 발급 시 pending, 완료 확인 후 completed. */
+export const UPLOAD_STATUSES = ['pending', 'completed'] as const;
+export type UploadStatus = (typeof UPLOAD_STATUSES)[number];
+
+/**
+ * AUDIT_LOGS.action — 닫힌 값 집합.
+ * 새 감사 대상 행위를 추가할 때는 여기와 DB CHECK 제약을 함께 갱신해야 한다.
+ */
+export const AUDIT_ACTIONS = [
+  'login',
+  'logout',
+  'project.create',
+  'project.update',
+  'project.delete',
+  'document.create',
+  'document.delete',
+  'agent.create',
+  'agent.update',
+  'agent.delete',
+  'env_config.create',
+  'env_config.approve',
+  'env_config.reject',
+  'template.create',
+  'template.delete',
+  'budget.update',
+  'api_key.create',
+  'api_key.revoke',
+] as const;
+export type AuditAction = (typeof AUDIT_ACTIONS)[number];

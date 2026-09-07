@@ -7,6 +7,7 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+import { type AuditAction } from './enums';
 import { Project } from './project.entity';
 import { User } from './user.entity';
 
@@ -21,8 +22,7 @@ import { User } from './user.entity';
  * 감사 추적 목적 자체가 무너진다. 프로젝트는 어차피 soft delete라 행이 남지만,
  * 물리 삭제가 발생하더라도 감사 기록은 보존되도록 SET NULL로 둔다.
  *
- * action은 enum이 아니라 varchar다. 엔드포인트가 늘어날 때마다 타입을 고치는 대신
- * `<리소스>.<동작>` 규약(예: project.create, env_config.approve)을 코드 레벨에서 관리한다.
+ * action은 설계서 Part 3이 정의한 닫힌 값 집합이다. 저장은 varchar이고 허용값은 CHECK로 강제한다.
  */
 @Entity('audit_logs')
 @Index('idx_audit_logs_user_created', ['user_id', 'created_at'])
@@ -38,7 +38,7 @@ export class AuditLog {
   project_id!: string | null;
 
   @Column({ type: 'varchar', length: 100 })
-  action!: string;
+  action!: AuditAction;
 
   @CreateDateColumn({ type: 'timestamptz' })
   created_at!: Date;

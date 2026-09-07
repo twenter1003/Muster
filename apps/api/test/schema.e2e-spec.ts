@@ -158,12 +158,12 @@ describe('DB 스키마 ↔ ERD 일치 검증', () => {
    * (AddCheckConstraints 마이그레이션이 SQL로 직접 추가한 것들). 생성된 SQL을 검토 없이
    * 머지하면 승인 게이트를 지탱하는 제약이 조용히 사라지므로, 개수를 테스트로 고정한다.
    */
-  it('CHECK 제약 22개가 그대로 살아 있다', async () => {
+  it('CHECK 제약 23개가 그대로 살아 있다', async () => {
     const rows = await q<{ n: string }>(
       `SELECT count(*)::text AS n FROM pg_constraint
        WHERE contype = 'c' AND conname LIKE 'chk_%'`,
     );
-    expect(Number(rows[0].n)).toBe(22);
+    expect(Number(rows[0].n)).toBe(23);
   });
 
   it('USERS.github_token_ref는 nullable이다 (토큰 원문이 아닌 참조만 보관)', async () => {
@@ -172,6 +172,22 @@ describe('DB 스키마 ↔ ERD 일치 검증', () => {
        WHERE table_name = 'users' AND column_name = 'github_token_ref'`,
     );
     expect(rows).toEqual([{ is_nullable: 'YES', data_type: 'character varying' }]);
+  });
+
+  it('DORA 지표 점수는 nullable이다 (측정 불가 지표를 평균에서 제외하기 위해)', async () => {
+    const rows = await q<{ column_name: string; is_nullable: string }>(
+      `SELECT column_name, is_nullable FROM information_schema.columns
+       WHERE table_name = 'health_snapshots'
+         AND column_name IN ('deploy_freq_score','lead_time_score','change_fail_score','mttr_score','composite_score')
+       ORDER BY column_name`,
+    );
+    const byName = Object.fromEntries(rows.map((r) => [r.column_name, r.is_nullable]));
+    expect(byName.deploy_freq_score).toBe('YES');
+    expect(byName.lead_time_score).toBe('YES');
+    expect(byName.change_fail_score).toBe('YES');
+    expect(byName.mttr_score).toBe('YES');
+    // 종합 점수는 남은 지표의 평균이므로 항상 존재한다.
+    expect(byName.composite_score).toBe('NO');
   });
 
   it('감사 로그는 프로젝트 삭제로 연쇄 삭제되지 않는다 (SET NULL)', async () => {

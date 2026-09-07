@@ -79,6 +79,53 @@ describe('DB 제약 집행 검증', () => {
     }
   });
 
+  it('설계서가 추가한 단계(design, operation)를 받아들인다', async () => {
+    for (const stage of ['design', 'operation']) {
+      const id = await insert(
+        `INSERT INTO projects (name, current_stage) VALUES ('probe', $1) RETURNING id`,
+        [stage],
+      );
+      created.push(['projects', id]);
+      expect(id).toBeTruthy();
+    }
+  });
+
+  it('정의되지 않은 감사 액션은 거부된다', async () => {
+    const userId = await newUser();
+    await expect(
+      ds.query(`INSERT INTO audit_logs (user_id, action) VALUES ($1, 'project.exfiltrate')`, [
+        userId,
+      ]),
+    ).rejects.toThrow(/chk_audit_logs_action/);
+  });
+
+  it('cancelled 실행을 받아들인다', async () => {
+    const projectId = await newProject();
+    const agentId = await insert(
+      `INSERT INTO agents (project_id, name, config_md) VALUES ($1, 'a', '') RETURNING id`,
+      [projectId],
+    );
+    created.push(['agents', agentId]);
+
+    const runId = await insert(
+      `INSERT INTO agent_runs (agent_id, status, started_at, ended_at)
+       VALUES ($1, 'cancelled', now(), now()) RETURNING id`,
+      [agentId],
+    );
+    expect(runId).toBeTruthy();
+  });
+
+  it('측정 불가한 DORA 지표는 null로 남길 수 있다', async () => {
+    const projectId = await newProject();
+    const id = await insert(
+      `INSERT INTO health_snapshots
+         (project_id, deploy_freq_score, lead_time_score, change_fail_score, mttr_score, composite_score)
+       VALUES ($1, 3, NULL, NULL, 4, 3.50) RETURNING id`,
+      [projectId],
+    );
+    expect(id).toBeTruthy();
+  });
+
   it('DORA 등급 점수는 1~4를 벗어날 수 없다', async () => {
     const projectId = await newProject();
     await expect(
@@ -142,15 +189,24 @@ describe('DB 제약 집행 검증', () => {
   });
 
   it('같은 웹훅 배달 ID는 두 번 저장되지 않는다 (멱등성)', async () => {
+    const projectId = await newProject();
     const deliveryId = `probe-${Date.now()}`;
     const id = await insert(
-      `INSERT INTO webhook_deliveries (delivery_id) VALUES ($1) RETURNING id`,
-      [deliveryId],
+      `INSERT INTO webhook_deliveries (project_id, delivery_id, event_type)
+       VALUES ($1, $2, 'push') RETURNING id`,
+      [projectId, deliveryId],
     );
     created.push(['webhook_deliveries', id]);
 
+    // 다른 프로젝트에서 같은 delivery_id가 와도 막아야 한다 —
+    // GitHub의 배달 ID는 전역 고유이고, 재전송은 프로젝트를 가리지 않는다.
+    const otherProject = await newProject();
     await expect(
-      ds.query(`INSERT INTO webhook_deliveries (delivery_id) VALUES ($1)`, [deliveryId]),
+      ds.query(
+        `INSERT INTO webhook_deliveries (project_id, delivery_id, event_type)
+         VALUES ($1, $2, 'push')`,
+        [otherProject, deliveryId],
+      ),
     ).rejects.toThrow(/duplicate key|delivery_id/i);
   });
 
