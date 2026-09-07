@@ -7,7 +7,7 @@
 #   2. gcloud auth login   ← 대화형 로그인이라 스크립트로 대신할 수 없음
 #
 # 사용법:
-#   ./scripts/setup-gcs.sh <project-id> <bucket-name>
+#   ./scripts/setup-gcs.sh <project-id> <bucket-name> [region]
 #
 # 여러 번 실행해도 안전하다(멱등). 이미 있는 리소스는 건너뛴다.
 
@@ -15,13 +15,22 @@ set -euo pipefail
 
 PROJECT_ID="${1:-}"
 BUCKET="${2:-}"
-REGION="asia-northeast3"          # 서울. Cloud Run도 같은 리전에 둔다
+# 기본값은 Always Free 대상 리전이다. 무료 한도: Standard 5GB-월, Class A 5천/월,
+# Class B 5만/월, 북미발 아웃바운드 100GB/월. 대상은 us-central1/us-west1/us-east1 뿐이다.
+#
+# 미국에 둬도 서버 비용이 늘지 않는다 — 파일 바이트는 브라우저와 GCS가 signed URL로 직접
+# 주고받고 Cloud Run은 URL만 발급하기 때문이다. 한국에서의 왕복 지연(약 150~200ms)만 붙는다.
+# 큰 바이너리를 자주 받게 되면 asia-northeast3(서울)로 새 버킷을 만들어 복사한다.
+#
+# 버킷 리전은 생성 후 변경할 수 없다.
+REGION="${3:-us-central1}"
 SA_NAME="agentops-api"
 SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 
 if [[ -z "$PROJECT_ID" || -z "$BUCKET" ]]; then
-  echo "사용법: $0 <project-id> <bucket-name>" >&2
+  echo "사용법: $0 <project-id> <bucket-name> [region]" >&2
   echo "예:    $0 agentops-470101 agentops-docs-taewoo" >&2
+  echo "       $0 agentops-470101 agentops-docs-taewoo asia-northeast3" >&2
   exit 1
 fi
 

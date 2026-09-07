@@ -107,8 +107,15 @@ gcloud auth login                                          # 대화형 — 사�
 ./scripts/setup-gcs.sh <project-id> <bucket-name>          # 나머지 전부
 ```
 
-스크립트가 하는 일: 버킷 생성(서울 리전, 공개 접근 차단, uniform IAM) → 서비스 계정 생성 →
+스크립트가 하는 일: 버킷 생성(공개 접근 차단, uniform IAM) → 서비스 계정 생성 →
 버킷 스코프 권한 부여 → 키 없는 signed URL 서명 권한 → CORS. 여러 번 돌려도 안전하다.
+
+**리전 기본값은 `us-central1`** — GCS Always Free 대상(Standard 5GB-월)이 US 3개 리전
+(us-central1 / us-west1 / us-east1)뿐이기 때문이다. 미국에 둬도 서버 비용은 늘지 않는다:
+파일 바이트는 브라우저와 GCS가 signed URL로 직접 주고받고 Cloud Run은 URL만 발급한다.
+한국에서의 왕복 지연(약 150~200ms)만 붙으며, 문서 크기에서는 체감되지 않는다.
+큰 바이너리 비중이 커지면 서울로 새 버킷을 만들어 복사한다 —
+**버킷 리전은 생성 후 변경할 수 없다.** 세 번째 인자로 리전을 바꿀 수 있다.
 
 **JSON 키 파일을 만들지 않는다** — 키 파일 자체가 평문 자격증명이라 Part 2 §6.2와 충돌한다.
 대신 서비스 계정이 자기 자신에 대해 `serviceAccountTokenCreator`를 갖게 해서 키 없이 서명한다.
