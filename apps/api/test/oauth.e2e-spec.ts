@@ -21,10 +21,12 @@ import {
 class FakeGitHubClient implements GitHubOAuthClient {
   profile: GitHubProfile = { login: 'octocat', email: 'octo@example.com' };
   lastCode: string | null = null;
+  lastRedirectUri: string | null = null;
   issuedToken = 'gho_fake_access_token';
 
-  async exchangeCode(code: string): Promise<string> {
+  async exchangeCode(code: string, redirectUri: string): Promise<string> {
     this.lastCode = code;
+    this.lastRedirectUri = redirectUri;
     if (code === 'bad-code') throw new Error('invalid code');
     return this.issuedToken;
   }
@@ -150,6 +152,24 @@ describe('Phase 3 — GitHub OAuth 플로우 (e2e)', () => {
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
       expect(me.body.github_login).toBe(login);
+    });
+
+    /**
+     * GitHub은 authorize 때의 redirect_uri와 토큰 교환 때의 값이 다르면 교환을 거부한다.
+     * 두 값이 따로 계산되면 자격증명을 채운 뒤에야 터지므로 여기서 루프를 닫는다.
+     */
+    it('토큰 교환에 authorize와 똑같은 redirect_uri를 보낸다', async () => {
+      const authorize = await http().get('/api/v1/auth/github/login').expect(302);
+      const sentToGitHub = new URL(authorize.headers.location).searchParams.get('redirect_uri');
+
+      await http()
+        .get(
+          `/api/v1/auth/github/callback?code=good-code&state=${encodeURIComponent(state.issue())}`,
+        )
+        .expect(302);
+
+      expect(github.lastRedirectUri).toBe(sentToGitHub);
+      expect(github.lastRedirectUri).toBe('http://localhost:8080/api/v1/auth/github/callback');
     });
 
     it('USERS 레코드가 생성되고 GitHub 토큰 원문은 DB에 없다', async () => {

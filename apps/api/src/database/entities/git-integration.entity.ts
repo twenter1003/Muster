@@ -31,6 +31,15 @@ export class GitIntegration {
   @Column({ type: 'varchar', length: 500 })
   webhook_secret_ref!: string;
 
+  /**
+   * GitHub이 발급한 웹훅 id. 연동 해제 시 DELETE /repos/{owner}/{repo}/hooks/{hook_id}에 필요하다.
+   * ERD에 없던 컬럼이라 Phase 3에서 추가했다 — 이게 없으면 우리가 만든 웹훅을 지울 방법이 없다.
+   * 웹훅 등록에 실패한 채 연동만 남는 경우를 허용하지 않으므로 실제로는 항상 채워지지만,
+   * 과거 데이터 호환을 위해 nullable로 둔다.
+   */
+  @Column({ type: 'bigint', nullable: true })
+  webhook_id!: string | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   connected_at!: Date;
 

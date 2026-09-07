@@ -20,12 +20,46 @@ GITHUB_OAUTH_CLIENT_SECRET=
   **Generate a new client secret**으로 재발급하면 된다. 몇 번이든 가능.
 - `.env`는 `.gitignore`에 있어 커밋되지 않는다.
 - 등록 시 사용한 Redirect URI: `http://localhost:8080/api/v1/auth/github/callback`
+  이 값은 코드에서 `API_BASE_URL + /api/v1/auth/github/callback`으로 만들어진다.
+  다른 주소로 배포하면 `API_BASE_URL`도 함께 바꾸고 **GitHub 앱에도 같은 값을 등록**해야 한다
+  (GitHub은 authorize와 토큰 교환의 redirect_uri가 다르면 교환을 거부한다).
+- 스코프는 코드에서 `read:user`, `admin:repo_hook`을 요청한다. 앱 등록 화면에서 정하는 값이 아니다.
+
+### 값을 채운 뒤 확인
+
+```bash
+docker compose up -d
+open http://localhost:8080/api/v1/auth/github/login
+```
+
+GitHub 인증 화면 → 승인 → `http://localhost:5173/#token=...` 으로 돌아오면 성공이다.
+그 토큰으로 확인:
+
+```bash
+curl -H "Authorization: Bearer <토큰>" http://localhost:8080/api/v1/auth/me
+```
+
+**503이 나오면** `GITHUB_OAUTH_CLIENT_ID`가 비어 있다는 뜻이고, 응답 메시지가 어느 키인지 알려준다.
+
+> 자격증명이 없어도 OAuth 플로우 전체(state 검증·사용자 생성·토큰 보관·세션 발급·리다이렉트)는
+> 이미 fake 어댑터로 검증돼 있고, 실제 HTTP 요청 형태(엔드포인트·헤더·본문)는
+> GitHub 문서를 근거로 별도 단위 테스트가 고정해 두었다.
+> 값을 채우는 것 외에 코드를 고칠 일은 없어야 한다.
 
 ## 2. 테스트용 GitHub 레포 — Phase 3 웹훅 등록
 
 **막히는 것**: `POST /projects/:id/git-integration`의 웹훅 자동 등록 실검증.
 
 아무 레포나 되고 비어 있어도 된다. 레포 URL만 있으면 된다.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/projects/<프로젝트ID>/git-integration \
+  -H "Authorization: Bearer <토큰>" -H "Content-Type: application/json" \
+  -d '{"repo_url":"https://github.com/<owner>/<repo>"}'
+```
+
+성공하면 GitHub 레포의 **Settings → Webhooks**에 항목이 생긴다.
+`github.com`의 https 주소만 받는다 (타 호스팅은 설계서 Part 1 §9에서 범위 외).
 
 ---
 

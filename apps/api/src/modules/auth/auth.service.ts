@@ -53,7 +53,8 @@ export class AuthService {
       throw ApiException.unauthenticated('OAuth state가 유효하지 않습니다.');
     }
 
-    const accessToken = await this.github.exchangeCode(code);
+    // authorize 때 보낸 redirect_uri와 반드시 같은 값을 넘겨야 한다.
+    const accessToken = await this.github.exchangeCode(code, this.callbackUrl());
     const profile = await this.github.fetchProfile(accessToken);
     const user = await this.upsertUser(profile.login, profile.email);
 
@@ -85,7 +86,8 @@ export class AuthService {
     return this.users.save(this.users.create({ github_login: login, email }));
   }
 
-  private callbackUrl(): string {
+  /** GitHub에 등록한 콜백 주소. authorize와 토큰 교환 양쪽에서 이 값을 쓴다. */
+  callbackUrl(): string {
     const base = this.config.get<string>('API_BASE_URL') ?? '';
     return `${base.replace(/\/$/, '')}/api/v1/auth/github/callback`;
   }

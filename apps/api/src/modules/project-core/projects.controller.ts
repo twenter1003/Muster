@@ -16,10 +16,28 @@ import type { AuthenticatedUser } from '../../common/auth/authenticated-user';
 import { CursorPaginationQuery } from '../../common/pagination/pagination.dto';
 import { toPageRequest, type Page } from '../../common/pagination/paginate';
 import { ProjectsService } from './projects.service';
+import { GitIntegrationService } from './git-integration.service';
+import { CreateGitIntegrationDto } from './dto/create-git-integration.dto';
 import { ProjectMemberGuard } from './project-member.guard';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
-import type { Project } from '../../database/entities';
+import type { GitIntegration, Project } from '../../database/entities';
+
+/**
+ * 응답에 실리는 연동 표현.
+ * webhook_secret_ref는 내보내지 않는다 — 시크릿 자체는 아니지만 저장소 내부 구조를 드러낸다.
+ */
+interface GitIntegrationView {
+  id: string;
+  repo_url: string;
+  connected_at: string;
+}
+
+const toGitView = (g: GitIntegration): GitIntegrationView => ({
+  id: g.id,
+  repo_url: g.repo_url,
+  connected_at: g.connected_at.toISOString(),
+});
 
 /** 응답에 실리는 프로젝트 표현. deleted_at 같은 내부 컬럼은 내보내지 않는다. */
 interface ProjectView {
@@ -41,7 +59,10 @@ const toView = (p: Project): ProjectView => ({
 /** 설계서 Part 4 §3 — ProjectCore. */
 @Controller('projects')
 export class ProjectsController {
-  constructor(private readonly projects: ProjectsService) {}
+  constructor(
+    private readonly projects: ProjectsService,
+    private readonly gitIntegrations: GitIntegrationService,
+  ) {}
 
   @Get()
   async list(
@@ -78,5 +99,28 @@ export class ProjectsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id') id: string): Promise<void> {
     await this.projects.softDelete(id);
+  }
+
+  /** 설계서 Part 4 §3 — GitHub 레포 연동 등록 (웹훅 자동 등록 포함). */
+  @Post(':id/git-integration')
+  @UseGuards(ProjectMemberGuard)
+  @HttpCode(HttpStatus.CREATED)
+  async connectGit(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateGitIntegrationDto,
+  ): Promise<GitIntegrationView> {
+    return toGitView(await this.gitIntegrations.connect(id, user.id, dto.repo_url));
+  }
+
+  /** 설계서 Part 4 §3 — 연동 해제. GitHub 웹훅과 시크릿도 정리한다. */
+  @Delete(':id/git-integration')
+  @UseGuards(ProjectMemberGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async disconnectGit(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    await this.gitIntegrations.disconnect(id, user.id);
   }
 }
