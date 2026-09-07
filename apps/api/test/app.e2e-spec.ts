@@ -83,7 +83,7 @@ describe('AgentOps API (e2e)', () => {
     });
   });
 
-  it('Phase 1 세션 해석기는 어떤 토큰도 통과시키지 않는다', async () => {
+  it('DB에 없는 토큰은 401이다', async () => {
     const res = await request(app.getHttpServer())
       .get('/api/v1/__probe')
       .set('Authorization', 'Bearer anything')

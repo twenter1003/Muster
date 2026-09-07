@@ -2,7 +2,6 @@ import { Global, Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { AllExceptionsFilter } from './errors/all-exceptions.filter';
 import { AuthGuard } from './auth/auth.guard';
-import { NullSessionResolver, SESSION_RESOLVER } from './auth/session-resolver';
 import { HealthController } from './health/health.controller';
 
 /**
@@ -15,9 +14,7 @@ import { HealthController } from './health/health.controller';
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_GUARD, useClass: AuthGuard },
-    // Phase 3에서 실제 세션 저장소 기반 구현으로 교체한다.
-    { provide: SESSION_RESOLVER, useClass: NullSessionResolver },
+    // SESSION_RESOLVER는 AuthModule(@Global)이 제공한다.
   ],
-  exports: [SESSION_RESOLVER],
 })
 export class CommonModule {}

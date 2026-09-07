@@ -22,6 +22,13 @@ const repositoryProviders: Provider[] = ALL_ENTITIES.map((entity) => ({
     dataSource.getRepository(entity),
 }));
 
+/**
+ * DataSource를 클래스 토큰으로도 주입받을 수 있게 한다.
+ * 이게 없으면 `constructor(private ds: DataSource)`가 조용히 실패한다 —
+ * @nestjs/typeorm이 제공하던 것과 같은 편의다.
+ */
+const dataSourceAlias: Provider = { provide: DataSource, useExisting: DATA_SOURCE };
+
 const dataSourceProvider: Provider = {
   provide: DATA_SOURCE,
   useFactory: async (): Promise<DataSource> => {
@@ -41,8 +48,8 @@ const dataSourceProvider: Provider = {
  */
 @Global()
 @Module({
-  providers: [dataSourceProvider, ...repositoryProviders],
-  exports: [DATA_SOURCE, ...ALL_ENTITIES.map(getRepositoryToken)],
+  providers: [dataSourceProvider, dataSourceAlias, ...repositoryProviders],
+  exports: [DATA_SOURCE, DataSource, ...ALL_ENTITIES.map(getRepositoryToken)],
 })
 export class DatabaseModule implements OnApplicationShutdown {
   constructor(@Inject(DATA_SOURCE) private readonly dataSource: DataSource) {}

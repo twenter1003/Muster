@@ -1,9 +1,20 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
+import { SESSION_RESOLVER } from '../../common/auth/session-resolver';
+import { SessionService } from './session.service';
+import { DbSessionResolver } from './db-session.resolver';
+import { AuthController } from './auth.controller';
 
 /**
- * Auth — 인증, 세션/토큰 관리, (확장 단계) PROJECT_MEMBERS 권한 검사.
- * Part 1 §3.6 / 통합설계서 Part 2 §2 / Part 4 §2.
- * Phase 3에서 GitHub OAuth 플로우와 SessionResolver 실제 구현을 채운다.
+ * Auth — 인증, 세션/토큰 관리.
+ * 설계서 Part 1 §3.6 / Part 4 §2.
+ *
+ * @Global인 이유: CommonModule의 전역 AuthGuard가 SESSION_RESOLVER를 주입받는데,
+ * 공통 레이어가 기능 모듈을 import하면 의존 방향이 뒤집힌다. 토큰만 전역으로 공개한다.
  */
-@Module({})
+@Global()
+@Module({
+  controllers: [AuthController],
+  providers: [SessionService, { provide: SESSION_RESOLVER, useClass: DbSessionResolver }],
+  exports: [SESSION_RESOLVER, SessionService],
+})
 export class AuthModule {}
