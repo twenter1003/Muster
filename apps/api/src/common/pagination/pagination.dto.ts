@@ -4,7 +4,7 @@ import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 export const DEFAULT_PAGE_LIMIT = 20;
 export const MAX_PAGE_LIMIT = 100;
 
-/** API 설계 1장: `?cursor=&limit=` (기본 20, 최대 100). */
+/** 통합설계서 Part 4 §1: `?cursor=&limit=` (기본 20, 최대 100). */
 export class CursorPaginationQuery {
   @IsOptional()
   @IsString()

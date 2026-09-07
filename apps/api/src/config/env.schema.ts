@@ -4,7 +4,7 @@ import { z } from 'zod';
  * 부팅 시점에 환경변수를 검증한다. 누락된 설정 때문에 런타임에 실패하지 않도록,
  * 잘못된 값이면 서버가 아예 뜨지 않는다.
  *
- * 시크릿(GitHub 웹훅 시크릿, Claude API 키 등)은 TechSpec 6.2에 따라
+ * 시크릿(GitHub 웹훅 시크릿, Claude API 키 등)은 통합설계서 Part 2 §6.2에 따라
  * GCP Secret Manager에서 주입되며 코드/DB에 평문으로 두지 않는다.
  */
 export const envSchema = z.object({

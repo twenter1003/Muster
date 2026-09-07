@@ -11,7 +11,7 @@ import { ErrorCode, ErrorCodeValue } from './error-codes';
 import type { ApiErrorBody } from './api.exception';
 
 /**
- * 어떤 예외가 나가든 응답 본문을 `{ error: { code, message } }`로 통일한다 (API 설계 1장).
+ * 어떤 예외가 나가든 응답 본문을 `{ error: { code, message } }`로 통일한다 (통합설계서 Part 4 §1).
  * ApiException이 아닌 Nest 기본 예외(ValidationPipe 등)도 여기서 번역된다.
  */
 @Catch()

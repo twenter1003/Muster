@@ -1,7 +1,7 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 import { ErrorCode, ErrorCodeValue } from './error-codes';
 
-/** API 설계 1장의 에러 본문 형태. */
+/** 통합설계서 Part 4 §1의 에러 본문 형태. */
 export interface ApiErrorBody {
   error: { code: ErrorCodeValue; message: string };
 }

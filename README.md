@@ -2,8 +2,9 @@
 
 Claude Code/LLM 기반 프로젝트들을 하나의 페이지에서 생성·구성·관리·모니터링하는 통합 관리 플랫폼.
 
-**요구사항 원천**: `AgentOps_PRD_v1.5.md`, `AgentOps_TechSpec_v1.3.md`, `AgentOps_API_v1.1.md`, `AgentOps_ERD_v1.0.md`
-문서 충돌 시 우선순위: **API 설계 > 기술 사양서 > PRD**
+**요구사항 원천**: `AgentOps_통합설계서_v2.0.md` (레포 루트) — 유일한 원천.
+이전 4개 문서(PRD v1.5 / TechSpec v1.3 / API v1.1 / ERD v1.0)는 **폐기**되었으므로 참조하지 않는다.
+문서 내부 충돌 시 우선순위: **Part 4(API) > Part 2(기술 사양) > Part 1(PRD)**
 
 ---
 
@@ -25,19 +26,19 @@ AgentOps/
 │   │       ├── config/
 │   │       │   └── env.schema.ts   # Zod 환경변수 검증 (실패 시 부팅 차단)
 │   │       ├── common/             # 공통 레이어 (@Global)
-│   │       │   ├── errors/         # API 설계 1장 에러 포맷
+│   │       │   ├── errors/         # Part 4 1장 에러 포맷
 │   │       │   ├── pagination/     # 커서 기반 페이지네이션 유틸
 │   │       │   ├── auth/           # 전역 인증 가드 뼈대
-│   │       │   ├── events/         # 모듈 간 이벤트 계약 (TechSpec 8장)
+│   │       │   ├── events/         # 모듈 간 이벤트 계약 (Part 2 8장)
 │   │       │   └── health/         # Cloud Run 기동 확인
-│   │       └── modules/            # TechSpec 2장의 7개 모듈 경계
-│   │           ├── auth/           # PRD 3.6 / API 2장       → Phase 3
-│   │           ├── project-core/   # PRD 3.5 / API 3장       → Phase 3
-│   │           ├── doc-store/      # PRD 3.1 / API 4장       → Phase 4
-│   │           ├── agent-registry/ # PRD 3.3 / API 6장       → Phase 4
-│   │           ├── env-catalog/    # PRD 3.2 / API 5장       → Phase 5
-│   │           ├── ingest/         # PRD 3.4 / API 7.1       → Phase 6
-│   │           └── realtime/       # PRD 3.4 / API 7.3       → Phase 6
+│   │       └── modules/            # Part 2 2장의 7개 모듈 경계
+│   │           ├── auth/           # Part1 3.6 / Part4 2장  → Phase 3
+│   │           ├── project-core/   # Part1 3.5 / Part4 3장  → Phase 3
+│   │           ├── doc-store/      # Part1 3.1 / Part4 4장  → Phase 4
+│   │           ├── agent-registry/ # Part1 3.3 / Part4 6장  → Phase 4
+│   │           ├── env-catalog/    # Part1 3.2 / Part4 5장  → Phase 5
+│   │           ├── ingest/         # Part1 3.4 / Part4 7.1  → Phase 6
+│   │           └── realtime/       # Part1 3.4 / Part4 7.3  → Phase 6
 │   └── web/                    # React + Vite (최소 프론트, /api 프록시)
 ```
 
@@ -53,7 +54,7 @@ AgentOps/
   (OAuth 로그인/콜백, GitHub 웹훅). 토큰→사용자 해석은 `SessionResolver` 인터페이스 뒤에 있고
   Phase 1은 아무것도 통과시키지 않는 `NullSessionResolver`가 바인딩되어 있다.
 
-### 모듈 경계 강제 (지시서 원칙 4 / TechSpec 8장)
+### 모듈 경계 강제 (지시서 원칙 4 / Part 2 8장)
 
 Ingest는 다른 모듈을 직접 호출하지 않고 `common/events/domain-events.ts`의 이벤트만 발행한다.
 이 규칙은 문서로만 두지 않고 **두 겹으로 강제**한다:
@@ -98,4 +99,4 @@ pnpm lint
 Realtime의 SSE는 인프로세스 EventEmitter2 이벤트를 구독한다. 인프로세스 이벤트는 인스턴스 간
 전달되지 않으므로, 인스턴스 A가 수신한 웹훅이 인스턴스 B에 붙은 SSE 클라이언트에 도달하지 않는다.
 따라서 **Cloud Run은 `max-instances=1`로 고정**한다 (Phase 7 배포 설정에 반영).
-이 제약을 풀어야 할 시점에는 TechSpec 8장이 예고한 대로 이벤트 발행부를 Pub/Sub으로 교체한다.
+이 제약을 풀어야 할 시점에는 Part 2 8장이 예고한 대로 이벤트 발행부를 Pub/Sub으로 교체한다.

@@ -5,8 +5,8 @@ import type { AuthenticatedUser } from './authenticated-user';
  * Bearer 토큰 -> 사용자 해석 계약.
  * Phase 3(Auth 모듈)에서 실제 세션 저장소 기반 구현으로 교체한다.
  *
- * 주의: API 설계 2장의 `POST /auth/logout`("세션 토큰 무효화")은 서버 측 세션 상태를
- * 전제하는데 ERD에 SESSIONS 엔티티가 없다. Phase 2 착수 시 해소 필요한 미결 사항.
+ * 세션은 SESSIONS 테이블(token_hash/expires_at/revoked_at)로 관리한다. 즉시 무효화 계약을
+ * 지키기 위한 서버 세션 방식이며, 요청당 DB 조회 1회를 감수한다 (통합설계서 Part 3 설계 결정).
  */
 export interface SessionResolver {
   resolve(token: string): Promise<AuthenticatedUser | null>;

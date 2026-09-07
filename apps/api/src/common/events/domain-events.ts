@@ -1,5 +1,5 @@
 /**
- * 모듈 간 인프로세스 이벤트 계약 (TechSpec 8장, EventEmitter2).
+ * 모듈 간 인프로세스 이벤트 계약 (통합설계서 Part 2 §8, EventEmitter2).
  *
  * Ingest는 다른 모듈을 직접 호출하지 않고 이 이벤트만 발행한다. 발행자(Ingest)와
  * 구독자(Realtime 등)가 서로를 import하지 않도록 계약은 common에 둔다.

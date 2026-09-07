@@ -6,7 +6,7 @@ import { IS_PUBLIC_KEY } from './public.decorator';
 import { SESSION_RESOLVER, type SessionResolver } from './session-resolver';
 
 /**
- * API 설계 1장: `Authorization: Bearer <token>`.
+ * 통합설계서 Part 4 §1: `Authorization: Bearer <token>`.
  * 전역 가드로 등록하고, 예외는 @Public()으로 opt-out 한다 (기본 차단).
  */
 @Injectable()

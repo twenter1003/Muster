@@ -1,7 +1,7 @@
 import { CursorPaginationQuery, DEFAULT_PAGE_LIMIT } from './pagination.dto';
 import { CursorPayload, decodeCursor, encodeCursor } from './cursor';
 
-/** API 설계 1장: `{ items: [...], next_cursor: string | null }`. */
+/** 통합설계서 Part 4 §1: `{ items: [...], next_cursor: string | null }`. */
 export interface Page<T> {
   items: T[];
   next_cursor: string | null;

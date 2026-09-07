@@ -16,7 +16,7 @@ module.exports = {
   },
   overrides: [
     {
-      // TechSpec 8장 / 지시서 원칙 4: Ingest는 다른 모듈을 직접 호출하지 않고
+      // 통합설계서 Part 2 §8 / 지시서 원칙 4: Ingest는 다른 모듈을 직접 호출하지 않고
       // EventEmitter2 이벤트만 발행한다. 규칙을 린터로 강제한다.
       files: ['src/modules/ingest/**/*.ts'],
       rules: {
@@ -40,7 +40,7 @@ module.exports = {
                   '../realtime/*',
                 ],
                 message:
-                  'Ingest 모듈은 다른 모듈을 직접 import할 수 없습니다. EventEmitter2 이벤트를 발행하세요 (TechSpec 8장).',
+                  'Ingest 모듈은 다른 모듈을 직접 import할 수 없습니다. EventEmitter2 이벤트를 발행하세요 (통합설계서 Part 2 §8).',
               },
             ],
           },

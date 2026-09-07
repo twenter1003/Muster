@@ -14,7 +14,7 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
-    // TechSpec 8장: 모듈 간 결합은 인프로세스 이벤트로만 한다.
+    // 통합설계서 Part 2 §8: 모듈 간 결합은 인프로세스 이벤트로만 한다.
     EventEmitterModule.forRoot({ wildcard: false, verboseMemoryLeak: true }),
     CommonModule,
     AuthModule,
