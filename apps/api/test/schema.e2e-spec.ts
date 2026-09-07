@@ -153,6 +153,27 @@ describe('DB 스키마 ↔ ERD 일치 검증', () => {
     expect(rows).toHaveLength(1);
   });
 
+  /**
+   * `migration:generate`는 엔티티 메타데이터에 없는 CHECK 제약을 DROP하려 든다
+   * (AddCheckConstraints 마이그레이션이 SQL로 직접 추가한 것들). 생성된 SQL을 검토 없이
+   * 머지하면 승인 게이트를 지탱하는 제약이 조용히 사라지므로, 개수를 테스트로 고정한다.
+   */
+  it('CHECK 제약 22개가 그대로 살아 있다', async () => {
+    const rows = await q<{ n: string }>(
+      `SELECT count(*)::text AS n FROM pg_constraint
+       WHERE contype = 'c' AND conname LIKE 'chk_%'`,
+    );
+    expect(Number(rows[0].n)).toBe(22);
+  });
+
+  it('USERS.github_token_ref는 nullable이다 (토큰 원문이 아닌 참조만 보관)', async () => {
+    const rows = await q<{ is_nullable: string; data_type: string }>(
+      `SELECT is_nullable, data_type FROM information_schema.columns
+       WHERE table_name = 'users' AND column_name = 'github_token_ref'`,
+    );
+    expect(rows).toEqual([{ is_nullable: 'YES', data_type: 'character varying' }]);
+  });
+
   it('감사 로그는 프로젝트 삭제로 연쇄 삭제되지 않는다 (SET NULL)', async () => {
     const rows = await q<{ delete_rule: string }>(
       `SELECT rc.delete_rule

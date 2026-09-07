@@ -3,6 +3,9 @@ import { SESSION_RESOLVER } from '../../common/auth/session-resolver';
 import { SessionService } from './session.service';
 import { DbSessionResolver } from './db-session.resolver';
 import { AuthController } from './auth.controller';
+import { AuthService } from './auth.service';
+import { OAuthStateService } from './oauth-state.service';
+import { GITHUB_OAUTH_CLIENT, HttpGitHubOAuthClient } from './github-oauth.client';
 
 /**
  * Auth — 인증, 세션/토큰 관리.
@@ -14,7 +17,13 @@ import { AuthController } from './auth.controller';
 @Global()
 @Module({
   controllers: [AuthController],
-  providers: [SessionService, { provide: SESSION_RESOLVER, useClass: DbSessionResolver }],
+  providers: [
+    SessionService,
+    AuthService,
+    OAuthStateService,
+    { provide: SESSION_RESOLVER, useClass: DbSessionResolver },
+    { provide: GITHUB_OAUTH_CLIENT, useClass: HttpGitHubOAuthClient },
+  ],
   exports: [SESSION_RESOLVER, SessionService],
 })
 export class AuthModule {}
