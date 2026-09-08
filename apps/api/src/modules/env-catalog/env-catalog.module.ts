@@ -14,7 +14,7 @@ import {
   DOCKER_CONFIG_GENERATOR,
   type DockerConfigGenerator,
 } from './docker-config-generator';
-import { GeminiDockerConfigGenerator } from './gemini-docker-config.generator';
+import { VertexDockerConfigGenerator } from './vertex-docker-config.generator';
 import { POLICY_GATE, type PolicyGate } from './policy-gate';
 import { CliPolicyGate } from './cli-policy-gate';
 import { ApiException } from '../../common/errors/api.exception';
@@ -28,7 +28,7 @@ class UnconfiguredGenerator implements DockerConfigGenerator {
   generate(): never {
     throw new ApiException(
       ErrorCode.INTERNAL,
-      'GEMINI_API_KEY가 설정되지 않아 도커 설정을 생성할 수 없습니다.',
+      'GCP_PROJECT_ID가 설정되지 않아 도커 설정을 생성할 수 없습니다.',
       503,
     );
   }
@@ -49,10 +49,12 @@ class UnconfiguredGenerator implements DockerConfigGenerator {
       provide: DOCKER_CONFIG_GENERATOR,
       inject: [ConfigService],
       useFactory: (config: ConfigService): DockerConfigGenerator => {
-        const key = config.get<string>('GEMINI_API_KEY');
-        if (!key) return new UnconfiguredGenerator();
-        return new GeminiDockerConfigGenerator(
-          key,
+        // Vertex AI는 ADC로 인증하므로 키가 없다. 프로젝트만 있으면 된다.
+        const projectId = config.get<string>('GCP_PROJECT_ID');
+        if (!projectId) return new UnconfiguredGenerator();
+        return new VertexDockerConfigGenerator(
+          projectId,
+          config.get<string>('VERTEX_LOCATION') ?? 'us-central1',
           config.get<string>('GEMINI_MODEL') ?? 'gemini-2.5-flash',
         );
       },

@@ -45,10 +45,11 @@ export const envSchema = z.object({
   GCS_SIGNER_SERVICE_ACCOUNT: z.string().optional(),
 
   /**
-   * LLM(Gemini) 자격증명과 모델. 없으면 환경 구성 생성만 503을 낸다 (Part 4 §5.2).
-   * 벤더를 Claude에서 Gemini로 바꾼 근거는 DESIGN_DRIFT.md 4번.
+   * LLM. Vertex AI로 Gemini를 부르므로 API 키가 없다 — 인증은 GCS와 같은 ADC를 쓴다.
+   * 프로젝트는 GCP_PROJECT_ID를 그대로 쓰고, 없으면 환경 구성 생성만 503을 낸다.
+   * 벤더 근거는 DESIGN_DRIFT.md 4번, Vertex 전환 근거는 8번.
    */
-  GEMINI_API_KEY: z.string().optional(),
+  VERTEX_LOCATION: z.string().default('us-central1'),
   GEMINI_MODEL: z.string().default('gemini-2.5-flash'),
 });
 

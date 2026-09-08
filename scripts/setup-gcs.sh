@@ -44,7 +44,9 @@ gcloud config set project "$PROJECT_ID" --quiet
 
 echo "==> 필요한 API 활성화"
 # storage: 버킷/객체, iamcredentials: 키 파일 없이 signed URL에 서명하기 위함
-gcloud services enable storage.googleapis.com iamcredentials.googleapis.com --quiet
+# aiplatform: Vertex AI로 Gemini를 부른다 (LLM용 API 키를 두지 않기 위해).
+gcloud services enable storage.googleapis.com iamcredentials.googleapis.com \
+  aiplatform.googleapis.com --quiet
 
 echo "==> 버킷 생성: gs://$BUCKET ($REGION)"
 if gcloud storage buckets describe "gs://$BUCKET" >/dev/null 2>&1; then

@@ -138,12 +138,20 @@ gcloud auth login
 
 ---
 
-## 5. Gemini API 키 — Phase 5 (EnvCatalog)
+## 5. LLM (Vertex AI) — Phase 5 ✅ 완료 (2026-09-09)
 
-**막히는 것**: LLM으로 Dockerfile/compose를 생성하는 기능.
+**API 키가 필요 없다.** Vertex AI로 Gemini를 부르고 인증은 ADC로 한다 — GCS에
+이미 쓰는 그 자격증명이다.
 
-https://aistudio.google.com/apikey 에서 발급 후 `apps/api/.env`에 추가한다.
-환경변수 이름은 `GEMINI_API_KEY`다 (공식 SDK가 읽는 이름).
+한 번만 해두면 된다:
+
+```bash
+gcloud services enable aiplatform.googleapis.com --project=<프로젝트ID>
+```
+
+> AI Studio API 키는 쓰지 않는다. 표준 키(`AIza`)는 2026년 9월부로 거부되고,
+> 새 auth key(`AQ.`)는 generativelanguage 엔드포인트에서 401을 내는 문제가
+> 있다. 근거는 [DESIGN_DRIFT.md](DESIGN_DRIFT.md) 8번.
 
 > 설계서는 Claude API를 전제했지만 Gemini로 바꿨다. 플랫폼이 이미 GCP 단일 벤더라
 > LLM만 다른 벤더에 두면 계정·과금이 하나 더 늘기 때문이다. 근거는
@@ -180,8 +188,8 @@ brew install trivy conftest
 | 2. 테스트용 레포 + 웹훅 검증 | Phase 3 | ✅ 완료 |
 | 3. Remote Control | 선택 | ✅ 완료 |
 | 4. GCS 버킷 | Phase 4 전 | ✅ 완료 |
-| 5. Gemini API 키 | Phase 5 전 | 미착수 (2분) |
-| 6. Trivy/Conftest | Phase 5 전 | 미결정 |
+| 5. LLM (Vertex AI) | Phase 5 | ✅ 완료 |
+| 6. Trivy/Conftest | Phase 5 | ✅ 완료 (API 이미지에 포함) |
 | 7. GCP 배포 리소스 | Phase 7 전 | 미착수 (원격 레포만 완료) |
 
 **Phase 3은 닫혔다.** 웹훅 *수신* 엔드포인트(`/api/v1/webhooks/github`)가 없는 것은

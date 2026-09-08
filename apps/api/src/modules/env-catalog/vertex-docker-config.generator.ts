@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { GoogleAuth } from 'google-auth-library';
 import { ApiException } from '../../common/errors/api.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import type {
@@ -6,9 +7,6 @@ import type {
   GeneratedDockerConfig,
   GenerateParams,
 } from './docker-config-generator';
-
-/** 공식 SDK를 얹지 않고 REST를 직접 부른다 — 호출이 하나뿐이고 의존성을 늘릴 이유가 없다. */
-const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 /**
  * LLM에 넘길 지시. Policy Gate가 뒤에서 막아주지만, 애초에 위험한 설정을 덜 만들게
@@ -33,45 +31,69 @@ const SYSTEM_INSTRUCTION = `당신은 도커 설정을 생성한다. 반드시 �
 - compose 서비스에는 메모리·CPU 제한을 명시한다.
 - 시크릿을 이미지에 굽지 않는다.`;
 
-export class GeminiDockerConfigGenerator implements DockerConfigGenerator {
-  private readonly logger = new Logger(GeminiDockerConfigGenerator.name);
+/**
+ * Vertex AI로 Gemini를 부른다.
+ *
+ * AI Studio API 키를 쓰지 않는 이유는 두 가지다:
+ * 1. Google이 표준 키(AIza)를 2026년 9월부로 거부하고 auth key(AQ.)로 옮기는 중인데,
+ *    그 새 키가 generativelanguage 엔드포인트에서 401(ACCESS_TOKEN_TYPE_UNSUPPORTED)을
+ *    내는 문제가 2026년 6월부터 광범위하게 보고돼 있다. 우리가 고칠 수 있는 문제가 아니다.
+ * 2. Vertex AI는 ADC로 인증하므로 **보관할 키 자체가 없다**. 설계서 Part 2 §6.2의
+ *    "평문 자격증명을 두지 않는다"에 더 맞고, GCS에 이미 쓰는 자격증명을 그대로 쓴다.
+ */
+export class VertexDockerConfigGenerator implements DockerConfigGenerator {
+  private readonly logger = new Logger(VertexDockerConfigGenerator.name);
+  private readonly auth = new GoogleAuth({
+    scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+  });
 
   constructor(
-    private readonly apiKey: string,
+    private readonly projectId: string,
+    private readonly location: string,
     private readonly model: string,
   ) {}
 
   async generate(params: GenerateParams): Promise<GeneratedDockerConfig> {
-    const res = await fetch(
-      `${GEMINI_ENDPOINT}/${this.model}:generateContent`,
-      {
-        method: 'POST',
-        // 키를 쿼리 파라미터가 아니라 헤더로 보낸다. URL은 로그·프록시·리퍼러에 남는다.
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.apiKey },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
-          contents: [{ role: 'user', parts: [{ text: buildPrompt(params) }] }],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            // 도커 설정은 창의성이 필요한 산출물이 아니다. 같은 입력에는 같은 출력이 낫다.
-            temperature: 0.1,
-          },
-        }),
+    const url =
+      `https://${this.location}-aiplatform.googleapis.com/v1/projects/${this.projectId}` +
+      `/locations/${this.location}/publishers/google/models/${this.model}:generateContent`;
+
+    const client = await this.auth.getClient();
+    const token = await client.getAccessToken();
+    if (!token.token) {
+      throw new ApiException(
+        ErrorCode.INTERNAL,
+        'GCP 자격증명을 가져오지 못했습니다. gcloud auth application-default login이 필요합니다.',
+        503,
+      );
+    }
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token.token}`,
+        'Content-Type': 'application/json',
       },
-    );
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+        contents: [{ role: 'user', parts: [{ text: buildPrompt(params) }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          // 도커 설정은 창의성이 필요한 산출물이 아니다. 같은 입력에는 같은 출력이 낫다.
+          temperature: 0.1,
+        },
+      }),
+    });
 
     if (!res.ok) {
-      // 원문에는 키 일부나 할당량 정보가 섞일 수 있어 로그에만 남긴다.
+      // 원문에는 프로젝트 구조나 할당량 정보가 섞일 수 있어 로그에만 남긴다.
       const detail = await res.text().catch(() => '');
-      this.logger.warn(`Gemini ${res.status}: ${detail.slice(0, 500)}`);
+      this.logger.warn(`Vertex AI ${res.status}: ${detail.slice(0, 500)}`);
 
-      if (res.status === 400 || res.status === 401 || res.status === 403) {
-        // 401도 여기 포함한다. 빠뜨리면 "인증 실패"가 일반 502로 떨어져,
-        // 고칠 수 있는 설정 문제를 서버 장애처럼 보이게 한다.
+      if (res.status === 401 || res.status === 403) {
         throw new ApiException(
           ErrorCode.INTERNAL,
-          'LLM 자격증명이 거부되었습니다. GEMINI_API_KEY를 확인해 주세요 ' +
-            '(AI Studio 키는 AIza로 시작합니다).',
+          'Vertex AI 접근이 거부되었습니다. aiplatform.googleapis.com 활성화와 ADC 권한을 확인해 주세요.',
           503,
         );
       }
@@ -98,7 +120,11 @@ function buildPrompt(params: GenerateParams): string {
   ];
 
   if (params.templatePreset) {
-    lines.push('', '이 템플릿 프리셋을 출발점으로 삼는다:', JSON.stringify(params.templatePreset, null, 2));
+    lines.push(
+      '',
+      '이 템플릿 프리셋을 출발점으로 삼는다:',
+      JSON.stringify(params.templatePreset, null, 2),
+    );
   }
 
   return lines.join('\n');
@@ -111,7 +137,7 @@ function buildPrompt(params: GenerateParams): string {
  * dockerfile이 undefined인 채로 Policy Gate에 넘어가고, 검사 도구는 빈 파일을 보고
  * "위반 없음"이라 답한다 — 아무것도 검사하지 않은 구성이 policy_passed가 되는 경로다.
  */
-function parseResponse(body: unknown): GeneratedDockerConfig {
+export function parseResponse(body: unknown): GeneratedDockerConfig {
   const text = (body as { candidates?: { content?: { parts?: { text?: string }[] } }[] })
     ?.candidates?.[0]?.content?.parts?.[0]?.text;
 

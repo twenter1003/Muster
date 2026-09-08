@@ -83,6 +83,24 @@ Part 1 §10도 통과율/재시도율을 추적 지표로 잡아 두었다.
 `ApiKeysService.resolveProject`와 `ApiKeyGuard`를 신설했다. 폐기된 키는 매칭되지 않으며,
 없는 키와 폐기된 키의 응답을 동일하게 두었다 — 다르면 유효한 키를 탐색할 단서가 된다.
 
+## 8. LLM 호출 경로 — AI Studio API 키 → Vertex AI (강제 전환) — Phase 5
+
+4번에서 Gemini를 택할 때는 AI Studio API 키(`AIza...`)를 전제했다. 그 전제가 무너졌다.
+
+- Google이 표준 키를 **2026년 9월부로 거부**하고 auth key(`AQ.`)로 옮기는 중이다.
+- 그런데 새 `AQ.` 키가 `generativelanguage.googleapis.com`에서 401
+  (`ACCESS_TOKEN_TYPE_UNSUPPORTED`)을 낸다. 헤더/쿼리, SDK/REST, v1/v1beta 무관하게
+  동일하며 2026년 6월부터 광범위하게 보고돼 있다. 우리가 고칠 수 있는 문제가 아니다.
+
+**채택**: 같은 Gemini 모델을 **Vertex AI**로 부른다. 벤더 선택(4번)은 그대로 유지된다.
+
+부수 효과가 오히려 설계에 더 맞다: Vertex AI는 ADC로 인증하므로 **보관할 키가 없다**.
+설계서 Part 2 §6.2의 "평문 자격증명을 두지 않는다"를 LLM 경로에서도 만족하고,
+GCS에 이미 쓰는 자격증명을 그대로 재사용한다. 대신 AI Studio의 무료 티어는 없어지며
+호출당 과금이 붙는다(호출 하나에 약 0.005달러 수준).
+
+`GEMINI_API_KEY`는 더 이상 쓰지 않는다. `VERTEX_LOCATION`이 그 자리를 대신한다.
+
 ---
 
 ## 경미한 추가 (보고용)
