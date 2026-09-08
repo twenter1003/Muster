@@ -73,4 +73,16 @@ export class ApiKeysService {
     const key = await this.keys.findOneBy({ id: keyId });
     return key?.project_id ?? null;
   }
+
+  /**
+   * 원문 키로 소유 프로젝트를 찾는다 (설계서 Part 4 §6 — `X-API-Key` 인증).
+   *
+   * 해시로 조회한다. 원문은 DB에 없으므로 유출된 덤프만으로는 인증할 수 없다.
+   * 폐기된 키는 매칭되지 않는다 — revoke가 의미를 가지려면 여기서 걸러야 한다.
+   */
+  async resolveProject(rawKey: string): Promise<string | null> {
+    if (!rawKey) return null;
+    const key = await this.keys.findOneBy({ key_hash: hashToken(rawKey), revoked_at: IsNull() });
+    return key?.project_id ?? null;
+  }
 }
