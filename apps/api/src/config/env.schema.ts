@@ -45,12 +45,15 @@ export const envSchema = z.object({
   GCS_SIGNER_SERVICE_ACCOUNT: z.string().optional(),
 
   /**
-   * LLM. Vertex AI로 Gemini를 부르므로 API 키가 없다 — 인증은 GCS와 같은 ADC를 쓴다.
-   * 프로젝트는 GCP_PROJECT_ID를 그대로 쓰고, 없으면 환경 구성 생성만 503을 낸다.
-   * 벤더 근거는 DESIGN_DRIFT.md 4번, Vertex 전환 근거는 8번.
+   * LLM. 기본 경로는 Gemini API(Interactions, 2026-06 GA)다.
+   * 키가 없으면 Vertex AI로 넘어간다 — ADC로 인증하므로 키를 둘 수 없는 환경에서도 돈다.
+   * 둘 다 없으면 환경 구성 생성만 503을 낸다. 벤더 근거는 DESIGN_DRIFT.md 4·8번.
    */
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().default('gemini-3.5-flash'),
+  /** Vertex 폴백용. Vertex는 3.x가 아직 안 나와 모델을 따로 둔다. */
   VERTEX_LOCATION: z.string().default('us-central1'),
-  GEMINI_MODEL: z.string().default('gemini-2.5-flash'),
+  VERTEX_MODEL: z.string().default('gemini-2.5-flash'),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -83,23 +83,31 @@ Part 1 §10도 통과율/재시도율을 추적 지표로 잡아 두었다.
 `ApiKeysService.resolveProject`와 `ApiKeyGuard`를 신설했다. 폐기된 키는 매칭되지 않으며,
 없는 키와 폐기된 키의 응답을 동일하게 두었다 — 다르면 유효한 키를 탐색할 단서가 된다.
 
-## 8. LLM 호출 경로 — AI Studio API 키 → Vertex AI (강제 전환) — Phase 5
+## 8. LLM 호출 경로 — generateContent → Interactions API — Phase 5
 
-4번에서 Gemini를 택할 때는 AI Studio API 키(`AIza...`)를 전제했다. 그 전제가 무너졌다.
+4번에서 Gemini를 택할 때 전제한 호출 방식이 낡았다.
 
-- Google이 표준 키를 **2026년 9월부로 거부**하고 auth key(`AQ.`)로 옮기는 중이다.
-- 그런데 새 `AQ.` 키가 `generativelanguage.googleapis.com`에서 401
-  (`ACCESS_TOKEN_TYPE_UNSUPPORTED`)을 낸다. 헤더/쿼리, SDK/REST, v1/v1beta 무관하게
-  동일하며 2026년 6월부터 광범위하게 보고돼 있다. 우리가 고칠 수 있는 문제가 아니다.
+- **Interactions API**(`POST /v1beta/interactions`)가 2026-06 GA로 Gemini의 기본
+  인터페이스가 되었고 `generateContent`는 레거시로 물러났다. 새 기능은 Interactions에만
+  실린다.
+- 키 형식도 바뀌었다. 표준 키(`AIza`)는 2026-09부로 폐지되고 auth key(`AQ.`)가 현행이다.
 
-**채택**: 같은 Gemini 모델을 **Vertex AI**로 부른다. 벤더 선택(4번)은 그대로 유지된다.
+**채택**: Interactions API를 쓴다. 벤더 선택(4번)은 그대로다.
 
-부수 효과가 오히려 설계에 더 맞다: Vertex AI는 ADC로 인증하므로 **보관할 키가 없다**.
-설계서 Part 2 §6.2의 "평문 자격증명을 두지 않는다"를 LLM 경로에서도 만족하고,
-GCS에 이미 쓰는 자격증명을 그대로 재사용한다. 대신 AI Studio의 무료 티어는 없어지며
-호출당 과금이 붙는다(호출 하나에 약 0.005달러 수준).
+generateContent와 다른 점 — 옮길 때 걸린 것들:
 
-`GEMINI_API_KEY`는 더 이상 쓰지 않는다. `VERTEX_LOCATION`이 그 자리를 대신한다.
+| | generateContent | Interactions |
+|---|---|---|
+| 입력 | `contents: [{role, parts}]` | `input: {type: 'text', text}` |
+| 시스템 지시 | `systemInstruction.parts` | `system_instruction` (문자열) |
+| 구조화 출력 | `generationConfig.responseMimeType` | 루트 `response_format` — **스키마를 그대로** 받는다 |
+| 응답 | `candidates[].content.parts[].text` | `steps[]` — `type: 'model_output'`인 단계의 `content[].text` |
+
+응답 파싱에서 `steps`를 그냥 훑으면 안 된다. `thought` 같은 중간 단계가 섞여 있어
+그것까지 파싱하려 들면 JSON이 아니라서 실패한다. `model_output`만 골라야 한다.
+
+**폴백**: 키가 없으면 Vertex AI로 넘어간다. ADC로 인증하므로 키를 둘 수 없는 환경에서도
+돈다. Vertex는 아직 3.x 모델이 안 나와(us-central1 기준 404) 기본 모델을 따로 둔다.
 
 ---
 
