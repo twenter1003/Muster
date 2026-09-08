@@ -43,10 +43,11 @@ export class GeminiDockerConfigGenerator implements DockerConfigGenerator {
 
   async generate(params: GenerateParams): Promise<GeneratedDockerConfig> {
     const res = await fetch(
-      `${GEMINI_ENDPOINT}/${this.model}:generateContent?key=${encodeURIComponent(this.apiKey)}`,
+      `${GEMINI_ENDPOINT}/${this.model}:generateContent`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        // 키를 쿼리 파라미터가 아니라 헤더로 보낸다. URL은 로그·프록시·리퍼러에 남는다.
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.apiKey },
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
           contents: [{ role: 'user', parts: [{ text: buildPrompt(params) }] }],
@@ -64,10 +65,13 @@ export class GeminiDockerConfigGenerator implements DockerConfigGenerator {
       const detail = await res.text().catch(() => '');
       this.logger.warn(`Gemini ${res.status}: ${detail.slice(0, 500)}`);
 
-      if (res.status === 400 || res.status === 403) {
+      if (res.status === 400 || res.status === 401 || res.status === 403) {
+        // 401도 여기 포함한다. 빠뜨리면 "인증 실패"가 일반 502로 떨어져,
+        // 고칠 수 있는 설정 문제를 서버 장애처럼 보이게 한다.
         throw new ApiException(
           ErrorCode.INTERNAL,
-          'LLM 자격증명이 거부되었습니다. GEMINI_API_KEY를 확인해 주세요.',
+          'LLM 자격증명이 거부되었습니다. GEMINI_API_KEY를 확인해 주세요 ' +
+            '(AI Studio 키는 AIza로 시작합니다).',
           503,
         );
       }
