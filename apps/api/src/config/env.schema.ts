@@ -43,6 +43,13 @@ export const envSchema = z.object({
    * 거기엔 서명 주체 정보가 없어, 이 계정을 가장해 서명한다.
    */
   GCS_SIGNER_SERVICE_ACCOUNT: z.string().optional(),
+
+  /**
+   * LLM(Gemini) 자격증명과 모델. 없으면 환경 구성 생성만 503을 낸다 (Part 4 §5.2).
+   * 벤더를 Claude에서 Gemini로 바꾼 근거는 DESIGN_DRIFT.md 4번.
+   */
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().default('gemini-2.5-flash'),
 });
 
 export type Env = z.infer<typeof envSchema>;
