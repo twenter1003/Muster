@@ -109,11 +109,16 @@ gcloud auth login
 
 ---
 
-## 5. Claude API 키 — Phase 5 (EnvCatalog)
+## 5. Gemini API 키 — Phase 5 (EnvCatalog)
 
 **막히는 것**: LLM으로 Dockerfile/compose를 생성하는 기능.
 
-https://console.anthropic.com 에서 발급 후 `apps/api/.env`에 추가.
+https://aistudio.google.com/apikey 에서 발급 후 `apps/api/.env`에 추가한다.
+환경변수 이름은 `GEMINI_API_KEY`다 (공식 SDK가 읽는 이름).
+
+> 설계서는 Claude API를 전제했지만 Gemini로 바꿨다. 플랫폼이 이미 GCP 단일 벤더라
+> LLM만 다른 벤더에 두면 계정·과금이 하나 더 늘기 때문이다. 근거는
+> [DESIGN_DRIFT.md](DESIGN_DRIFT.md) 4번 참조.
 
 ## 6. Trivy / Conftest — Phase 5 (Policy Gate)
 
@@ -146,6 +151,6 @@ brew install trivy conftest
 | 2. 테스트용 레포 | Phase 3 웹훅 | 1분 |
 | 3. Remote Control | 아무때나 (선택) | 3분 |
 | 4. GCS 버킷 | Phase 4 전 | 5분 |
-| 5. Claude API 키 | Phase 5 전 | 2분 |
+| 5. Gemini API 키 | Phase 5 전 | 2분 |
 | 6. Trivy/Conftest | Phase 5 전 | 2분 |
 | 7. 원격 레포 + GCP | Phase 7 전 | 30분+ |
