@@ -107,7 +107,7 @@ gcloud auth login
 ```
 
 - `gcloud`는 이미 설치됨.
-- 버킷 이름은 **전역 고유**여야 한다 (예: `agentops-docs-taewoo`).
+- 버킷 이름은 **전역 고유**여야 한다 (예: `muster-docs-taewoo`).
 - 기본 리전은 `us-central1` — GCS Always Free(Standard 5GB-월) 대상이 US 3개 리전뿐이라서다.
   서울로 하려면 세 번째 인자로 `asia-northeast3`. **버킷 리전은 생성 후 변경 불가.**
 - 스크립트가 버킷·서비스 계정·IAM·CORS를 모두 처리한다. 여러 번 돌려도 안전.

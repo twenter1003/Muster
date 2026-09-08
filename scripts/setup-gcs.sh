@@ -24,13 +24,13 @@ BUCKET="${2:-}"
 #
 # 버킷 리전은 생성 후 변경할 수 없다.
 REGION="${3:-us-central1}"
-SA_NAME="agentops-api"
+SA_NAME="muster-api"
 SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 
 if [[ -z "$PROJECT_ID" || -z "$BUCKET" ]]; then
   echo "사용법: $0 <project-id> <bucket-name> [region]" >&2
-  echo "예:    $0 agentops-470101 agentops-docs-taewoo" >&2
-  echo "       $0 agentops-470101 agentops-docs-taewoo asia-northeast3" >&2
+  echo "예:    $0 muster-470101 muster-docs-taewoo" >&2
+  echo "       $0 muster-470101 muster-docs-taewoo asia-northeast3" >&2
   exit 1
 fi
 
@@ -64,7 +64,7 @@ if gcloud iam service-accounts describe "$SA_EMAIL" >/dev/null 2>&1; then
   echo "    이미 존재 — 건너뜀"
 else
   gcloud iam service-accounts create "$SA_NAME" \
-    --display-name="AgentOps API" --quiet
+    --display-name="Muster API" --quiet
 fi
 
 echo "==> 버킷 권한 부여 (프로젝트 전체가 아니라 이 버킷에만)"
@@ -80,7 +80,7 @@ gcloud iam service-accounts add-iam-policy-binding "$SA_EMAIL" \
 
 echo "==> CORS 설정"
 # 브라우저가 signed URL로 GCS에 직접 PUT 하므로 CORS가 없으면 업로드가 무조건 실패한다.
-CORS_FILE="$(mktemp -t agentops-cors)"
+CORS_FILE="$(mktemp -t muster-cors)"
 cat > "$CORS_FILE" <<'JSON'
 [
   {

@@ -11,7 +11,7 @@ export const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(8080),
 
-  DATABASE_URL: z.string().url().default('postgresql://agentops:agentops@localhost:5432/agentops'),
+  DATABASE_URL: z.string().url().default('postgresql://muster:muster@localhost:5432/muster'),
 
   /** GitHub OAuth 앱 자격증명. 없으면 로그인 엔드포인트가 503을 낸다. */
   GITHUB_OAUTH_CLIENT_ID: z.string().optional(),

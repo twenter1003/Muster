@@ -21,7 +21,7 @@ async function bootstrap() {
 
   const port = Number(process.env.PORT ?? 8080);
   await app.listen(port, '0.0.0.0');
-  new Logger('Bootstrap').log(`AgentOps API listening on :${port} (prefix /api/v1)`);
+  new Logger('Bootstrap').log(`Muster API listening on :${port} (prefix /api/v1)`);
 }
 
 void bootstrap();

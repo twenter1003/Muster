@@ -1,8 +1,8 @@
-# AgentOps
+# Muster
 
 Claude Code/LLM 기반 프로젝트들을 하나의 페이지에서 생성·구성·관리·모니터링하는 통합 관리 플랫폼.
 
-**요구사항 원천**: `AgentOps_통합설계서_v2.0.md` (레포 루트) — 유일한 원천.
+**요구사항 원천**: `Muster_통합설계서_v2.0.md` (레포 루트) — 유일한 원천.
 이전 4개 문서(PRD v1.5 / TechSpec v1.3 / API v1.1 / ERD v1.0)는 **폐기**되었으므로 참조하지 않는다.
 문서 내부 충돌 시 우선순위: **Part 4(API) > Part 2(기술 사양) > Part 1(PRD)**
 
@@ -11,7 +11,7 @@ Claude Code/LLM 기반 프로젝트들을 하나의 페이지에서 생성·구�
 ## 폴더 구조
 
 ```
-AgentOps/
+Muster/
 ├── docker-compose.yml          # 로컬 개발 환경 (api + postgres 16)
 ├── pnpm-workspace.yaml         # pnpm 모노레포
 ├── apps/
@@ -102,8 +102,8 @@ pnpm dev:web    # :5173 (/api → :8080 프록시)
 ## 테스트
 
 ```bash
-pnpm --filter @agentops/api test:cov    # 단위 테스트 + 커버리지
-pnpm --filter @agentops/api test:e2e    # e2e (DB 필요 — 아래 마이그레이션 선행)
+pnpm --filter @muster/api test:cov    # 단위 테스트 + 커버리지
+pnpm --filter @muster/api test:e2e    # e2e (DB 필요 — 아래 마이그레이션 선행)
 pnpm lint
 ```
 

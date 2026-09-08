@@ -8,7 +8,7 @@ FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
-RUN pnpm install --frozen-lockfile --filter @agentops/api...
+RUN pnpm install --frozen-lockfile --filter @muster/api...
 
 # 로컬 개발용 — docker compose가 src를 볼륨 마운트하고 watch 모드로 돈다.
 FROM deps AS development
@@ -19,7 +19,7 @@ CMD ["pnpm", "start:dev"]
 
 FROM deps AS build
 COPY apps/api apps/api
-RUN pnpm --filter @agentops/api build && pnpm prune --prod
+RUN pnpm --filter @muster/api build && pnpm prune --prod
 
 # Cloud Run 배포용
 FROM base AS production

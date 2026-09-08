@@ -24,7 +24,7 @@ export default function App() {
 
   return (
     <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem', maxWidth: 640 }}>
-      <h1>AgentOps</h1>
+      <h1>Muster</h1>
       <p style={{ color: '#666' }}>Phase 1 — 스캐폴딩</p>
       {health && <p>API 상태: {health.status} (uptime {health.uptime_seconds}s)</p>}
       {error && <p style={{ color: '#b00' }}>API 연결 실패 — {error}</p>}

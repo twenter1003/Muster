@@ -27,7 +27,7 @@ export class GitIntegration {
   @Column({ type: 'varchar', length: 500 })
   repo_url!: string;
 
-  /** 예: projects/agentops/secrets/webhook-<project_id>/versions/latest */
+  /** 예: projects/muster/secrets/webhook-<project_id>/versions/latest */
   @Column({ type: 'varchar', length: 500 })
   webhook_secret_ref!: string;
 

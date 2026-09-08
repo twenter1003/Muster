@@ -1,6 +1,6 @@
 import { SetMetadata } from '@nestjs/common';
 
-export const IS_PUBLIC_KEY = 'agentops:isPublic';
+export const IS_PUBLIC_KEY = 'muster:isPublic';
 
 /**
  * 인증을 요구하지 않는 엔드포인트 표시.

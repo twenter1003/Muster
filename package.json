@@ -1,5 +1,5 @@
 {
-  "name": "agentops",
+  "name": "muster",
   "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@9.15.4",
@@ -7,8 +7,8 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev:api": "pnpm --filter @agentops/api start:dev",
-    "dev:web": "pnpm --filter @agentops/web dev",
+    "dev:api": "pnpm --filter @muster/api start:dev",
+    "dev:web": "pnpm --filter @muster/web dev",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",

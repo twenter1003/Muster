@@ -10,7 +10,7 @@ todo() { printf '  \033[33m·\033[0m %s\n' "$1"; }
 
 envval() { grep -E "^$1=" apps/api/.env 2>/dev/null | cut -d= -f2-; }
 
-echo "AgentOps 설정 상태"
+echo "Muster 설정 상태"
 echo
 
 echo "Phase 3 — GitHub OAuth"

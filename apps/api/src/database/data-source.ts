@@ -13,7 +13,7 @@ loadDotenv({ quiet: true });
  */
 export const dataSourceOptions: DataSourceOptions = {
   type: 'postgres',
-  url: process.env.DATABASE_URL ?? 'postgresql://agentops:agentops@localhost:5432/agentops',
+  url: process.env.DATABASE_URL ?? 'postgresql://muster:muster@localhost:5432/muster',
   entities: [...ALL_ENTITIES],
   migrations: [__dirname + '/migrations/*.{ts,js}'],
   synchronize: false,

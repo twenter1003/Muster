@@ -30,7 +30,7 @@ export class ApiKeysService {
    * 세션 토큰과 같은 방식이다 — 해시 함수도 그대로 재사용한다.
    */
   async issue(projectId: string, label: string): Promise<ApiKeyView & { key: string }> {
-    const key = `agentops_${randomBytes(24).toString('base64url')}`;
+    const key = `muster_${randomBytes(24).toString('base64url')}`;
 
     const saved = await this.keys.save(
       this.keys.create({ project_id: projectId, key_hash: hashToken(key), label }),

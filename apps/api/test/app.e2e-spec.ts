@@ -34,7 +34,7 @@ class ProbeService {
 @Module({ controllers: [ProbeController], providers: [ProbeService] })
 class ProbeModule {}
 
-describe('AgentOps API (e2e)', () => {
+describe('Muster API (e2e)', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
