@@ -104,6 +104,32 @@ describe('HttpGitHubRepoClient (실제 요청 형태)', () => {
       await expect(client.createWebhook(params)).rejects.toMatchObject({ code: 'NOT_FOUND' });
     });
 
+    it('422는 장애가 아니라 요청 거부이므로 400으로 돌려준다', async () => {
+      fetchMock.mockResolvedValue(
+        respond(422, {
+          message: 'Validation Failed',
+          errors: [{ resource: 'Hook', field: 'url', message: "url isn't reachable (localhost)" }],
+        }),
+      );
+
+      await expect(client.createWebhook(params)).rejects.toMatchObject({
+        code: 'VALIDATION_FAILED',
+        status: 400,
+      });
+    });
+
+    it('422 메시지는 호출자가 무엇을 고쳐야 하는지 알려준다', async () => {
+      fetchMock.mockResolvedValue(respond(422, { message: 'Validation Failed' }));
+
+      try {
+        await client.createWebhook(params);
+        throw new Error('던졌어야 합니다');
+      } catch (e) {
+        const body = JSON.stringify((e as { getResponse(): unknown }).getResponse());
+        expect(body).toContain('공개 인터넷');
+      }
+    });
+
     it('GitHub의 원문 오류 메시지를 사용자에게 노출하지 않는다', async () => {
       fetchMock.mockResolvedValue(respond(422, { message: '내부 상세 정보' }));
 

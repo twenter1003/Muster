@@ -50,7 +50,14 @@ export class HttpGitHubRepoClient implements GitHubRepoClient {
     });
 
     if (res.status !== 201) {
-      throw await this.toApiException(res, '웹훅 등록에 실패했습니다.');
+      throw await this.toApiException(
+        res,
+        '웹훅 등록에 실패했습니다.',
+        // GitHub이 거부하는 실제 사유는 거의 이 둘뿐이다: 수신 주소가 공개 인터넷에서
+        // 닿지 않거나(localhost 포함), 같은 주소의 웹훅이 이미 걸려 있거나.
+        '웹훅을 등록할 수 없습니다. 수신 주소가 공개 인터넷에서 접근 가능한지, ' +
+          '같은 웹훅이 이미 등록돼 있지 않은지 확인해 주세요.',
+      );
     }
 
     const body = (await res.json()) as { id?: number };
@@ -83,7 +90,11 @@ export class HttpGitHubRepoClient implements GitHubRepoClient {
     };
   }
 
-  private async toApiException(res: Response, message: string): Promise<ApiException> {
+  private async toApiException(
+    res: Response,
+    message: string,
+    invalidRequestMessage?: string,
+  ): Promise<ApiException> {
     // GitHub의 원문 오류는 토큰 범위 등 내부 정보를 담을 수 있어 로그에만 남긴다.
     const detail = await res.text().catch(() => '');
     this.logger.warn(`GitHub API ${res.status}: ${detail.slice(0, 500)}`);
@@ -93,6 +104,12 @@ export class HttpGitHubRepoClient implements GitHubRepoClient {
     }
     if (res.status === 404) {
       return ApiException.notFound('레포지토리를 찾을 수 없거나 접근 권한이 없습니다.');
+    }
+    // 422는 GitHub이 우리 요청을 "형식은 맞지만 받아들일 수 없다"고 거부한 것이다.
+    // 서버 장애가 아니므로 502로 뭉뚱그리면 호출자가 고칠 수 있는 문제를 장애로 오인한다.
+    // 원문은 노출하지 않되(위 주석 참조) 현실적인 원인은 짚어 준다.
+    if (res.status === 422 && invalidRequestMessage) {
+      return ApiException.validationFailed(invalidRequestMessage);
     }
     return new ApiException(ErrorCode.INTERNAL, message, 502);
   }
