@@ -78,6 +78,19 @@ gcloud iam service-accounts add-iam-policy-binding "$SA_EMAIL" \
   --member="serviceAccount:$SA_EMAIL" \
   --role="roles/iam.serviceAccountTokenCreator" --quiet >/dev/null
 
+echo "==> 로컬 개발자에게 이 서비스 계정을 가장할 권한 부여"
+# 로컬의 ADC는 사용자 계정이라 서명 주체 정보가 없다. 그래서 서비스 계정을 가장해 서명하는데,
+# roles/owner에는 iam.serviceAccounts.getAccessToken이 **없다** (Google이 기본 역할에서 뺐다).
+# 이 부여가 없으면 로컬에서 signed URL 발급이 IAM_PERMISSION_DENIED로 실패한다.
+# Cloud Run에서는 메타데이터 서버가 서명 주체를 알려주므로 필요 없다.
+CURRENT_USER="$(gcloud config get-value account 2>/dev/null)"
+if [[ -n "$CURRENT_USER" ]]; then
+  gcloud iam service-accounts add-iam-policy-binding "$SA_EMAIL" \
+    --member="user:$CURRENT_USER" \
+    --role="roles/iam.serviceAccountTokenCreator" --quiet >/dev/null
+  echo "    $CURRENT_USER — 반영에 1분쯤 걸릴 수 있다"
+fi
+
 echo "==> CORS 설정"
 # 브라우저가 signed URL로 GCS에 직접 PUT 하므로 CORS가 없으면 업로드가 무조건 실패한다.
 CORS_FILE="$(mktemp -t muster-cors)"
@@ -95,7 +108,11 @@ gcloud storage buckets update "gs://$BUCKET" --cors-file="$CORS_FILE" --quiet
 rm -f "$CORS_FILE"
 
 echo
-echo "완료. apps/api/.env 에 아래 두 줄을 추가하세요:"
+echo "완료. apps/api/.env 에 아래 세 줄을 추가하세요:"
 echo
 echo "GCP_PROJECT_ID=$PROJECT_ID"
 echo "GCS_BUCKET=$BUCKET"
+echo "GCS_SIGNER_SERVICE_ACCOUNT=$SA_EMAIL"
+echo
+echo "그리고 애플리케이션용 자격증명이 따로 필요합니다 (gcloud auth login과 다릅니다):"
+echo "  gcloud auth application-default login"

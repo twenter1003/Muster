@@ -11,11 +11,18 @@ COPY apps/web/package.json apps/web/
 RUN pnpm install --frozen-lockfile --filter @muster/api...
 
 # 로컬 개발용 — docker compose가 src를 볼륨 마운트하고 watch 모드로 돈다.
+#
+# 기동 전에 마이그레이션을 돌린다. 안 그러면 새 컬럼을 쓰는 코드가 "코드는 맞는데 500"을
+# 내고, 원인이 스키마라는 것을 서버 로그를 봐야 안다. 마이그레이션이 실패하면 서버도
+# 뜨지 않는다 — 반쯤 맞는 스키마 위에서 도는 것보다 낫다.
+#
+# 프로덕션(아래 production 타겟)은 일부러 이렇게 하지 않는다. 배포와 스키마 변경을
+# 한 명령에 묶으면 롤백이 어려워지고, 인스턴스가 여럿일 때 동시에 돌 수 있다.
 FROM deps AS development
 COPY apps/api apps/api
 WORKDIR /app/apps/api
 EXPOSE 8080
-CMD ["pnpm", "start:dev"]
+CMD ["pnpm", "start:dev:migrate"]
 
 FROM deps AS build
 COPY apps/api apps/api

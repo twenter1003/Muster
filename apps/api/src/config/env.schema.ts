@@ -36,6 +36,13 @@ export const envSchema = z.object({
    */
   GCS_BUCKET: z.string().optional(),
   GCP_PROJECT_ID: z.string().optional(),
+
+  /**
+   * signed URL 서명에 쓸 서비스 계정 이메일.
+   * Cloud Run에서는 메타데이터 서버가 알려주므로 비워 둔다. 로컬은 사용자 ADC를 쓰는데
+   * 거기엔 서명 주체 정보가 없어, 이 계정을 가장해 서명한다.
+   */
+  GCS_SIGNER_SERVICE_ACCOUNT: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

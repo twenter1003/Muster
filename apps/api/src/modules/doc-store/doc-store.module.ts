@@ -56,7 +56,11 @@ class UnconfiguredObjectStorage implements ObjectStorage {
       useFactory: (config: ConfigService): ObjectStorage => {
         const bucket = config.get<string>('GCS_BUCKET');
         if (!bucket) return new UnconfiguredObjectStorage();
-        return new GcsObjectStorage(bucket, config.get<string>('GCP_PROJECT_ID'));
+        return new GcsObjectStorage(
+          bucket,
+          config.get<string>('GCP_PROJECT_ID'),
+          config.get<string>('GCS_SIGNER_SERVICE_ACCOUNT'),
+        );
       },
     },
   ],
