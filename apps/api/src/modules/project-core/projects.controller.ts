@@ -18,10 +18,13 @@ import { toPageRequest, type Page } from '../../common/pagination/paginate';
 import { ProjectsService } from './projects.service';
 import { GitIntegrationService } from './git-integration.service';
 import { CreateGitIntegrationDto } from './dto/create-git-integration.dto';
+import { ApiKeysService, type ApiKeyView } from './api-keys.service';
+import { CreateApiKeyDto } from './dto/create-api-key.dto';
 import { ProjectMemberGuard } from './project-member.guard';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import type { GitIntegration, Project } from '../../database/entities';
+import { ApiException } from '../../common/errors/api.exception';
 
 /**
  * 응답에 실리는 연동 표현.
@@ -62,6 +65,7 @@ export class ProjectsController {
   constructor(
     private readonly projects: ProjectsService,
     private readonly gitIntegrations: GitIntegrationService,
+    private readonly apiKeys: ApiKeysService,
   ) {}
 
   @Get()
@@ -122,5 +126,49 @@ export class ProjectsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<void> {
     await this.gitIntegrations.disconnect(id, user.id);
+  }
+
+  /** 설계서 Part 4 §3 — 발급된 API 키 목록. 원문은 재조회 불가라 label/생성일만 나온다. */
+  @Get(':id/api-keys')
+  @UseGuards(ProjectMemberGuard)
+  listApiKeys(
+    @Param('id') id: string,
+    @Query() query: CursorPaginationQuery,
+  ): Promise<Page<ApiKeyView>> {
+    return this.apiKeys.listByProject(id, toPageRequest(query));
+  }
+
+  /** 설계서 Part 4 §3 — API 키 발급. 원문은 이 응답에서만 노출된다. */
+  @Post(':id/api-keys')
+  @UseGuards(ProjectMemberGuard)
+  @HttpCode(HttpStatus.CREATED)
+  createApiKey(
+    @Param('id') id: string,
+    @Body() dto: CreateApiKeyDto,
+  ): Promise<ApiKeyView & { key: string }> {
+    return this.apiKeys.issue(id, dto.label);
+  }
+}
+
+/**
+ * API 키 폐기. `/projects/:id` 하위가 아니라 최상위 경로라 ProjectMemberGuard를 쓸 수 없어
+ * (가드가 :id를 프로젝트로 읽는다) 여기서 직접 소유 프로젝트를 확인한다.
+ */
+@Controller('api-keys')
+export class ApiKeysController {
+  constructor(
+    private readonly apiKeys: ApiKeysService,
+    private readonly projects: ProjectsService,
+  ) {}
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async revoke(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser): Promise<void> {
+    const projectId = await this.apiKeys.projectIdOf(id);
+    // 남의 키의 존재 여부를 알려주지 않기 위해 없는 것과 같은 응답을 낸다.
+    if (!projectId || !(await this.projects.isMember(projectId, user.id))) {
+      throw ApiException.notFound('API 키를 찾을 수 없습니다.');
+    }
+    await this.apiKeys.revoke(id);
   }
 }

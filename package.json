@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@9.15.4",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev:api": "pnpm --filter @agentops/api start:dev",
     "dev:web": "pnpm --filter @agentops/web dev",
@@ -15,6 +17,6 @@
     "down": "docker compose down"
   },
   "devDependencies": {
-    "prettier": "^3.4.2"
+    "prettier": "^3.9.6"
   }
 }

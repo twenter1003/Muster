@@ -11,6 +11,7 @@ export * from './enums';
 export { User } from './user.entity';
 export { Session } from './session.entity';
 export { Project } from './project.entity';
+export { ProjectApiKey } from './project-api-key.entity';
 export { ProjectMember } from './project-member.entity';
 export { GitIntegration } from './git-integration.entity';
 export { Document } from './document.entity';
@@ -29,6 +30,7 @@ export { WebhookDelivery } from './webhook-delivery.entity';
 import { User } from './user.entity';
 import { Session } from './session.entity';
 import { Project } from './project.entity';
+import { ProjectApiKey } from './project-api-key.entity';
 import { ProjectMember } from './project-member.entity';
 import { GitIntegration } from './git-integration.entity';
 import { Document } from './document.entity';
@@ -49,6 +51,7 @@ export const ALL_ENTITIES = [
   User,
   Session,
   Project,
+  ProjectApiKey,
   ProjectMember,
   GitIntegration,
   Document,

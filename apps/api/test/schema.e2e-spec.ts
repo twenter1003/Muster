@@ -43,13 +43,14 @@ describe('DB 스키마 ↔ ERD 일치 검증', () => {
     'health_snapshots',
     'audit_logs',
     'webhook_deliveries',
+    'project_api_keys',
   ];
 
-  it('엔티티 17개가 모두 등록되어 있다', () => {
-    expect(ALL_ENTITIES).toHaveLength(17);
+  it('엔티티 18개가 모두 등록되어 있다', () => {
+    expect(ALL_ENTITIES).toHaveLength(18);
   });
 
-  it('테이블 17개가 정확히 존재한다 (migrations 테이블 제외)', async () => {
+  it('테이블 18개가 정확히 존재한다 (migrations 테이블 제외)', async () => {
     const rows = await q<{ table_name: string }>(
       `SELECT table_name FROM information_schema.tables
        WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name <> 'migrations'
