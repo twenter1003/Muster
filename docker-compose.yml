@@ -34,6 +34,8 @@ services:
       # 소스만 마운트하고 node_modules는 컨테이너 것을 쓴다 (호스트/컨테이너 바이너리 충돌 방지).
       - ./apps/api/src:/app/apps/api/src
       - ./apps/api/test:/app/apps/api/test
+      # Conftest 규칙. 마운트해 두면 규칙을 고칠 때 재빌드하지 않아도 된다.
+      - ./apps/api/policies:/app/apps/api/policies
       # 시크릿 저장소를 호스트에 둔다. 마운트가 없으면 컨테이너를 다시 만들 때마다
       # GitHub 토큰과 웹훅 시크릿이 사라져 재로그인해야 하고, 이미 등록된 웹훅은
       # 토큰이 없어 해제조차 못 해 GitHub 쪽에 고아로 남는다. (.secrets/는 gitignore 대상)
