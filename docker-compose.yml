@@ -26,6 +26,8 @@ services:
       NODE_ENV: development
       PORT: 8080
       DATABASE_URL: postgresql://muster:muster@db:5432/muster
+      # ADC 탐색 경로. 위 마운트와 짝이다.
+      GOOGLE_APPLICATION_CREDENTIALS: /root/.config/gcloud/application_default_credentials.json
     ports:
       - '8080:8080'
     volumes:
@@ -36,6 +38,11 @@ services:
       # GitHub 토큰과 웹훅 시크릿이 사라져 재로그인해야 하고, 이미 등록된 웹훅은
       # 토큰이 없어 해제조차 못 해 GitHub 쪽에 고아로 남는다. (.secrets/는 gitignore 대상)
       - ./apps/api/.secrets:/app/apps/api/.secrets
+      # GCS signed URL 서명에 쓰는 ADC. 서비스 계정 키 파일을 만들지 않기로 했으므로
+      # (설계서 Part 2 §6.2) 로컬에서는 호스트의 ADC를 읽기 전용으로 빌려 쓴다.
+      # 준비: gcloud auth application-default login
+      # Cloud Run에서는 메타데이터 서버가 대신하므로 이 마운트가 필요 없다.
+      - ~/.config/gcloud:/root/.config/gcloud:ro
     depends_on:
       db:
         condition: service_healthy

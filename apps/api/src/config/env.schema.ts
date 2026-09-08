@@ -28,6 +28,14 @@ export const envSchema = z.object({
 
   /** 로컬 시크릿 저장소 경로. 프로덕션에서는 Secret Manager 구현이 대체한다. */
   SECRETS_DIR: z.string().default('.secrets'),
+
+  /**
+   * 문서 원본을 담을 GCS 버킷과 프로젝트 (설계서 Part 2 §4.1).
+   * 비어 있으면 DocStore가 503을 낸다 — 자격증명 없이 뜨는 것 자체는 막지 않는다.
+   * 나머지 기능은 GCS 없이도 동작해야 하기 때문이다.
+   */
+  GCS_BUCKET: z.string().optional(),
+  GCP_PROJECT_ID: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
