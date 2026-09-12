@@ -381,3 +381,80 @@ a {
   outline: 2px solid var(--color-ink);
   outline-offset: 2px;
 }
+
+/* ── 로그인 (목업 1i · 설계서 08) ─────────────────────────────
+ * 셸 밖의 유일한 화면이라 여기서만 화면 전체를 차지한다.
+ * 한 칸짜리 패널로 두는 이유는 이 화면의 과업이 버튼 하나뿐이기 때문이다.
+ */
+.login {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--space-6);
+  background: var(--color-bg);
+}
+
+.login__panel {
+  width: min(460px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.login__brand {
+  margin: 0 0 var(--space-6);
+  font-size: var(--font-size-title);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.login__lead {
+  margin: 0;
+  font-size: var(--font-size-section);
+  font-weight: 600;
+}
+
+.login__body {
+  margin: 0;
+  font-size: var(--font-size-body);
+  line-height: 1.7;
+  color: var(--color-ink-mid);
+}
+
+.login__cta {
+  margin: var(--space-3) 0;
+  justify-content: center;
+  padding: var(--space-3);
+  text-decoration: none;
+}
+
+.login__meta {
+  margin: 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+.login__section {
+  margin: var(--space-6) 0 0;
+  font-size: var(--font-size-meta);
+  font-weight: 600;
+  color: var(--color-ink-mid);
+}
+
+/* 두 칸으로 두는 이유: 설계서 08의 "연결되는 것"이 2×2 격자다. */
+.login__links {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2) var(--space-4);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+@media (max-width: 520px) {
+  .login__links {
+    grid-template-columns: 1fr;
+  }
+}
