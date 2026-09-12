@@ -28,6 +28,14 @@ export interface RunOutcomes {
   running: number;
   /** succeeded / (succeeded+failed+cancelled). 종료된 실행이 0건이면 null. */
   success_rate: number | null;
+  /**
+   * 구간 내 토큰 사용량 합계. 대시보드의 "오늘 토큰" KPI가 이 값을 쓴다.
+   *
+   * 문자열인 이유: Postgres의 SUM(integer)은 bigint라 드라이버가 문자열로 준다.
+   * 건수(COUNT)와 달리 토큰은 자릿수가 커질 수 있어 number로 옮기지 않는다 —
+   * 비용을 문자열로 다루는 것과 같은 이유다.
+   */
+  tokens_used: string;
 }
 
 export interface PolicyGate {
@@ -70,7 +78,7 @@ export function buildCostByProject(
 
 /** run_outcomes — 상태별 건수와 성공률. */
 export function buildRunOutcomes(
-  rows: readonly { status: AgentRunStatus; count: number }[],
+  rows: readonly { status: AgentRunStatus; count: number; tokens: string }[],
 ): RunOutcomes {
   const of = (status: AgentRunStatus) => rows.find((r) => r.status === status)?.count ?? 0;
 
@@ -86,6 +94,9 @@ export function buildRunOutcomes(
     running: of('running'),
     // 0건일 때 0을 주면 "전부 실패했다"로 읽힌다. 모른다는 뜻의 null이 맞다.
     success_rate: terminal === 0 ? null : round4(succeeded / terminal),
+    // 정수 합이라 BigInt로 더한다. 상태별 부분합을 number로 옮겼다가 다시 더하면
+    // 큰 값에서 정밀도를 잃는다.
+    tokens_used: rows.reduce((sum, r) => sum + BigInt(r.tokens || '0'), 0n).toString(),
   };
 }
 

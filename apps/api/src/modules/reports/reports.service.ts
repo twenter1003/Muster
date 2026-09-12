@@ -145,14 +145,17 @@ export class ReportsService {
       .innerJoin('r.agent', 'a')
       .select('r.status', 'status')
       .addSelect('COUNT(*)', 'count')
+      // 토큰은 같은 GROUP BY에 얹는다. 따로 질의하면 질의만 늘고 결과는 같다.
+      .addSelect('COALESCE(SUM(r.tokens_used), 0)', 'tokens')
       .where('a.project_id IN (:...ids)', { ids })
       .andWhere('r.started_at >= :from AND r.started_at < :to', { from, to })
       .groupBy('r.status')
-      .getRawMany<{ status: AgentRunStatus; count: string }>();
+      .getRawMany<{ status: AgentRunStatus; count: string; tokens: string }>();
 
     // COUNT(*)는 bigint라 드라이버가 문자열로 준다. 건수는 Number.MAX_SAFE_INTEGER 근처에
     // 갈 일이 없으므로 여기서만 number로 바꾼다(비용과 달리 소수가 없다).
-    return rows.map((r) => ({ status: r.status, count: Number(r.count) }));
+    // tokens는 문자열 그대로 넘긴다 — 합산은 BigInt로 한다.
+    return rows.map((r) => ({ status: r.status, count: Number(r.count), tokens: r.tokens }));
   }
 
   private async policyVerdictCounts(ids: string[], from: Date, to: Date) {
@@ -249,7 +252,14 @@ function emptySummary(from: Date, to: Date): ReportSummary {
   return {
     window: { from: from.toISOString(), to: to.toISOString() },
     cost_by_project: { items: [], others: null, total: '0.0000' },
-    run_outcomes: { succeeded: 0, failed: 0, cancelled: 0, running: 0, success_rate: null },
+    run_outcomes: {
+      succeeded: 0,
+      failed: 0,
+      cancelled: 0,
+      running: 0,
+      success_rate: null,
+      tokens_used: '0',
+    },
     policy_gate: {
       total_checks: 0,
       configs_checked: 0,

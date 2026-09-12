@@ -62,9 +62,9 @@ describe('buildCostByProject', () => {
 describe('buildRunOutcomes', () => {
   it('상태별 건수를 세고 성공률을 낸다', () => {
     const result = buildRunOutcomes([
-      { status: 'succeeded', count: 8 },
-      { status: 'failed', count: 1 },
-      { status: 'cancelled', count: 1 },
+      { status: 'succeeded', count: 8, tokens: '8000' },
+      { status: 'failed', count: 1, tokens: '1000' },
+      { status: 'cancelled', count: 1, tokens: '1000' },
     ]);
 
     expect(result).toMatchObject({ succeeded: 8, failed: 1, cancelled: 1, success_rate: 0.8 });
@@ -72,9 +72,9 @@ describe('buildRunOutcomes', () => {
 
   it('running은 성공률 분모에서 빠진다 — 아직 결과가 없다', () => {
     const result = buildRunOutcomes([
-      { status: 'succeeded', count: 1 },
-      { status: 'failed', count: 1 },
-      { status: 'running', count: 98 },
+      { status: 'succeeded', count: 1, tokens: '1000' },
+      { status: 'failed', count: 1, tokens: '1000' },
+      { status: 'running', count: 98, tokens: '98000' },
     ]);
 
     expect(result.running).toBe(98);
@@ -82,7 +82,9 @@ describe('buildRunOutcomes', () => {
   });
 
   it('종료된 실행이 0건이면 성공률은 0이 아니라 null', () => {
-    expect(buildRunOutcomes([{ status: 'running', count: 3 }]).success_rate).toBeNull();
+    expect(
+      buildRunOutcomes([{ status: 'running', count: 3, tokens: '3000' }]).success_rate,
+    ).toBeNull();
   });
 
   it('행이 하나도 없어도 터지지 않는다', () => {
@@ -92,7 +94,22 @@ describe('buildRunOutcomes', () => {
       cancelled: 0,
       running: 0,
       success_rate: null,
+      tokens_used: '0',
     });
+
+    // 0건과 "모름"을 구분한다: 실행이 없으면 토큰도 측정된 0이지 null이 아니다.
+  });
+
+  it('토큰은 상태별 부분합을 BigInt로 더한다', () => {
+    // number로 옮겼다가 다시 더하면 큰 값에서 정밀도를 잃는다. 정수이므로 BigInt가 맞다.
+    const outcomes = buildRunOutcomes([
+      { status: 'succeeded', count: 1, tokens: '9007199254740993' },
+      { status: 'failed', count: 1, tokens: '1' },
+    ]);
+
+    expect(outcomes.tokens_used).toBe('9007199254740994');
+    // 같은 값을 number로 더하면 틀린다 — 이 테스트가 지키려는 것이 그 차이다.
+    expect(Number('9007199254740993') + 1).not.toBe(9007199254740994);
   });
 });
 

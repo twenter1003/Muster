@@ -105,6 +105,24 @@ export class ProjectsController {
     await this.projects.softDelete(id);
   }
 
+  /**
+   * 연동 조회. 설계서 Part 4 §3에는 POST·DELETE만 있고 GET이 없다 — 누락으로 본다.
+   * 목록·개요 화면이 "어느 레포에 붙어 있는가"를 보여줘야 하는데 읽을 방법이 없었다.
+   *
+   * 연동이 없을 때 404가 아니라 200인 이유: ProjectMemberGuard가 이미 "없는 프로젝트"와
+   * "남의 프로젝트"에 404를 쓴다. 여기에 "연동 안 됨"까지 404로 얹으면 클라이언트가 세 경우를
+   * 구분할 수 없다. 미연동은 오류가 아니라 정상 상태이기도 하다.
+   *
+   * `null`을 그대로 반환하지 않고 객체로 감싼다. 컨트롤러가 null을 돌려주면 Nest는 **본문이
+   * 없는 200**을 보내고, 클라이언트의 res.json()이 거기서 터진다(실제로 확인했다).
+   */
+  @Get(':id/git-integration')
+  @UseGuards(ProjectMemberGuard)
+  async getGit(@Param('id') id: string): Promise<{ integration: GitIntegrationView | null }> {
+    const integration = await this.gitIntegrations.findByProject(id);
+    return { integration: integration === null ? null : toGitView(integration) };
+  }
+
   /** 설계서 Part 4 §3 — GitHub 레포 연동 등록 (웹훅 자동 등록 포함). */
   @Post(':id/git-integration')
   @UseGuards(ProjectMemberGuard)
