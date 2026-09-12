@@ -1,0 +1,369 @@
+/*
+ * 리포트 전용 레이아웃 (설계서 07 · 목업 1f).
+ *
+ * 색·치수는 전부 tokens.css의 변수만 쓴다 — 목업의 Nocturne 보라는 설계서가 폐기했고,
+ * 여기에 hex를 적는 순간 라이트/다크 두 매핑 중 하나가 깨진다. SVG도 같은 규칙을 따른다.
+ * 클래스는 rp- 접두사로 닫아 둔다: 다른 화면의 CSS(.widget 등)에 기대면 그 화면을 고칠 때
+ * 이 화면이 조용히 망가진다.
+ */
+
+.rp {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-section-gap);
+}
+
+.rp__header {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.rp__title {
+  margin-bottom: var(--space-1);
+}
+
+.rp__subtitle {
+  margin: 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+.rp__controls {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.rp__toggle {
+  display: inline-flex;
+  gap: var(--space-1);
+}
+
+/* 선택 상태는 색이 아니라 테두리·굵기로 드러낸다(신호색은 행동을 요구하는 곳에만 쓴다). */
+.rp__chip {
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-ink-mid);
+  font: inherit;
+  font-size: var(--font-size-meta);
+  cursor: pointer;
+}
+
+.rp__chip--on {
+  border-color: var(--color-ink);
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+.rp__error {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-signal);
+  border-radius: var(--radius);
+  color: var(--color-signal);
+  font-size: var(--font-size-meta);
+}
+
+/* 위 줄은 추이(넓게) + DORA, 아래 줄은 3열. 설계서 09의 반응형 기준으로 접는다. */
+.rp__row {
+  display: grid;
+  gap: var(--space-card-gap);
+  align-items: start;
+}
+
+.rp__row--top {
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+}
+
+.rp__row--bottom {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* ── 카드 ────────────────────────────────────────────────────────────── */
+
+.rp-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  padding: var(--space-card-padding);
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.rp-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.rp-card__title {
+  margin: 0;
+  font-size: var(--font-size-section);
+  font-weight: 600;
+}
+
+.rp-card__meta {
+  margin-left: auto;
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+  font-variant-numeric: tabular-nums;
+}
+
+.rp-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.rp-empty,
+.rp-note {
+  margin: 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+  line-height: 1.6;
+}
+
+/* DORA의 관측 창 안내처럼 "읽지 않으면 수치를 오독하는" 문장. 경고가 아니므로 신호색이 아니다. */
+.rp-callout {
+  margin: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+  line-height: 1.6;
+}
+
+.rp-callout strong {
+  color: var(--color-ink);
+}
+
+/* ── 추이 차트 ───────────────────────────────────────────────────────── */
+
+/*
+ * 선은 stroke="currentColor"로 그린다. 계열 구분은 색이 아니라 stroke-dasharray가 맡으므로
+ * 모든 선이 같은 잉크색이어도 된다 — 오히려 그래야 "색 = 계열"이라는 오해가 생기지 않는다.
+ */
+.rp-chart {
+  width: 100%;
+  height: 200px;
+  display: block;
+  color: var(--color-ink);
+}
+
+.rp-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.rp-legend__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-meta);
+  min-height: var(--row-height-one-line);
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.rp-legend__item:last-child {
+  border-bottom: none;
+}
+
+.rp-legend__line {
+  width: 24px;
+  flex: none;
+  color: var(--color-ink);
+}
+
+.rp-legend__svg {
+  width: 24px;
+  height: 4px;
+  display: block;
+}
+
+.rp-legend__name {
+  color: var(--color-ink);
+  word-break: break-all;
+}
+
+.rp-legend__style {
+  color: var(--color-ink-mid);
+}
+
+.rp-legend__last {
+  margin-left: auto;
+  color: var(--color-ink-mid);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 헬스 임계 미만만 신호색. 임계값 자체는 domain.ts의 상수에서 온다. */
+.rp-legend__last--signal {
+  color: var(--color-signal);
+}
+
+/* ── DORA ────────────────────────────────────────────────────────────── */
+
+.rp-dora__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: var(--font-size-body);
+}
+
+/* ── 막대 목록 (비용 · 실행 결과 · 정책) ─────────────────────────────────── */
+
+.rp-bars {
+  gap: var(--space-3);
+}
+
+.rp-bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  font-size: var(--font-size-meta);
+}
+
+.rp-bar__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.rp-bar__name {
+  color: var(--color-ink);
+  word-break: break-all;
+}
+
+.rp-bar__name--plain {
+  color: var(--color-ink-mid);
+}
+
+.rp-bar__value {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.rp-bar__track {
+  height: 8px;
+  border-radius: 2px;
+  background: var(--color-rule);
+  overflow: hidden;
+}
+
+/*
+ * 채움은 잉크색이다. 항목 사이의 차이는 길이가 말하고 색은 말하지 않는다.
+ * 부수적인 항목(기타 묶음·실패/취소)만 투명도를 낮춰 뒤로 물린다 — 평가가 아니라 위계다.
+ */
+.rp-bar__fill {
+  display: block;
+  height: 100%;
+  background: var(--color-ink);
+}
+
+.rp-bar__fill--muted {
+  opacity: 0.4;
+}
+
+/* ── 큰 숫자 (성공률 · 1차 통과율) ───────────────────────────────────────── */
+
+/*
+ * 회색이다. 아직 "몇 %면 좋은가"의 기준선이 없어서, 색으로 평가하면 없는 기준을
+ * 만들어 낸 셈이 된다(설계서 07 주석 3).
+ */
+.rp-figure {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.rp-figure__value {
+  font-size: var(--font-size-title);
+  font-weight: 600;
+  color: var(--color-ink-mid);
+  font-variant-numeric: tabular-nums;
+}
+
+.rp-figure__label {
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+/* ── 차단 사유 순위 ─────────────────────────────────────────────────────── */
+
+.rp-reasons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-rule);
+}
+
+.rp-reasons__title {
+  margin: 0;
+  font-size: var(--font-size-meta);
+  font-weight: 400;
+  color: var(--color-ink-mid);
+}
+
+.rp-reasons__list {
+  margin: 0;
+  padding-left: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--font-size-meta);
+}
+
+.rp-reasons__item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.rp-reasons__text {
+  word-break: break-word;
+}
+
+/* ── 반응형 (설계서 09) ───────────────────────────────────────────────── */
+
+@media (max-width: 1279px) {
+  .rp__row--top {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rp__row--bottom {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* <768: 한 줄에 하나. 모바일에서 리포트의 과업은 읽는 것까지다. */
+@media (max-width: 767px) {
+  .rp__row--top,
+  .rp__row--bottom {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rp__controls {
+    margin-left: 0;
+  }
+}

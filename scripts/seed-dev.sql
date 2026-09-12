@@ -181,6 +181,22 @@ BEGIN
     (p_crawler, 2, NULL, 2, 3, 2.50, now() - interval '1 hour'),
     (p_docs, 3, 3, 3, 3, 3.00, now() - interval '1 day');
 
+  -- 추이선을 보려면 프로젝트당 점이 2개 이상 있어야 한다. 최근 8주치를 주 단위로 깐다.
+  -- 값을 조금씩 흔들어 두는 이유는, 평평한 선은 "데이터가 없는 것"과 구분되지 않기 때문이다.
+  INSERT INTO health_snapshots (project_id, deploy_freq_score, lead_time_score, change_fail_score, mttr_score, composite_score, measured_at)
+  SELECT p.id, s.df, s.lt, s.cf, s.mt,
+         ROUND(((s.df + s.lt + s.cf + s.mt)::numeric / 4), 2),
+         now() - (w || ' weeks')::interval
+  FROM generate_series(1, 8) w
+  CROSS JOIN LATERAL (VALUES (p_nol), (p_ingest), (p_recipe), (p_crawler), (p_docs)) AS p(id)
+  CROSS JOIN LATERAL (
+    SELECT
+      2 + ((w + 1) % 3) AS df,
+      2 + ((w + 2) % 3) AS lt,
+      2 + (w % 3)       AS cf,
+      1 + ((w + 1) % 4) AS mt
+  ) AS s;
+
   -- ── 로그 (대시보드 실행 스트림 · 개요 로그 탭) ──
   INSERT INTO log_entries (project_id, agent_id, level, message, created_at) VALUES
     (p_crawler, NULL,'error','docker build 실패 — crawler-farm 태그 미지정', now() - interval '5 minutes'),

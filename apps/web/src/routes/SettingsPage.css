@@ -1,0 +1,337 @@
+/*
+ * 설정 화면 — 구조는 목업 1h, 색·타이포는 tokens.css.
+ * 목업의 다크 Nocturne(보라) 팔레트는 설계서가 폐기했으므로 하드코딩 hex를 쓰지 않는다.
+ * 이 파일에는 var(--*)만 들어간다.
+ */
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-section-gap);
+}
+
+.settings__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.settings__picker {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.settings__picker-label {
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+.settings__select {
+  min-width: 200px;
+  padding: var(--space-1) var(--space-2);
+  font: inherit;
+  font-size: var(--font-size-body);
+  color: var(--color-ink);
+  background: var(--color-bg);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+}
+
+.settings__note,
+.settings__meta,
+.settings__hint {
+  margin: 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+/*
+ * 탭 레일은 목업처럼 왼쪽에 세로로 선다. 좁아지면 가로로 눕는다 —
+ * 224px 레일을 좁은 폭에서 유지하면 본문이 읽을 수 없게 눌린다.
+ */
+.settings__body {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: var(--space-6);
+}
+
+.settings__tabs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.settings__tab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: var(--row-height-one-line);
+  padding: 0 var(--space-3);
+  font: inherit;
+  font-size: var(--font-size-body);
+  color: var(--color-ink-mid);
+  text-align: left;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.settings__tab:hover {
+  background: var(--color-surface);
+}
+
+/* 선택된 탭은 색만이 아니라 테두리로도 구분된다 — 색 하나에 의존하지 않는다. */
+.settings__tab[aria-current='page'] {
+  color: var(--color-ink);
+  background: var(--color-surface);
+  border-color: var(--color-rule);
+}
+
+.settings__panel {
+  min-width: 0;
+}
+
+.settings__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.settings__section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--font-size-section);
+  color: var(--color-ink);
+}
+
+.settings__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4);
+}
+
+.settings__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.settings__label {
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+.settings__input {
+  padding: var(--space-2);
+  font: inherit;
+  font-size: var(--font-size-body);
+  color: var(--color-ink);
+  background: var(--color-bg);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+}
+
+.settings__input--wide {
+  min-width: 280px;
+  flex: 1 1 280px;
+}
+
+.settings__input:disabled {
+  color: var(--color-ink-mid);
+  background: var(--color-surface);
+}
+
+/* 입력이 유효하지 않을 때도 색 외에 아래 힌트 문장이 함께 바뀐다. */
+.settings__input[aria-invalid='true'] {
+  border-color: var(--color-signal);
+}
+
+.settings__check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+.settings__usage {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-card-padding);
+  background: var(--color-surface);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+}
+
+.settings__usage dt {
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+.settings__usage dd {
+  margin: var(--space-1) 0 0;
+  font-size: var(--font-size-body);
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+.settings__pct {
+  color: var(--color-ink-mid);
+}
+
+.settings__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.settings__issue {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.settings__issue .settings__label {
+  flex-basis: 100%;
+}
+
+/*
+ * 되돌릴 수 없는 것(원문 1회 노출 · 폐기 · 연동 해제)을 담는 상자.
+ * 신호색 배경을 깔아 본문과 다른 무게로 읽히게 한다.
+ */
+.settings__once {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-card-padding);
+  background: var(--color-signal-bg);
+  border: 1px solid var(--color-signal);
+  border-radius: var(--radius);
+}
+
+.settings__once-title {
+  margin: 0;
+  font-size: var(--font-size-body);
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.settings__once-key {
+  padding: var(--space-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--font-size-body);
+  color: var(--color-ink);
+  background: var(--color-bg);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.settings__warn {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-meta);
+  color: var(--color-ink);
+  background: var(--color-surface);
+  border-left: 2px solid var(--color-signal);
+  border-radius: var(--radius);
+}
+
+.settings__error {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-signal);
+}
+
+.settings__ok {
+  margin: 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+/* 좁은 폭에서는 표만 가로로 스크롤한다 — 화면 전체가 밀리면 탭 레일까지 따라 나간다. */
+.settings__scroll {
+  overflow-x: auto;
+}
+
+.settings__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-body);
+}
+
+.settings__table th,
+.settings__table td {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  border-bottom: 1px solid var(--color-rule);
+  vertical-align: middle;
+}
+
+.settings__table th {
+  font-size: var(--font-size-meta);
+  font-weight: 500;
+  color: var(--color-ink-mid);
+}
+
+.settings__cell-action {
+  white-space: nowrap;
+}
+
+.settings__confirm {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.settings__confirm-text {
+  font-size: var(--font-size-meta);
+  color: var(--color-signal);
+  white-space: normal;
+}
+
+.settings__mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+  overflow-wrap: anywhere;
+}
+
+.settings__dash {
+  color: var(--color-ink-mid);
+}
+
+.settings__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  .settings__body {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
+  }
+
+  .settings__tabs {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
