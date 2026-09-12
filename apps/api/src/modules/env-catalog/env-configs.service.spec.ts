@@ -1,8 +1,12 @@
-import { Repository } from 'typeorm';
+import type { DataSource, EntityManager, Repository } from 'typeorm';
 import { EnvConfigsService } from './env-configs.service';
 import type { DockerConfigGenerator } from './docker-config-generator';
 import type { PolicyCheck, PolicyGate } from './policy-gate';
-import type { PolicyCheckResult, ProjectEnvConfig } from '../../database/entities';
+import type {
+  EnvConfigTransition,
+  PolicyCheckResult,
+  ProjectEnvConfig,
+} from '../../database/entities';
 import type { BuildStatus } from '../../database/entities/enums';
 import type { EnvTemplatesService } from './env-templates.service';
 import { AuditService } from '../audit/audit.service';
@@ -67,10 +71,45 @@ const make = (opts: {
     presetFor: async () => ({ language: 'node' }),
   } as unknown as EnvTemplatesService;
 
-  const service = new EnvConfigsService(configs, results, members, generator, gate, templates, {
-    record: async () => undefined,
-  } as unknown as AuditService);
-  return { service, savedResults };
+  /**
+   * 전이 이력을 담는 가짜 트랜잭션.
+   *
+   * 실제 DataSource 없이도 "상태가 바뀔 때 이력이 함께 쓰이는가"를 볼 수 있어야 한다 —
+   * 그게 이 기능에서 실제로 깨지는 지점이다(상태만 바뀌고 이력이 빠지는 것).
+   */
+  const transitions: Partial<EnvConfigTransition>[] = [];
+  const dataSource = {
+    transaction: async <T>(cb: (m: EntityManager) => Promise<T>): Promise<T> => {
+      const manager = {
+        create: (_entity: unknown, v: Record<string, unknown>) => v,
+        save: async (v: unknown) => {
+          // 전이 행만 골라 담는다. 구성 저장도 같은 manager를 지난다.
+          if (v !== null && typeof v === 'object' && 'to_status' in v) {
+            transitions.push(v as Partial<EnvConfigTransition>);
+          }
+          return v;
+        },
+      } as unknown as EntityManager;
+      return cb(manager);
+    },
+  } as unknown as DataSource;
+
+  const transitionRepo = {
+    find: async () => [],
+  } as unknown as Repository<EnvConfigTransition>;
+
+  const service = new EnvConfigsService(
+    configs,
+    results,
+    members,
+    transitionRepo,
+    generator,
+    gate,
+    templates,
+    { record: async () => undefined } as unknown as AuditService,
+    dataSource,
+  );
+  return { service, savedResults, transitions };
 };
 
 const pass = (tool: 'trivy' | 'conftest'): PolicyCheck => ({
@@ -178,6 +217,59 @@ describe('EnvConfigsService', () => {
       const { service } = make({ stored: configRow('policy_passed'), isMember: false });
 
       await expect(service.detail(CONFIG, USER)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    });
+  });
+  describe('상태 전이 이력', () => {
+    it('생성은 generated 한 줄을 남기고, 직전 상태가 없으므로 from은 null이다', async () => {
+      const { service, transitions } = make({ checks: [pass('trivy'), pass('conftest')] });
+      await service.create(PROJECT, USER, { stack_input: {}, input_mode: 'ui' } as never);
+
+      expect(transitions[0]).toMatchObject({
+        from_status: null,
+        to_status: 'generated',
+        actor_user_id: USER,
+      });
+    });
+
+    it('Policy Gate 판정의 행위자는 null이다 — 기계가 한 일에 사람 이름을 적지 않는다', async () => {
+      const { service, transitions } = make({ checks: [pass('trivy'), fail('conftest')] });
+      await service.create(PROJECT, USER, { stack_input: {}, input_mode: 'ui' } as never);
+
+      const gate = transitions[1];
+      expect(gate).toMatchObject({
+        from_status: 'generated',
+        to_status: 'policy_blocked',
+        actor_user_id: null,
+      });
+      // 왜 막혔는지가 이력만 보고도 읽혀야 한다.
+      expect(gate.reason).toContain('conftest');
+    });
+
+    it('통과한 판정에는 사유가 없다 — 없는 사유를 지어내지 않는다', async () => {
+      const { service, transitions } = make({ checks: [pass('trivy'), pass('conftest')] });
+      await service.create(PROJECT, USER, { stack_input: {}, input_mode: 'ui' } as never);
+
+      expect(transitions[1]).toMatchObject({ to_status: 'policy_passed', reason: null });
+    });
+
+    it('승인은 누가 했는지를 남긴다 — 승인은 사람의 판단이다', async () => {
+      const { service, transitions } = make({ stored: configRow('policy_passed') });
+      await service.approve(CONFIG, USER);
+
+      expect(transitions).toEqual([
+        expect.objectContaining({
+          from_status: 'policy_passed',
+          to_status: 'approved',
+          actor_user_id: USER,
+        }),
+      ]);
+    });
+
+    it('전이가 거부되면 이력도 남지 않는다', async () => {
+      const { service, transitions } = make({ stored: configRow('policy_blocked') });
+      await expect(service.approve(CONFIG, USER)).rejects.toMatchObject({ status: 409 });
+
+      expect(transitions).toHaveLength(0);
     });
   });
 });

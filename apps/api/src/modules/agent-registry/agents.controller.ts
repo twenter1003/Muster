@@ -23,7 +23,7 @@ import { ProjectMemberGuard } from '../../common/auth/project-member.guard';
 import { AgentsService } from './agents.service';
 import { AgentRunsService } from './agent-runs.service';
 import { BudgetService, type BudgetUsage } from './budget.service';
-import { ApiKeyGuard } from '../../common/auth/api-key.guard';
+import { ApiKeyOrSessionGuard } from '../../common/auth/api-key-or-session.guard';
 import { CreateAgentDto } from './dto/create-agent.dto';
 import { UpdateAgentDto } from './dto/update-agent.dto';
 import { UpdateRunDto } from './dto/update-run.dto';
@@ -184,16 +184,28 @@ export class AgentsController {
   }
 
   /**
-   * 실행 시작 기록 — **에이전트가 호출한다**. 사람 세션이 없으므로 @Public()으로
-   * 전역 AuthGuard를 비켜가고 ApiKeyGuard가 대신 인증한다.
+   * 실행 시작 기록 — **에이전트 또는 사람**이 호출한다.
+   *
+   * 전에는 ApiKeyGuard만 달려 있어 브라우저에서는 무슨 수를 써도 401이었다. 그래서 개요
+   * 화면의 "에이전트 실행" 버튼이 비활성으로 남아 있었다. 실행 **종료** 기록은 이미 세션
+   * 인증인데(사람이 대시보드에서 정정할 수 있어야 하므로) 시작만 막혀 있던 비대칭이라
+   * 두 신원을 다 받는다. 자세한 근거는 ApiKeyOrSessionGuard 주석.
+   *
+   * @Public()은 그대로다 — 전역 AuthGuard는 세션만 알기 때문에, 키로 오는 에이전트 요청을
+   * 그대로 두면 가드에 닿기도 전에 401이 된다. 인증은 이 라우트의 가드가 책임진다.
    */
   @Post(':id/runs')
   @Public()
-  @UseGuards(ApiKeyGuard)
+  @UseGuards(ApiKeyOrSessionGuard)
   @HttpCode(HttpStatus.CREATED)
   async startRun(@Param('id') id: string, @Req() req: Request): Promise<RunView> {
-    // 키가 가리키는 프로젝트의 에이전트만 기록할 수 있다. 남의 에이전트에 실행을 끼워넣지 못한다.
-    const agent = await this.agents.findInProjectOrFail(id, req.apiKeyProjectId!);
+    // 어느 신원으로 왔든 **그 신원이 닿을 수 있는 에이전트**로만 좁힌다. 키는 자기
+    // 프로젝트로, 사람은 자기가 멤버인 프로젝트로. 남의 에이전트에 실행을 끼워넣지 못한다.
+    const agent =
+      req.apiKeyProjectId !== undefined
+        ? await this.agents.findInProjectOrFail(id, req.apiKeyProjectId)
+        : await this.agents.detail(id, req.user!.id);
+
     return toRunView(await this.runs.start(agent.id));
   }
 }

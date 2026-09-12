@@ -1,13 +1,13 @@
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { HealthIndicator } from '../components/HealthIndicator';
 import { LogRow } from '../components/LogRow';
 import { StageBadge } from '../components/StageBadge';
 import { StatusBadge } from '../components/StatusBadge';
-import type { ApiError } from '../lib/api';
-import type { Page as ApiPage } from '../lib/api';
+import { ApiError, apiPost, type Page as ApiPage } from '../lib/api';
 import { useApi } from '../lib/useApi';
+import { actorLabel, type TransitionView } from '../lib/transitions';
 import {
   BUILD_STATUSES,
   EM_DASH,
@@ -57,6 +57,17 @@ interface AgentView {
   name: string;
   created_at: string;
   updated_at: string;
+}
+
+/** agents.controller.ts의 toRunView 그대로다. tokens_used·cost는 NUMERIC이라 문자열로 온다. */
+interface RunView {
+  id: string;
+  agent_id: string;
+  status: string;
+  tokens_used: number;
+  cost: string;
+  started_at: string;
+  ended_at: string | null;
 }
 
 interface BudgetUsage {
@@ -283,30 +294,6 @@ function toServiceCards(stack: Record<string, unknown>, docker: Record<string, u
   return cards;
 }
 
-/**
- * 현재 build_status에 이르는 경로(주석 3).
- * 지금 succeeded여도 policy_blocked를 거쳤는지 아닌지가 디버깅에 필요하므로,
- * 상태 하나가 아니라 상태 전이도의 경로를 문자열로 남긴다.
- * (서버가 전이 이력을 따로 주지 않아 상태 기계에서 역산한다 — 아래 "확신하지 못한 것" 참고.)
- */
-function transitionPath(status: BuildStatus): BuildStatus[] {
-  switch (status) {
-    case 'generated':
-      return ['generated'];
-    case 'policy_passed':
-    case 'policy_blocked':
-      return ['generated', status];
-    case 'approved':
-    case 'rejected':
-      return ['generated', 'policy_passed', status];
-    case 'running':
-      return ['generated', 'policy_passed', 'approved', 'running'];
-    case 'succeeded':
-    case 'failed':
-      return ['generated', 'policy_passed', 'approved', 'running', status];
-  }
-}
-
 /* ─────────────────────────── 공용 조각 ─────────────────────────── */
 
 function Card({
@@ -491,16 +478,11 @@ export function ProjectOverviewPage() {
         <div className="po__actions">
           <Button>수정</Button>
           {/*
-            솔리드는 이 화면에서 하나뿐이다. 다만 실행 API(POST /agents/:id/runs)는 에이전트용
-            API 키 인증이라 브라우저 세션으로는 부를 수 없어, 눌리는 척하지 않고 잠가 둔다.
+            실행 버튼은 여기 없다. POST /agents/:id/runs가 세션 인증도 받게 되면서 웹에서
+            부를 수 있게 됐지만, 그 요청에는 **어느 에이전트인지**가 반드시 필요하다.
+            화면 머리에 버튼 하나를 두면 그 대상을 화면이 임의로 고르게 되므로,
+            에이전트 탭의 각 줄로 내려 보냈다.
           */}
-          <Button
-            variant="solid"
-            disabled
-            title="실행 API가 에이전트 전용 API 키 인증이라 웹에서 호출할 수 없다."
-          >
-            에이전트 실행
-          </Button>
         </div>
       </header>
 
@@ -655,10 +637,7 @@ export function ProjectOverviewPage() {
                   ) : (
                     <div className="po-list">
                       {page.items.map((a) => (
-                        <div className="po-list__row" key={a.id}>
-                          <span className="po-mono">{a.name}</span>
-                          <span>최근 변경 {formatDateTime(a.updated_at)}</span>
-                        </div>
+                        <AgentRow key={a.id} agent={a} />
                       ))}
                     </div>
                   )
@@ -808,6 +787,13 @@ function EnvConfigCard({
   const cards = toServiceCards(config.stack_config, docker);
   const status = asBuildStatus(config.build_status);
 
+  /*
+   * 전이 이력은 카드마다 자기 것을 부른다. 구성 하나당 몇 줄짜리 응답이고 화면에 뜨는 구성도
+   * 스무 개를 넘지 않아, 한 번에 모아 받는 API를 새로 요구하는 것보다 이쪽이 싸다.
+   */
+  const transitions = useApi<{ items: TransitionView[] }>(`/env-configs/${config.id}/transitions`);
+  const history = transitions.data?.items ?? [];
+
   return (
     <>
       {cards.length === 0 ? (
@@ -851,18 +837,127 @@ function EnvConfigCard({
             </p>
           ))}
 
-      {/* 주석 3 — 지금 상태만이 아니라 여기까지 온 경로를 남긴다. */}
-      {status !== null && (
-        <div className="po-transition">
-          {transitionPath(status).map((s, i, arr) => (
-            <span key={s}>
-              {i > 0 && <span aria-hidden="true"> {'>'} </span>}
-              {i === arr.length - 1 ? <StatusBadge status={s} /> : s}
+      {/*
+        주석 3 — 지금 상태만이 아니라 여기까지 온 경로를 남긴다. 전에는 build_status 하나에서
+        경로를 역산했는데, 그러면 반려 뒤 다시 통과한 구성이 처음부터 통과한 것처럼 보였다.
+        이제는 서버가 기록한 전이를 그대로 잇는다 — 역산이 아니라 기록이다.
+      */}
+      {transitions.error !== null ? (
+        <p className="meta po-note">전이 이력을 불러오지 못했다 — {transitions.error.message}</p>
+      ) : (
+        history.length > 0 && (
+          <div className="po-transition">
+            {history.map((t, i, arr) => {
+              const to = asBuildStatus(t.to_status);
+              return (
+                <span key={t.id} title={`${actorLabel(t.actor)} · ${formatDateTime(t.created_at)}`}>
+                  {i > 0 && <span aria-hidden="true"> {'>'} </span>}
+                  {i === arr.length - 1 && to !== null ? (
+                    <StatusBadge status={to} />
+                  ) : (
+                    t.to_status
+                  )}
+                </span>
+              );
+            })}
+            {/* 행위자는 경로 옆에 붙인다 — 마지막 전이를 누가 했는지가 이 카드의 질문이다. */}
+            <span className="po-transition__actor">
+              마지막 {actorLabel(history[history.length - 1].actor)}
             </span>
-          ))}
+          </div>
+        )
+      )}
+      {/* 사유는 대개 비어 있고, 있을 때는 차단 이유라 감추면 안 된다. */}
+      {history
+        .filter((t) => t.reason !== null && t.reason.trim() !== '')
+        .map((t) => (
+          <p className="meta po-note" key={`reason-${t.id}`}>
+            <span className="po-mono">{t.to_status}</span> — {t.reason}
+          </p>
+        ))}
+
+      {/* 이력이 아직 없고 서버 상태만 아는 순간에도 상태 자체는 보여 준다. */}
+      {history.length === 0 && transitions.error === null && status !== null && (
+        <div className="po-transition">
+          <StatusBadge status={status} />
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * 에이전트 한 줄과 그 실행 기록.
+ *
+ * 실행을 줄마다 두는 이유: POST /agents/:id/runs는 대상 에이전트가 있어야 성립한다.
+ * 화면 머리의 버튼 하나로는 대상을 고를 수 없어, 선택이 곧 클릭이 되도록 줄로 내렸다.
+ */
+function AgentRow({ agent }: { agent: AgentView }) {
+  const runs = useApi<ApiPage<RunView>>(`/agents/${agent.id}/runs?limit=5`);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<ApiError | null>(null);
+
+  const start = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await apiPost<RunView>(`/agents/${agent.id}/runs`);
+      // 서버가 쓴 줄을 다시 읽는다 — 받은 응답으로 목록을 흉내 내면 화면과 기록이 갈린다.
+      runs.reload();
+    } catch (e: unknown) {
+      setError(e instanceof ApiError ? e : new ApiError(0, 'INTERNAL', String(e)));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const items = runs.data?.items ?? [];
+
+  return (
+    <div className="po-agent">
+      <div className="po-list__row">
+        <span className="po-mono">{agent.name}</span>
+        <span>최근 변경 {formatDateTime(agent.updated_at)}</span>
+        <Button onClick={() => void start()} disabled={busy}>
+          {busy ? '시작 중…' : '실행'}
+        </Button>
+      </div>
+
+      {error !== null && (
+        <p className="meta error-note" role="alert">
+          실행을 시작하지 못했다 — {error.status} {error.code} {error.message}
+        </p>
+      )}
+
+      {runs.error !== null ? (
+        <p className="meta po-note">실행 기록을 불러오지 못했다 — {runs.error.message}</p>
+      ) : items.length === 0 ? (
+        <p className="meta po-note">실행 기록이 없다.</p>
+      ) : (
+        <ul className="po-runs">
+          {items.map((r) => (
+            <li className="po-runs__row" key={r.id}>
+              <span className="po-mono">{r.status}</span>
+              <span className="meta">시작 {formatDateTime(r.started_at)}</span>
+              {/* 끝나지 않은 실행의 종료 시각은 0이 아니라 —다(아직 일어나지 않은 일). */}
+              <span className="meta">
+                종료 {r.ended_at === null ? EM_DASH : formatDateTime(r.ended_at)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/*
+        실행을 **끝내는** 쪽은 아직 아무도 없다. 실행 어댑터가 없어(기술 사양서 9장 미해결)
+        여기서 시작한 실행은 누군가 PATCH /agent-runs/:id로 정정하기 전까지 running으로 남는다.
+        화면 문구가 이 사실을 감추지 않도록, 시작을 "실행 완료"라고 쓰지 않는다.
+      */}
+      <p className="meta po-note">
+        시작 기록만 남는다. 실행을 끝내는 어댑터가 아직 없어 상태는 running에 머문다.
+      </p>
+    </div>
   );
 }
 

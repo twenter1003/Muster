@@ -19,7 +19,12 @@ import { EnvTemplatesService } from './env-templates.service';
 import { EnvConfigsService } from './env-configs.service';
 import { CreateEnvTemplateDto } from './dto/create-env-template.dto';
 import { CreateEnvConfigDto } from './dto/create-env-config.dto';
-import type { EnvTemplate, PolicyCheckResult, ProjectEnvConfig } from '../../database/entities';
+import type {
+  EnvConfigTransition,
+  EnvTemplate,
+  PolicyCheckResult,
+  ProjectEnvConfig,
+} from '../../database/entities';
 import { AuditService } from '../audit/audit.service';
 
 interface TemplateView {
@@ -146,6 +151,26 @@ export class ProjectEnvConfigsController {
   }
 }
 
+/** 응답에 실리는 전이 표현. */
+interface TransitionView {
+  id: string;
+  from_status: string | null;
+  to_status: string;
+  /** 사람이 일으킨 전이면 그 계정, Policy Gate의 자동 판정이면 null. */
+  actor: string | null;
+  reason: string | null;
+  created_at: string;
+}
+
+const toTransitionView = (t: EnvConfigTransition): TransitionView => ({
+  id: t.id,
+  from_status: t.from_status,
+  to_status: t.to_status,
+  actor: t.actor?.github_login ?? null,
+  reason: t.reason,
+  created_at: t.created_at.toISOString(),
+});
+
 @Controller('env-configs')
 export class EnvConfigsController {
   constructor(private readonly configs: EnvConfigsService) {}
@@ -166,6 +191,21 @@ export class EnvConfigsController {
   ): Promise<{ items: PolicyCheckView[] }> {
     const results = await this.configs.policyChecks(id, user.id);
     return { items: results.map(toCheckView) };
+  }
+
+  /**
+   * 상태 전이 이력(설계서 ERD에 없는 신설 테이블).
+   *
+   * actor는 github_login으로만 내보낸다 — 누가 승인했는지를 알면 되고, 이메일까지 실을
+   * 이유가 없다. 기계 전이(Policy Gate)는 null이고, 화면이 그것을 "시스템"으로 읽는다.
+   */
+  @Get(':id/transitions')
+  async transitions(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ items: TransitionView[] }> {
+    const rows = await this.configs.transitions(id, user.id);
+    return { items: rows.map(toTransitionView) };
   }
 
   @Post(':id/approve')

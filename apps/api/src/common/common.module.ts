@@ -3,6 +3,7 @@ import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { AllExceptionsFilter } from './errors/all-exceptions.filter';
 import { AuthGuard } from './auth/auth.guard';
 import { ApiKeyGuard } from './auth/api-key.guard';
+import { ApiKeyOrSessionGuard } from './auth/api-key-or-session.guard';
 import { ProjectMemberGuard } from './auth/project-member.guard';
 import { HealthController } from './health/health.controller';
 
@@ -22,9 +23,10 @@ import { HealthController } from './health/health.controller';
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_GUARD, useClass: AuthGuard },
     ApiKeyGuard,
+    ApiKeyOrSessionGuard,
     ProjectMemberGuard,
     // SESSION_RESOLVER는 AuthModule(@Global)이 제공한다.
   ],
-  exports: [ApiKeyGuard, ProjectMemberGuard],
+  exports: [ApiKeyGuard, ApiKeyOrSessionGuard, ProjectMemberGuard],
 })
 export class CommonModule {}
