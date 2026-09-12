@@ -14,6 +14,7 @@ import { AgentRegistryModule } from './modules/agent-registry/agent-registry.mod
 import { IngestModule } from './modules/ingest/ingest.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { InboxModule } from './modules/inbox/inbox.module';
 
 @Module({
   imports: [
@@ -34,6 +35,8 @@ import { ReportsModule } from './modules/reports/reports.module';
     RealtimeModule,
     // 설계서 Part 2 §2의 7개 모듈 목록에 없는 신설 모듈 (reports.module.ts 주석 참조).
     ReportsModule,
+    // 마찬가지로 설계서의 모듈 목록에 없는 신설 모듈 (inbox.module.ts 주석 참조).
+    InboxModule,
   ],
 })
 export class AppModule {}
