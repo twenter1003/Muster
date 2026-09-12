@@ -319,12 +319,12 @@ function Card({
   children: ReactNode;
 }) {
   return (
-    <section className="po-card">
+    <section className="panel po-card">
       <h2 className="po-card__head">
         {title}
         {aside !== undefined && <span className="po-card__aside">{aside}</span>}
       </h2>
-      <div className="po-card__body">{children}</div>
+      <div className="panel__body">{children}</div>
     </section>
   );
 }
@@ -342,11 +342,11 @@ function Async<T>({
   empty?: string;
   children: (data: T) => ReactNode;
 }) {
-  if (state.loading && state.data === null) return <p className="po-note">불러오는 중…</p>;
+  if (state.loading && state.data === null) return <p className="meta po-note">불러오는 중…</p>;
   if (state.error !== null) {
-    return <p className="po-note po-note--signal">불러오지 못했다 — {state.error.message}</p>;
+    return <p className="meta po-note po-note--signal">불러오지 못했다 — {state.error.message}</p>;
   }
-  if (state.data === null) return <p className="po-note">{empty ?? '자료가 없다.'}</p>;
+  if (state.data === null) return <p className="meta po-note">{empty ?? '자료가 없다.'}</p>;
   return <>{children(state.data)}</>;
 }
 
@@ -448,7 +448,7 @@ export function ProjectOverviewPage() {
   );
 
   if (id === undefined) {
-    return <p className="po-note po-note--signal">프로젝트 id가 없는 주소다.</p>;
+    return <p className="meta po-note po-note--signal">프로젝트 id가 없는 주소다.</p>;
   }
 
   /*
@@ -460,7 +460,7 @@ export function ProjectOverviewPage() {
     return (
       <section>
         <h1 className="po__title">프로젝트</h1>
-        <p className="po-note po-note--signal">
+        <p className="meta po-note po-note--signal">
           {notFound ? '프로젝트를 찾을 수 없다.' : `불러오지 못했다 — ${project.error.message}`}
         </p>
       </section>
@@ -473,7 +473,7 @@ export function ProjectOverviewPage() {
     <section>
       <header className="po__header">
         <div>
-          <div className="po__crumb">프로젝트</div>
+          <div className="meta">프로젝트</div>
           <div className="po__title-row">
             <h1 className="po__title">{project.data?.name ?? EM_DASH}</h1>
             {stage !== null && <StageBadge stage={stage} />}
@@ -541,7 +541,7 @@ export function ProjectOverviewPage() {
                   {(page) => {
                     const config = page.items[0];
                     if (config === undefined)
-                      return <p className="po-note">아직 환경 구성이 없다.</p>;
+                      return <p className="meta po-note">아직 환경 구성이 없다.</p>;
                     return (
                       <EnvConfigCard
                         config={config}
@@ -568,7 +568,7 @@ export function ProjectOverviewPage() {
                     const snap = page.items[0];
                     if (snap === undefined) {
                       return (
-                        <p className="po-note">
+                        <p className="meta po-note">
                           헬스 스냅샷이 없다 — GitHub 미연동 프로젝트는 계산되지 않는다.
                         </p>
                       );
@@ -590,9 +590,9 @@ export function ProjectOverviewPage() {
             <Async state={docs}>
               {(page) =>
                 page.items.length === 0 ? (
-                  <p className="po-note">문서가 없다.</p>
+                  <p className="meta po-note">문서가 없다.</p>
                 ) : (
-                  <table className="po-table">
+                  <table className="table po-table">
                     <thead>
                       <tr>
                         <th>제목</th>
@@ -625,7 +625,7 @@ export function ProjectOverviewPage() {
             {(page) =>
               page.items.length === 0 ? (
                 <Card title="환경 구성">
-                  <p className="po-note">아직 환경 구성이 없다.</p>
+                  <p className="meta po-note">아직 환경 구성이 없다.</p>
                 </Card>
               ) : (
                 <>
@@ -651,7 +651,7 @@ export function ProjectOverviewPage() {
               <Async state={agents}>
                 {(page) =>
                   page.items.length === 0 ? (
-                    <p className="po-note">등록된 에이전트가 없다.</p>
+                    <p className="meta po-note">등록된 에이전트가 없다.</p>
                   ) : (
                     <div className="po-list">
                       {page.items.map((a) => (
@@ -679,7 +679,7 @@ export function ProjectOverviewPage() {
                 {/* 필터도 URL에 남는다 — 링크로 "이 프로젝트의 error 로그"를 공유할 수 있어야 한다. */}
                 <button
                   type="button"
-                  className="po-chip"
+                  className="chip po-chip"
                   aria-pressed={logLevel === null}
                   onClick={() => setLevel(null)}
                 >
@@ -689,7 +689,7 @@ export function ProjectOverviewPage() {
                   <button
                     key={l}
                     type="button"
-                    className="po-chip"
+                    className="chip po-chip"
                     aria-pressed={logLevel === l}
                     onClick={() => setLevel(l)}
                   >
@@ -702,7 +702,7 @@ export function ProjectOverviewPage() {
             <Async state={logs}>
               {(page) =>
                 page.items.length === 0 ? (
-                  <p className="po-note">로그가 없다.</p>
+                  <p className="meta po-note">로그가 없다.</p>
                 ) : (
                   <div>
                     {page.items.map((l) => (
@@ -725,7 +725,7 @@ export function ProjectOverviewPage() {
             <Async state={stages}>
               {(page) =>
                 page.items.length === 0 ? (
-                  <p className="po-note">단계 이력이 없다.</p>
+                  <p className="meta po-note">단계 이력이 없다.</p>
                 ) : (
                   <ol className="po-timeline">
                     {page.items.map((s, i) => {
@@ -766,7 +766,7 @@ export function ProjectOverviewPage() {
             <Async state={audit}>
               {(page) =>
                 page.items.length === 0 ? (
-                  <p className="po-note">이 프로젝트에 기록된 행위가 없다.</p>
+                  <p className="meta po-note">이 프로젝트에 기록된 행위가 없다.</p>
                 ) : (
                   <ol className="po-timeline">
                     {page.items.map((a) => (
@@ -811,7 +811,7 @@ function EnvConfigCard({
   return (
     <>
       {cards.length === 0 ? (
-        <p className="po-note">구성에서 서비스를 읽지 못했다.</p>
+        <p className="meta po-note">구성에서 서비스를 읽지 못했다.</p>
       ) : (
         <div className="po-services">
           {cards.map((c) => (
@@ -830,7 +830,7 @@ function EnvConfigCard({
       )}
 
       {checks !== null && checks.length > 0 && (
-        <p className="po-note">
+        <p className="meta po-note">
           Policy Gate —{' '}
           {checks.map((c, i) => (
             <span key={c.id}>
@@ -846,7 +846,7 @@ function EnvConfigCard({
         checks
           .filter((c) => c.risk_notes !== null)
           .map((c) => (
-            <p className="po-note" key={`note-${c.id}`}>
+            <p className="meta po-note" key={`note-${c.id}`}>
               {c.tool}: {c.risk_notes}
             </p>
           ))}
@@ -917,7 +917,7 @@ function HealthPanel({ snapshot }: { snapshot: HealthSnapshotView }) {
         </text>
       </svg>
       <div className="po-health__metrics">
-        <p className="po-note">
+        <p className="meta po-note">
           composite {composite === null ? EM_DASH : composite.toFixed(1)} / {HEALTH_MAX}
         </p>
         {metrics.map((m) => (
@@ -938,7 +938,7 @@ function BudgetPanel({ budget }: { budget: BudgetUsage }) {
 
   return (
     <>
-      <p className="po-note">
+      <p className="meta po-note">
         비용 ${budget.used_cost} / {budget.cost_limit === null ? EM_DASH : `$${budget.cost_limit}`}{' '}
         · 토큰 {budget.used_tokens} / {budget.token_limit === null ? EM_DASH : budget.token_limit} ·
         임계치 {budget.alert_threshold_pct}%
@@ -956,7 +956,7 @@ function BudgetPanel({ budget }: { budget: BudgetUsage }) {
           />
         </div>
       )}
-      {over && <p className="po-note po-note--signal">임계치 초과 — 예산을 확인해야 한다.</p>}
+      {over && <p className="meta po-note po-note--signal">임계치 초과 — 예산을 확인해야 한다.</p>}
     </>
   );
 }

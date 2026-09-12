@@ -295,7 +295,7 @@ export function ReportsPage() {
       <header className="rp__header">
         <div>
           <h1 className="page__title rp__title">리포트</h1>
-          <p className="rp__subtitle">
+          <p className="meta">
             {data === null
               ? summary.loading
                 ? '집계를 불러오는 중'
@@ -311,7 +311,7 @@ export function ReportsPage() {
               <button
                 key={r.key}
                 type="button"
-                className={r.key === range ? 'rp__chip rp__chip--on' : 'rp__chip'}
+                className="chip rp__chip"
                 aria-pressed={r.key === range}
                 onClick={() => selectRange(r.key)}
               >
@@ -394,15 +394,15 @@ function HealthTrend({
   const thin = series.filter((s) => s.points.length < 2);
 
   return (
-    <section className="rp-card" aria-labelledby="rp-trend">
-      <div className="rp-card__head">
-        <h2 className="rp-card__title" id="rp-trend">
+    <section className="card rp-card" aria-labelledby="rp-trend">
+      <div className="card__head">
+        <h2 className="card__title" id="rp-trend">
           헬스 스코어 추이
         </h2>
         <span className="rp-card__meta">HEALTH_SNAPSHOTS · composite</span>
       </div>
 
-      <div className="rp-card__body">
+      <div className="card__body">
         {window === null ? (
           <p className="rp-empty">{loading ? '불러오는 중' : '집계가 없다.'}</p>
         ) : (
@@ -515,9 +515,9 @@ function DoraWidget({
         ];
 
   return (
-    <section className="rp-card" aria-labelledby="rp-dora">
-      <div className="rp-card__head">
-        <h2 className="rp-card__title" id="rp-dora">
+    <section className="card rp-card" aria-labelledby="rp-dora">
+      <div className="card__head">
+        <h2 className="card__title" id="rp-dora">
           DORA 지표별 등급
         </h2>
         <span className="rp-card__meta">
@@ -525,7 +525,7 @@ function DoraWidget({
         </span>
       </div>
 
-      <div className="rp-card__body rp-dora">
+      <div className="card__body rp-dora">
         {dora === null ? (
           <p className="rp-empty">{loading ? '불러오는 중' : '집계를 불러오지 못했다.'}</p>
         ) : (
@@ -568,15 +568,15 @@ function DoraWidget({
 
 function CostWidget({ cost, loading }: { cost: CostByProjectView | null; loading: boolean }) {
   return (
-    <section className="rp-card" aria-labelledby="rp-cost">
-      <div className="rp-card__head">
-        <h2 className="rp-card__title" id="rp-cost">
+    <section className="card rp-card" aria-labelledby="rp-cost">
+      <div className="card__head">
+        <h2 className="card__title" id="rp-cost">
           프로젝트별 비용
         </h2>
         <span className="rp-card__meta">{cost === null ? EM_DASH : formatCost(cost.total)}</span>
       </div>
 
-      <div className="rp-card__body rp-bars">
+      <div className="card__body rp-bars">
         {cost === null ? (
           <p className="rp-empty">{loading ? '불러오는 중' : '집계를 불러오지 못했다.'}</p>
         ) : cost.items.length === 0 ? (
@@ -642,9 +642,9 @@ function RunOutcomesWidget({
         ];
 
   return (
-    <section className="rp-card" aria-labelledby="rp-runs">
-      <div className="rp-card__head">
-        <h2 className="rp-card__title" id="rp-runs">
+    <section className="card rp-card" aria-labelledby="rp-runs">
+      <div className="card__head">
+        <h2 className="card__title" id="rp-runs">
           실행 결과 분포
         </h2>
         <span className="rp-card__meta">
@@ -652,7 +652,7 @@ function RunOutcomesWidget({
         </span>
       </div>
 
-      <div className="rp-card__body rp-bars">
+      <div className="card__body rp-bars">
         {outcomes === null ? (
           <p className="rp-empty">{loading ? '불러오는 중' : '집계를 불러오지 못했다.'}</p>
         ) : (
@@ -660,7 +660,7 @@ function RunOutcomesWidget({
             <div className="rp-figure">
               {/* 성공률도 회색이다 — 통과율과 같은 이유로 기준선이 아직 없다. */}
               <span className="rp-figure__value">{formatRate(outcomes.success_rate)}</span>
-              <span className="rp-figure__label">
+              <span className="meta">
                 성공률
                 {outcomes.success_rate === null && ' · 종료된 실행이 0건이라 계산할 수 없다'}
               </span>
@@ -698,9 +698,9 @@ function RunOutcomesWidget({
 
 function PolicyWidget({ gate, loading }: { gate: PolicyGateView | null; loading: boolean }) {
   return (
-    <section className="rp-card" aria-labelledby="rp-policy">
-      <div className="rp-card__head">
-        <h2 className="rp-card__title" id="rp-policy">
+    <section className="card rp-card" aria-labelledby="rp-policy">
+      <div className="card__head">
+        <h2 className="card__title" id="rp-policy">
           Policy Gate 통과율
         </h2>
         <span className="rp-card__meta">
@@ -708,7 +708,7 @@ function PolicyWidget({ gate, loading }: { gate: PolicyGateView | null; loading:
         </span>
       </div>
 
-      <div className="rp-card__body rp-bars">
+      <div className="card__body rp-bars">
         {gate === null ? (
           <p className="rp-empty">{loading ? '불러오는 중' : '집계를 불러오지 못했다.'}</p>
         ) : (
@@ -719,7 +719,7 @@ function PolicyWidget({ gate, loading }: { gate: PolicyGateView | null; loading:
              */}
             <div className="rp-figure">
               <span className="rp-figure__value">{formatRate(gate.first_pass_rate)}</span>
-              <span className="rp-figure__label">
+              <span className="meta">
                 {gate.first_pass_rate === null
                   ? '검사를 거친 환경 구성이 0건이라 계산할 수 없다'
                   : `구성 ${gate.configs_checked}개 중 1차 통과 ${gate.first_pass_configs}개`}

@@ -1,46 +1,15 @@
 /* 감사 로그 — 구조·밀도는 목업 1i, 색·타이포는 토큰. 신호색은 쓰지 않는다(이력이다). */
 
-.audit {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  min-width: 0;
-}
-
-.audit__head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
-
-.audit__count {
-  font-size: var(--font-size-meta);
-  font-weight: 400;
-  color: var(--color-ink-mid);
-}
-
-.audit__tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-}
-
+/* .chip 위에 크기만. 인박스 탭과 같은 이유로 선택은 채움으로 그린다. */
 .audit__tab {
   padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--color-rule);
-  border-radius: var(--radius);
-  background: transparent;
-  color: var(--color-ink-mid);
   font-size: var(--font-size-badge);
-  cursor: pointer;
 }
 
 .audit__tab[aria-pressed='true'] {
   background: var(--color-ink);
   border-color: var(--color-ink);
   color: var(--color-bg);
-  font-weight: 600;
 }
 
 .audit__tab-count {
@@ -48,13 +17,7 @@
   opacity: 0.7;
 }
 
-.audit__meta,
-.audit__empty {
-  margin: 0;
-  font-size: var(--font-size-meta);
-  color: var(--color-ink-mid);
-}
-
+/* 빈 상태는 .meta 위에 상자만 더한다. */
 .audit__empty {
   padding: var(--space-6) var(--space-3);
   border: 1px solid var(--color-rule);
@@ -62,42 +25,20 @@
   text-align: center;
 }
 
-.audit__error {
-  margin: 0;
-  padding: var(--space-2);
-  border: 1px solid var(--color-signal);
-  border-radius: var(--radius);
-  background: var(--color-signal-bg);
-  color: var(--color-signal);
-  font-size: var(--font-size-meta);
-}
-
-.audit__scroll {
-  overflow-x: auto;
-  min-width: 0;
-}
-
+/* .table 위에 이 표만의 밀도(한 줄 행)와 최소 너비를 얹는다. */
 .audit__table {
-  width: 100%;
   min-width: 520px;
-  border-collapse: collapse;
-  font-size: var(--font-size-body);
 }
 
 .audit__table th {
-  text-align: left;
   padding: var(--space-2);
-  border-bottom: 1px solid var(--color-rule);
-  font-size: var(--font-size-meta);
   font-weight: 600;
-  color: var(--color-ink-mid);
   white-space: nowrap;
 }
 
 .audit__table td {
   height: var(--row-height-one-line);
   padding: var(--space-2);
-  border-bottom: 1px solid var(--color-rule);
   vertical-align: middle;
 }
 

@@ -12,11 +12,6 @@
   padding-bottom: var(--space-3);
 }
 
-.po__crumb {
-  font-size: var(--font-size-meta);
-  color: var(--color-ink-mid);
-}
-
 .po__title-row {
   display: flex;
   align-items: center;
@@ -102,12 +97,6 @@
 
 /* ── 카드 ── */
 
-.po-card {
-  border: 1px solid var(--color-rule);
-  border-radius: var(--radius);
-  background: var(--color-bg);
-}
-
 .po-card__head {
   display: flex;
   align-items: center;
@@ -123,12 +112,6 @@
   font-size: var(--font-size-meta);
   font-weight: 400;
   color: var(--color-ink-mid);
-}
-
-.po-card__body {
-  padding: var(--space-card-padding);
-  display: grid;
-  gap: var(--space-3);
 }
 
 /* ── 서비스 카드(주석 1·2) ── */
@@ -246,23 +229,14 @@
 
 /* ── 표·목록 ── */
 
-.po-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--font-size-body);
-}
-
+/* .table 위에 이 표만의 여백과 머리 굵기를 얹는다. */
 .po-table th,
 .po-table td {
-  text-align: left;
   padding: var(--space-2) var(--space-2);
-  border-bottom: 1px solid var(--color-rule);
 }
 
 .po-table th {
-  font-size: var(--font-size-meta);
   font-weight: 500;
-  color: var(--color-ink-mid);
 }
 
 .po-mono {
@@ -347,12 +321,6 @@
 
 /* ── 상태 메시지 ── */
 
-.po-note {
-  font-size: var(--font-size-meta);
-  color: var(--color-ink-mid);
-  margin: 0;
-}
-
 .po-note--signal {
   color: var(--color-signal);
 }
@@ -363,20 +331,8 @@
   margin-left: auto;
 }
 
+/* .chip 위에 크기만 얹는다. 선택 표시는 공용 규칙이 그린다. */
 .po-chip {
-  appearance: none;
-  border: 1px solid var(--color-rule);
-  border-radius: var(--radius);
-  background: none;
-  color: var(--color-ink-mid);
-  cursor: pointer;
-  font: inherit;
   font-size: var(--font-size-badge);
   padding: 2px var(--space-2);
-}
-
-.po-chip[aria-pressed='true'] {
-  color: var(--color-ink);
-  font-weight: 600;
-  border-color: var(--color-ink);
 }

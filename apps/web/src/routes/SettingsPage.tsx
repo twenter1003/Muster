@@ -118,7 +118,7 @@ export function SettingsPage() {
       <header className="settings__head">
         <h1 className="page__title">설정</h1>
         <label className="settings__picker">
-          <span className="settings__picker-label">프로젝트</span>
+          <span className="meta">프로젝트</span>
           <select
             className="settings__select"
             value={projectId ?? ''}
@@ -135,7 +135,7 @@ export function SettingsPage() {
         </label>
       </header>
 
-      <p className="settings__note">
+      <p className="meta">
         예산·API 키·Git 연동은 모두 프로젝트 단위다(PROJECT_BUDGETS · 1:1). 위에서 고른 프로젝트의
         설정을 보여 준다.
       </p>
@@ -161,9 +161,9 @@ export function SettingsPage() {
               프로젝트 목록을 불러오지 못했다: {errorMessage(projectError)}
             </p>
           ) : projectLoading ? (
-            <p className="settings__meta">불러오는 중…</p>
+            <p className="meta">불러오는 중…</p>
           ) : projectId === null ? (
-            <p className="settings__meta">설정할 프로젝트가 없다.</p>
+            <p className="meta">설정할 프로젝트가 없다.</p>
           ) : tab === 'budget' ? (
             <BudgetTab projectId={projectId} />
           ) : tab === 'api-keys' ? (
@@ -231,7 +231,7 @@ function BudgetTab({ projectId }: { projectId: string }) {
       </p>
     );
   }
-  if (loading || form === null || data === null) return <p className="settings__meta">불러오는 중…</p>;
+  if (loading || form === null || data === null) return <p className="meta">불러오는 중…</p>;
 
   const tokenInvalid = !form.tokenUnlimited && !INT_PATTERN.test(form.tokenLimit);
   const costInvalid = !form.costUnlimited && !DECIMAL_PATTERN.test(form.costLimit);
@@ -293,19 +293,19 @@ function BudgetTab({ projectId }: { projectId: string }) {
           onUnlimited={(v) => patch({ costUnlimited: v })}
           onValue={(v) => patch({ costLimit: v })}
         />
-        <div className="settings__field">
-          <label className="settings__label" htmlFor="budget-threshold">
+        <div className="field settings__field">
+          <label className="meta settings__label" htmlFor="budget-threshold">
             알림 임계치 (%)
           </label>
           <input
             id="budget-threshold"
-            className="settings__input"
+            className="input settings__input"
             inputMode="numeric"
             value={form.thresholdPct}
             aria-invalid={pctInvalid}
             onChange={(e) => patch({ thresholdPct: e.target.value })}
           />
-          <p className="settings__hint">
+          <p className="meta">
             {pctInvalid ? '1~100 사이 정수여야 한다.' : '한도가 없으면 임계치도 의미가 없다.'}
           </p>
         </div>
@@ -337,7 +337,7 @@ function BudgetTab({ projectId }: { projectId: string }) {
           저장하지 못했다: {saveError}
         </p>
       ) : null}
-      {saved ? <p className="settings__ok" role="status">예산을 교체했다.</p> : null}
+      {saved ? <p className="meta" role="status">예산을 교체했다.</p> : null}
 
       <div className="settings__actions">
         {/* 화면당 솔리드 1개 — 설정 화면에서 사용자가 값을 바꿔 확정하는 유일한 자리다. */}
@@ -378,13 +378,13 @@ interface LimitFieldProps {
 function LimitField(props: LimitFieldProps) {
   const id = `limit-${props.label}`;
   return (
-    <div className="settings__field">
-      <label className="settings__label" htmlFor={id}>
+    <div className="field settings__field">
+      <label className="meta settings__label" htmlFor={id}>
         {props.label}
       </label>
       <input
         id={id}
-        className="settings__input"
+        className="input settings__input"
         inputMode="decimal"
         value={props.unlimited ? '' : props.value}
         disabled={props.unlimited}
@@ -402,7 +402,7 @@ function LimitField(props: LimitFieldProps) {
         />
         한도 없음
       </label>
-      <p className="settings__hint">{props.invalid ? props.invalidHint : props.hint}</p>
+      <p className="meta">{props.invalid ? props.invalidHint : props.hint}</p>
     </div>
   );
 }
@@ -490,7 +490,7 @@ function ApiKeysTab({ projectId }: { projectId: string }) {
             원문 키는 지금 한 번만 보인다 — 이 화면을 벗어나면 다시 볼 수 없다.
           </p>
           <code className="settings__once-key">{issued.key}</code>
-          <p className="settings__hint">
+          <p className="meta">
             label: {issued.label} · 서버는 해시만 저장하므로 재발급 외에 되찾을 방법이 없다.
           </p>
           <div className="settings__actions">
@@ -501,12 +501,12 @@ function ApiKeysTab({ projectId }: { projectId: string }) {
       ) : null}
 
       <div className="settings__issue">
-        <label className="settings__label" htmlFor="key-label">
+        <label className="meta settings__label" htmlFor="key-label">
           새 키 label
         </label>
         <input
           id="key-label"
-          className="settings__input"
+          className="input settings__input"
           value={label}
           placeholder="ci-runner"
           maxLength={100}
@@ -533,12 +533,12 @@ function ApiKeysTab({ projectId }: { projectId: string }) {
           키 목록을 불러오지 못했다: {errorMessage(error)}
         </p>
       ) : loading ? (
-        <p className="settings__meta">불러오는 중…</p>
+        <p className="meta">불러오는 중…</p>
       ) : keys.length === 0 ? (
-        <p className="settings__meta">발급된 키가 없다.</p>
+        <p className="meta">발급된 키가 없다.</p>
       ) : (
         <div className="settings__scroll">
-          <table className="settings__table">
+          <table className="table settings__table">
             <thead>
               <tr>
                 <th scope="col">label</th>
@@ -601,7 +601,7 @@ function ApiKeysTab({ projectId }: { projectId: string }) {
         </div>
       )}
 
-      <p className="settings__hint">
+      <p className="meta">
         키는 해시로만 저장되어 원문은 발급 응답에서 1회만 노출된다. 로그·실행이력 쓰기 API는 사용자
         세션 대신 이 키(X-API-Key)를 쓴다.
       </p>
@@ -663,7 +663,7 @@ function GitTab({ projectId }: { projectId: string }) {
       </p>
     );
   }
-  if (loading || data === null) return <p className="settings__meta">불러오는 중…</p>;
+  if (loading || data === null) return <p className="meta">불러오는 중…</p>;
 
   const integration = data.integration;
 
@@ -679,14 +679,14 @@ function GitTab({ projectId }: { projectId: string }) {
 
       {integration === null ? (
         <>
-          <p className="settings__meta">연동된 레포가 없다.</p>
+          <p className="meta">연동된 레포가 없다.</p>
           <div className="settings__issue">
-            <label className="settings__label" htmlFor="repo-url">
+            <label className="meta settings__label" htmlFor="repo-url">
               GitHub 레포 URL
             </label>
             <input
               id="repo-url"
-              className="settings__input settings__input--wide"
+              className="input settings__input settings__input--wide"
               value={repoUrl}
               placeholder="https://github.com/owner/repo"
               maxLength={500}
@@ -696,7 +696,7 @@ function GitTab({ projectId }: { projectId: string }) {
               {busy ? '연동 중…' : '연동'}
             </Button>
           </div>
-          <p className="settings__hint">연동하면 GitHub 웹훅이 자동으로 등록된다.</p>
+          <p className="meta">연동하면 GitHub 웹훅이 자동으로 등록된다.</p>
         </>
       ) : (
         <>
@@ -715,7 +715,7 @@ function GitTab({ projectId }: { projectId: string }) {
             // 해제는 되돌릴 수 없다 — 웹훅과 시크릿이 함께 삭제되어 다시 연동해도 같은 것이 아니다.
             <div className="settings__once" role="alert">
               <p className="settings__once-title">연동을 해제하면 되돌릴 수 없다.</p>
-              <p className="settings__hint">
+              <p className="meta">
                 GitHub 웹훅과 저장된 시크릿이 함께 삭제된다. 다시 연동하려면 웹훅이 새로 등록되고,
                 기존 시크릿으로 서명된 요청은 더 이상 받아들여지지 않는다.
               </p>
@@ -773,7 +773,7 @@ function MembersTab({ projectId }: { projectId: string | null }) {
   return (
     <div className="settings__section">
       <h2 className="settings__section-title">
-        멤버 {summary.length > 0 ? <span className="settings__meta">{summary}</span> : null}
+        멤버 {summary.length > 0 ? <span className="meta">{summary}</span> : null}
       </h2>
 
       {error !== null ? (
@@ -781,12 +781,12 @@ function MembersTab({ projectId }: { projectId: string | null }) {
           멤버를 불러오지 못했다: {errorMessage(error)}
         </p>
       ) : loading ? (
-        <p className="settings__meta">불러오는 중…</p>
+        <p className="meta">불러오는 중…</p>
       ) : members.length === 0 ? (
-        <p className="settings__meta">멤버가 없다.</p>
+        <p className="meta">멤버가 없다.</p>
       ) : (
         <div className="settings__scroll">
-          <table className="settings__table">
+          <table className="table settings__table">
             <thead>
               <tr>
                 <th scope="col">계정</th>
@@ -809,7 +809,7 @@ function MembersTab({ projectId }: { projectId: string | null }) {
         </div>
       )}
 
-      <p className="settings__meta">
+      <p className="meta">
         초대·역할 변경은 아직 없다. 서버에 쓰기 API가 없어, 버튼을 그려 두면 눌러도 아무 일이
         일어나지 않는 화면이 된다.
       </p>

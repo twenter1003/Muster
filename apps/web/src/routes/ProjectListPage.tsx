@@ -254,11 +254,11 @@ export function ProjectListPage() {
   };
 
   return (
-    <section className="plist">
-      <header className="plist__head">
+    <section className="page plist">
+      <header className="page__head">
         <h1 className="page__title">
           프로젝트{' '}
-          <span className="plist__count">
+          <span className="page__count">
             {projects.length}개 · <span className="plist__mono">deleted_at IS NULL</span>
           </span>
         </h1>
@@ -280,12 +280,12 @@ export function ProjectListPage() {
         <aside className="plist__rail" aria-label="필터">
           <div className="plist__rail-group">
             <h2 className="plist__rail-label">진행 단계</h2>
-            <div className="plist__chips">
+            <div className="chip-row">
               {PROJECT_STAGES.map((stage) => (
                 <button
                   key={stage}
                   type="button"
-                  className="plist__chip"
+                  className="chip plist__chip"
                   aria-pressed={filters.stages.has(stage)}
                   onClick={() => toggleStage(stage)}
                 >
@@ -298,12 +298,12 @@ export function ProjectListPage() {
           <div className="plist__rail-group">
             <h2 className="plist__rail-label">스택</h2>
             {stackOptions.length === 0 ? (
-              <p className="plist__rail-empty">환경 구성이 있는 프로젝트가 없다.</p>
+              <p className="meta">환경 구성이 있는 프로젝트가 없다.</p>
             ) : (
-              <div className="plist__chips">
+              <div className="chip-row">
                 <button
                   type="button"
-                  className="plist__chip"
+                  className="chip plist__chip"
                   aria-pressed={filters.stack === null}
                   onClick={() => setFilters((f) => ({ ...f, stack: null }))}
                 >
@@ -313,7 +313,7 @@ export function ProjectListPage() {
                   <button
                     key={name}
                     type="button"
-                    className="plist__chip"
+                    className="chip plist__chip"
                     aria-pressed={filters.stack === name}
                     onClick={() => setFilters((f) => ({ ...f, stack: name }))}
                   >
@@ -330,7 +330,7 @@ export function ProjectListPage() {
         </aside>
 
         <div className="plist__content">
-          <p className="plist__meta">
+          <p className="meta">
             정렬: 최근 활동 ↓ · 커서 페이지네이션 limit {PAGE_LIMIT}
             {filters.stages.size > 0 || filters.stack !== null
               ? ` · 필터 적용 ${visible.length}/${projects.length}`
@@ -338,13 +338,13 @@ export function ProjectListPage() {
           </p>
 
           {error !== null ? (
-            <p className="plist__error" role="alert">
+            <p className="error-note" role="alert">
               목록을 불러오지 못했다: {error.message}
             </p>
           ) : loading ? (
-            <p className="plist__meta">불러오는 중…</p>
+            <p className="meta">불러오는 중…</p>
           ) : visible.length === 0 ? (
-            <p className="plist__meta">조건에 맞는 프로젝트가 없다.</p>
+            <p className="meta">조건에 맞는 프로젝트가 없다.</p>
           ) : board ? (
             <BoardView projects={visible} detailOf={detailOf} />
           ) : (
@@ -352,7 +352,7 @@ export function ProjectListPage() {
           )}
 
           <div className="plist__foot">
-            <span className="plist__meta">
+            <span className="meta">
               {visible.length}개 표시 · {data?.next_cursor === null ? '마지막 페이지' : '다음 있음'}
             </span>
             <div className="plist__pager">
@@ -394,8 +394,8 @@ interface ViewProps {
 function TableView({ projects, detailOf }: ViewProps) {
   return (
     // 좁은 폭에서 표만 가로로 스크롤한다. 화면 전체가 밀리면 사이드바까지 따라 나간다.
-    <div className="plist__scroll">
-      <table className="plist__table">
+    <div className="scroll-x">
+      <table className="table plist__table">
         <thead>
           <tr>
             <th scope="col">프로젝트 · 스택</th>
@@ -419,7 +419,7 @@ function TableView({ projects, detailOf }: ViewProps) {
                   <Link className="plist__name" to={`/projects/${p.id}`}>
                     {p.name}
                   </Link>
-                  <div className="plist__sub">
+                  <div className="meta plist__sub">
                     <SlotCell
                       slot={d.env}
                       render={(env) =>
@@ -460,7 +460,7 @@ function TableView({ projects, detailOf }: ViewProps) {
  */
 function BoardView({ projects, detailOf }: ViewProps) {
   return (
-    <div className="plist__scroll">
+    <div className="scroll-x">
       <div className="plist__board">
         {PROJECT_STAGES.map((stage) => {
           const inStage = projects.filter((p) => p.current_stage === stage);
@@ -468,14 +468,14 @@ function BoardView({ projects, detailOf }: ViewProps) {
             <section key={stage} className="plist__column" aria-label={stage}>
               <header className="plist__column-head">
                 <StageBadge stage={stage} />
-                <span className="plist__count">{inStage.length}</span>
+                <span className="page__count">{inStage.length}</span>
               </header>
               {inStage.map((p) => {
                 const d = detailOf(p.id);
                 return (
                   <Link key={p.id} to={`/projects/${p.id}`} className="plist__card">
                     <span className="plist__name">{p.name}</span>
-                    <span className="plist__sub">
+                    <span className="meta plist__sub">
                       <SlotCell
                         slot={d.env}
                         render={(env) =>
