@@ -1,5 +1,5 @@
 /**
- * 18개 엔티티 배럴.
+ * 19개 엔티티 배럴 (설계서 Part 3 확정 수와 일치).
  *
  * 엔티티를 모듈 폴더가 아니라 database/ 아래 모아 둔 이유:
  * LOG_ENTRIES가 PROJECTS를, AUDIT_LOGS가 USERS를 참조하는 식으로 스키마는 모듈 경계를

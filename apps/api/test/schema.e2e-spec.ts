@@ -12,8 +12,10 @@ import { ALL_ENTITIES } from '../src/database/entities';
 describe('DB 스키마 ↔ ERD 일치 검증', () => {
   let ds: DataSource;
 
-  const q = async <T = Record<string, unknown>>(sql: string, params: unknown[] = []): Promise<T[]> =>
-    ds.query(sql, params);
+  const q = async <T = Record<string, unknown>>(
+    sql: string,
+    params: unknown[] = [],
+  ): Promise<T[]> => ds.query(sql, params);
 
   beforeAll(async () => {
     ds = new DataSource({ ...dataSourceOptions, logging: false });
@@ -44,13 +46,15 @@ describe('DB 스키마 ↔ ERD 일치 검증', () => {
     'audit_logs',
     'webhook_deliveries',
     'project_api_keys',
+    'deployment_events',
   ];
 
-  it('엔티티 18개가 모두 등록되어 있다', () => {
-    expect(ALL_ENTITIES).toHaveLength(18);
+  it('엔티티 19개가 모두 등록되어 있다', () => {
+    // 설계서 Part 3이 확정한 19개(WEBHOOK_DELIVERIES·DEPLOYMENT_EVENTS·PROJECT_API_KEYS 포함).
+    expect(ALL_ENTITIES).toHaveLength(19);
   });
 
-  it('테이블 18개가 정확히 존재한다 (migrations 테이블 제외)', async () => {
+  it('테이블 19개가 정확히 존재한다 (migrations 테이블 제외)', async () => {
     const rows = await q<{ table_name: string }>(
       `SELECT table_name FROM information_schema.tables
        WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name <> 'migrations'
@@ -159,12 +163,12 @@ describe('DB 스키마 ↔ ERD 일치 검증', () => {
    * (AddCheckConstraints 마이그레이션이 SQL로 직접 추가한 것들). 생성된 SQL을 검토 없이
    * 머지하면 승인 게이트를 지탱하는 제약이 조용히 사라지므로, 개수를 테스트로 고정한다.
    */
-  it('CHECK 제약 23개가 그대로 살아 있다', async () => {
+  it('CHECK 제약 27개가 그대로 살아 있다', async () => {
     const rows = await q<{ n: string }>(
       `SELECT count(*)::text AS n FROM pg_constraint
        WHERE contype = 'c' AND conname LIKE 'chk_%'`,
     );
-    expect(Number(rows[0].n)).toBe(23);
+    expect(Number(rows[0].n)).toBe(27);
   });
 
   it('USERS.github_token_ref는 nullable이다 (토큰 원문이 아닌 참조만 보관)', async () => {
