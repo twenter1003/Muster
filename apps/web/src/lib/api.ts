@@ -39,5 +39,13 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     );
   }
 
+  // 204 No Content는 본문이 없다. 그대로 res.json()을 부르면 SyntaxError로 터지는데,
+  // 서버에서는 이미 삭제가 끝난 뒤라 화면만 "실패했다"고 말하게 된다 — 사용자가 지워진 것을
+  // 다시 지우려 들게 만드는 종류의 거짓말이다. DELETE /api-keys/:id와
+  // DELETE /projects/:id/git-integration이 실제로 이 경로를 탄다.
+  if (res.status === 204 || res.headers.get('content-length') === '0') {
+    return undefined as T;
+  }
+
   return (await res.json()) as T;
 }
