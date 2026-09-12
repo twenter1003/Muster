@@ -111,10 +111,7 @@ describe('Phase 3 — GitHub 레포 연동 (e2e)', () => {
     });
 
     it('응답에 시크릿 참조를 노출하지 않는다', async () => {
-      const res = await http()
-        .get(`/api/v1/projects/${projectId}`)
-        .set(auth())
-        .expect(200);
+      const res = await http().get(`/api/v1/projects/${projectId}`).set(auth()).expect(200);
       expect(JSON.stringify(res.body)).not.toContain('webhook_secret_ref');
     });
 
@@ -200,10 +197,9 @@ describe('Phase 3 — GitHub 레포 연동 (e2e)', () => {
 
       github.failCreate = null;
 
-      const rows = (await ds.query(
-        `SELECT id FROM git_integrations WHERE project_id = $1`,
-        [p],
-      )) as unknown[];
+      const rows = (await ds.query(`SELECT id FROM git_integrations WHERE project_id = $1`, [
+        p,
+      ])) as unknown[];
       // 웹훅이 없는데 연동만 남으면 이벤트가 영영 오지 않는 상태가 된다.
       expect(rows).toHaveLength(0);
     });
