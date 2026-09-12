@@ -14,7 +14,7 @@ import {
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user';
 import { toPageRequest, type Page } from '../../common/pagination/paginate';
-import { ProjectMemberGuard } from '../project-core/project-member.guard';
+import { ProjectMemberGuard } from '../../common/auth/project-member.guard';
 import { DocumentsService } from './documents.service';
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto';

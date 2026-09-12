@@ -14,7 +14,7 @@ import { CurrentUser } from '../../common/auth/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user';
 import { CursorPaginationQuery } from '../../common/pagination/pagination.dto';
 import { toPageRequest, type Page } from '../../common/pagination/paginate';
-import { ProjectMemberGuard } from '../project-core/project-member.guard';
+import { ProjectMemberGuard } from '../../common/auth/project-member.guard';
 import { EnvTemplatesService } from './env-templates.service';
 import { EnvConfigsService } from './env-configs.service';
 import { CreateEnvTemplateDto } from './dto/create-env-template.dto';

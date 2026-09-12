@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ApiKeysController, ProjectsController } from './projects.controller';
 import { ProjectsService } from './projects.service';
-import { ProjectMemberGuard } from './project-member.guard';
 import { GitIntegrationService } from './git-integration.service';
 import { ApiKeysService } from './api-keys.service';
 import { GITHUB_REPO_CLIENT, HttpGitHubRepoClient } from './github-repo.client';
@@ -17,7 +16,6 @@ import { GITHUB_REPO_CLIENT, HttpGitHubRepoClient } from './github-repo.client';
   controllers: [ProjectsController, ApiKeysController],
   providers: [
     ProjectsService,
-    ProjectMemberGuard,
     GitIntegrationService,
     ApiKeysService,
     { provide: GITHUB_REPO_CLIENT, useClass: HttpGitHubRepoClient },

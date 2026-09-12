@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { IsNull, Repository } from 'typeorm';
 import { InjectRepository } from '../../database/inject-repository.decorator';
 import { ProjectApiKey } from '../../database/entities';
-import { hashToken } from '../auth/session.service';
+import { hashToken } from '../../common/auth/token-hash';
 import { buildPage, type Page, type PageRequest } from '../../common/pagination/paginate';
 
 /** 응답에 실리는 키 표현. key_hash는 절대 나가지 않는다. */

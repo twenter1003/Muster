@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { IsNull, Repository } from 'typeorm';
 import { InjectRepository } from '../../database/inject-repository.decorator';
 import { Session } from '../../database/entities';
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user';
+import { hashToken } from '../../common/auth/token-hash';
 
 /**
  * 세션 수명. 설계서에 값이 없어 여기서 확정한다.
@@ -63,12 +64,3 @@ export class SessionService {
   }
 }
 
-/**
- * 토큰을 SHA-256으로 해시한다. DB가 유출돼도 세션을 탈취당하지 않기 위함이다.
- *
- * bcrypt/argon2를 쓰지 않는 이유: 토큰은 사람이 만든 비밀번호와 달리 256비트 난수라
- * 무차별 대입이 불가능하다. 오히려 느린 해시는 매 요청마다 붙는 비용이 된다.
- */
-export function hashToken(token: string): string {
-  return createHash('sha256').update(token, 'utf8').digest('hex');
-}

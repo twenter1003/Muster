@@ -20,7 +20,7 @@ import { GitIntegrationService } from './git-integration.service';
 import { CreateGitIntegrationDto } from './dto/create-git-integration.dto';
 import { ApiKeysService, type ApiKeyView } from './api-keys.service';
 import { CreateApiKeyDto } from './dto/create-api-key.dto';
-import { ProjectMemberGuard } from './project-member.guard';
+import { ProjectMemberGuard } from '../../common/auth/project-member.guard';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import type { GitIntegration, Project } from '../../database/entities';
