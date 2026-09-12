@@ -20,7 +20,7 @@ export const envSchema = z.object({
   /** OAuth state 서명 키. state는 CSRF 방어 수단이라 예측 가능하면 의미가 없다. */
   OAUTH_STATE_SECRET: z.string().min(16).default('dev-only-oauth-state-secret-change-me'),
 
-  /** 콜백이 세션 토큰을 fragment로 붙여 되돌려보낼 프론트엔드 주소. */
+  /** 콜백이 세션 쿠키를 심은 뒤 되돌려보낼 프론트엔드 주소. 토큰은 URL에 싣지 않는다. */
   FRONTEND_URL: z.string().url().default('http://localhost:5173'),
 
   /** GitHub에 넘길 redirect_uri를 만들 때 쓰는 이 API의 공개 주소. */
