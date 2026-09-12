@@ -242,6 +242,28 @@
   color: var(--color-ink);
 }
 
+/*
+ * 기록된 전이 한 줄. 상태·행위자가 왼쪽, 시각이 오른쪽, 사유는 있을 때만 아래 한 줄을 더 쓴다.
+ * 사유를 같은 줄에 밀어 넣지 않는 이유: 차단 사유는 한 문장이 넘어가고, 그게 시각을 밀어내면
+ * 줄마다 시각의 위치가 달라져 이력을 세로로 훑을 수 없게 된다.
+ */
+.ec-transitions__row--history {
+  flex-wrap: wrap;
+  align-items: baseline;
+  padding: var(--space-2) 0;
+}
+
+.ec-transitions__what {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.ec-transitions__reason {
+  flex-basis: 100%;
+}
+
 /* 주석 5 — 아직 도달하지 않은 상태의 "대기"는 회색이다. 비어 있는 게 아니라 남은 일이다. */
 .ec-transitions__at--pending {
   color: var(--color-ink-mid);

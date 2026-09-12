@@ -5,6 +5,7 @@ import { StatusBadge } from '../components/StatusBadge';
 import { ApiError, apiFetch, type Page as ApiPage } from '../lib/api';
 import { useApi } from '../lib/useApi';
 import { BUILD_STATUSES, EM_DASH, type BuildStatus } from '../lib/domain';
+import { actorLabel, type TransitionView } from '../lib/transitions';
 import './EnvConfigCreatePage.css';
 
 /* ─────────────────────────── 서버 응답 타입 ───────────────────────────
@@ -46,8 +47,11 @@ interface PolicyCheckView {
 const asBuildStatus = (value: string): BuildStatus | null =>
   (BUILD_STATUSES as readonly string[]).includes(value) ? (value as BuildStatus) : null;
 
-const formatTime = (iso: string): string =>
+/** 이력은 며칠에 걸칠 수 있어 날짜까지 찍는다 — 시:분만으로는 어제인지 오늘인지 알 수 없다. */
+const formatStamp = (iso: string): string =>
   new Intl.DateTimeFormat('ko-KR', {
+    month: '2-digit',
+    day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
@@ -109,17 +113,15 @@ function Card({
 }
 
 /**
- * 상태 전이 목록(주석 5).
- * 아직 도달하지 않은 상태는 회색 "대기"로 남는다 — 지금 누를 버튼이 무엇을 바꾸는지
- * 미리 보여 주는 것이 이 목록의 목적이라, 도달한 것만 그리면 의미가 없다.
+ * 아직 만들지 않았을 때의 예고 목록(주석 5).
+ *
+ * 왜 이것이 이력을 대신하지 않는가: 이 사다리는 build_status 하나에서 경로를 **역산**한 것이라,
+ * 반려됐다 다시 통과한 구성과 처음에 통과한 구성을 구분하지 못하고 누가 승인했는지도 모른다.
+ * 구성이 생기면 서버 전이 이력(/transitions)이 그 자리를 대신한다. 다만 제출 전에는
+ * 이력이 있을 수 없고, 그 자리에 빈 목록을 그리면 "아무 일도 없었다"는 다른 주장이 된다 —
+ * 아직 시작하지 않은 것과 시작했는데 기록이 없는 것은 같지 않다. 그래서 예고로만 남긴다.
  */
-function TransitionList({
-  status,
-  createdAt,
-}: {
-  status: BuildStatus | null;
-  createdAt: string | null;
-}) {
+function TransitionPreview({ status }: { status: BuildStatus | null }) {
   const reached = (s: BuildStatus): boolean => {
     if (status === null) return false;
     const order: BuildStatus[] = ['generated', 'policy_passed', 'approved', 'running'];
@@ -154,10 +156,47 @@ function TransitionList({
               row.done ? 'ec-transitions__at' : 'ec-transitions__at ec-transitions__at--pending'
             }
           >
-            {row.done ? (createdAt === null ? EM_DASH : formatTime(createdAt)) : '대기'}
+            {row.done ? EM_DASH : '대기'}
           </span>
         </li>
       ))}
+    </ol>
+  );
+}
+
+/**
+ * 서버가 기록한 실제 상태 전이 이력.
+ * 오래된 것부터 온 순서 그대로 그린다 — 이력은 일어난 순서로 읽는 것이고,
+ * 최신순으로 뒤집으면 "무엇 때문에 무엇이 됐는지"의 인과가 거꾸로 읽힌다.
+ */
+function TransitionHistory({ items }: { items: TransitionView[] }) {
+  return (
+    <ol className="ec-transitions">
+      {items.map((t) => {
+        const status = asBuildStatus(t.to_status);
+        return (
+          <li className="ec-transitions__row ec-transitions__row--history" key={t.id}>
+            <span className="ec-transitions__what">
+              {/* 상태 코드는 번역하지 않는다 — 서버 기록과 화면 표기가 갈리면 대조가 어렵다. */}
+              <span
+                className={
+                  status === 'policy_blocked'
+                    ? 'ec-mono ec-note--signal'
+                    : 'ec-mono'
+                }
+              >
+                {t.to_status}
+              </span>
+              <span className="meta">{actorLabel(t.actor)}</span>
+            </span>
+            {/* 전이마다 자기 시각이 있다 — 역산 사다리는 전부 같은 시각을 찍을 수밖에 없었다. */}
+            <span className="ec-transitions__at">{formatStamp(t.created_at)}</span>
+            {t.reason !== null && t.reason.trim() !== '' && (
+              <span className="meta ec-transitions__reason">{t.reason}</span>
+            )}
+          </li>
+        );
+      })}
     </ol>
   );
 }
@@ -202,6 +241,9 @@ export function EnvConfigCreatePage() {
   const detail = useApi<ConfigDetailView>(configId === null ? null : `/env-configs/${configId}`);
   const checks = useApi<{ items: PolicyCheckView[] }>(
     configId === null ? null : `/env-configs/${configId}/policy-checks`,
+  );
+  const transitions = useApi<{ items: TransitionView[] }>(
+    configId === null ? null : `/env-configs/${configId}/transitions`,
   );
 
   /* 생성 대기가 수십 초까지 갈 수 있어, 멈춘 화면이 아니라는 신호로 경과 초를 센다. */
@@ -294,11 +336,14 @@ export function EnvConfigCreatePage() {
     const approved = await post(`/env-configs/${configId}/approve`);
     if (approved === null) return;
     await post(`/env-configs/${configId}/execute`);
+    // 이력은 서버가 쓴 것만 믿는다 — 화면이 성공을 가정해 줄을 지어내면 실패한 전이도 남는다.
+    transitions.reload();
   };
 
   const reject = async () => {
     if (configId === null) return;
     await post(`/env-configs/${configId}/reject`);
+    transitions.reload();
   };
 
   if (id === undefined) {
@@ -595,8 +640,24 @@ export function EnvConfigCreatePage() {
             </p>
           </Card>
 
-          <Card title="상태 전이">
-            <TransitionList status={status} createdAt={config?.created_at ?? null} />
+          {/*
+            구성이 없을 때만 예고 사다리고, 생기는 순간부터는 서버가 기록한 이력이다.
+            둘을 섞지 않는 이유는 TransitionPreview 주석에 적었다.
+          */}
+          <Card title="상태 전이" aside={config === null ? '예고' : '기록'}>
+            {config === null ? (
+              <TransitionPreview status={status} />
+            ) : transitions.loading && transitions.data === null ? (
+              <p className="meta ec-note">불러오는 중…</p>
+            ) : transitions.error !== null ? (
+              <p className="meta ec-note ec-note--signal">
+                전이 이력을 불러오지 못했다 — {transitions.error.message}
+              </p>
+            ) : (transitions.data?.items.length ?? 0) === 0 ? (
+              <p className="meta ec-note">서버에 기록된 전이가 없다.</p>
+            ) : (
+              <TransitionHistory items={transitions.data?.items ?? []} />
+            )}
           </Card>
 
           <Card title="판정">
