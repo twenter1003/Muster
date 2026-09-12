@@ -25,6 +25,7 @@ import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import type { GitIntegration, Project } from '../../database/entities';
 import { ApiException } from '../../common/errors/api.exception';
+import { AuditService } from '../audit/audit.service';
 
 /**
  * 응답에 실리는 연동 표현.
@@ -66,6 +67,7 @@ export class ProjectsController {
     private readonly projects: ProjectsService,
     private readonly gitIntegrations: GitIntegrationService,
     private readonly apiKeys: ApiKeysService,
+    private readonly audit: AuditService,
   ) {}
 
   @Get()
@@ -94,15 +96,19 @@ export class ProjectsController {
 
   @Patch(':id')
   @UseGuards(ProjectMemberGuard)
-  async update(@Param('id') id: string, @Body() dto: UpdateProjectDto): Promise<ProjectView> {
-    return toView(await this.projects.update(id, dto));
+  async update(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpdateProjectDto,
+  ): Promise<ProjectView> {
+    return toView(await this.projects.update(id, user.id, dto));
   }
 
   @Delete(':id')
   @UseGuards(ProjectMemberGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id') id: string): Promise<void> {
-    await this.projects.softDelete(id);
+  async remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser): Promise<void> {
+    await this.projects.softDelete(id, user.id);
   }
 
   /**
@@ -132,7 +138,13 @@ export class ProjectsController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateGitIntegrationDto,
   ): Promise<GitIntegrationView> {
-    return toGitView(await this.gitIntegrations.connect(id, user.id, dto.repo_url));
+    const integration = await this.gitIntegrations.connect(id, user.id, dto.repo_url);
+    await this.audit.record({
+      user_id: user.id,
+      action: 'git_integration.create',
+      project_id: id,
+    });
+    return toGitView(integration);
   }
 
   /** 설계서 Part 4 §3 — 연동 해제. GitHub 웹훅과 시크릿도 정리한다. */
@@ -144,6 +156,11 @@ export class ProjectsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<void> {
     await this.gitIntegrations.disconnect(id, user.id);
+    await this.audit.record({
+      user_id: user.id,
+      action: 'git_integration.delete',
+      project_id: id,
+    });
   }
 
   /** 설계서 Part 4 §3 — 발급된 API 키 목록. 원문은 재조회 불가라 label/생성일만 나온다. */
@@ -160,11 +177,14 @@ export class ProjectsController {
   @Post(':id/api-keys')
   @UseGuards(ProjectMemberGuard)
   @HttpCode(HttpStatus.CREATED)
-  createApiKey(
+  async createApiKey(
     @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateApiKeyDto,
   ): Promise<ApiKeyView & { key: string }> {
-    return this.apiKeys.issue(id, dto.label);
+    const issued = await this.apiKeys.issue(id, dto.label);
+    await this.audit.record({ user_id: user.id, action: 'api_key.create', project_id: id });
+    return issued;
   }
 }
 
@@ -177,6 +197,7 @@ export class ApiKeysController {
   constructor(
     private readonly apiKeys: ApiKeysService,
     private readonly projects: ProjectsService,
+    private readonly audit: AuditService,
   ) {}
 
   @Delete(':id')
@@ -188,5 +209,6 @@ export class ApiKeysController {
       throw ApiException.notFound('API 키를 찾을 수 없습니다.');
     }
     await this.apiKeys.revoke(id);
+    await this.audit.record({ user_id: user.id, action: 'api_key.revoke', project_id: projectId });
   }
 }

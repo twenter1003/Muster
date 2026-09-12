@@ -5,6 +5,7 @@ import type { PolicyCheck, PolicyGate } from './policy-gate';
 import type { PolicyCheckResult, ProjectEnvConfig } from '../../database/entities';
 import type { BuildStatus } from '../../database/entities/enums';
 import type { EnvTemplatesService } from './env-templates.service';
+import { AuditService } from '../audit/audit.service';
 
 /**
  * Policy Gate 판정과 상태 전이를 고정한다.
@@ -66,11 +67,17 @@ const make = (opts: {
     presetFor: async () => ({ language: 'node' }),
   } as unknown as EnvTemplatesService;
 
-  const service = new EnvConfigsService(configs, results, members, generator, gate, templates);
+  const service = new EnvConfigsService(configs, results, members, generator, gate, templates, {
+    record: async () => undefined,
+  } as unknown as AuditService);
   return { service, savedResults };
 };
 
-const pass = (tool: 'trivy' | 'conftest'): PolicyCheck => ({ tool, verdict: 'pass', risk_notes: null });
+const pass = (tool: 'trivy' | 'conftest'): PolicyCheck => ({
+  tool,
+  verdict: 'pass',
+  risk_notes: null,
+});
 const fail = (tool: 'trivy' | 'conftest'): PolicyCheck => ({
   tool,
   verdict: 'fail',

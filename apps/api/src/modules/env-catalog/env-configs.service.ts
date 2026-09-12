@@ -1,17 +1,14 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '../../database/inject-repository.decorator';
-import {
-  PolicyCheckResult,
-  ProjectEnvConfig,
-  ProjectMember,
-} from '../../database/entities';
+import { PolicyCheckResult, ProjectEnvConfig, ProjectMember } from '../../database/entities';
 import type { BuildStatus } from '../../database/entities/enums';
 import { ApiException } from '../../common/errors/api.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { buildPage, type Page, type PageRequest } from '../../common/pagination/paginate';
 import { DOCKER_CONFIG_GENERATOR, type DockerConfigGenerator } from './docker-config-generator';
 import { POLICY_GATE, type PolicyGate } from './policy-gate';
+import { AuditService } from '../audit/audit.service';
 import { EnvTemplatesService } from './env-templates.service';
 import type { CreateEnvConfigDto } from './dto/create-env-config.dto';
 
@@ -26,6 +23,7 @@ export class EnvConfigsService {
     @Inject(DOCKER_CONFIG_GENERATOR) private readonly generator: DockerConfigGenerator,
     @Inject(POLICY_GATE) private readonly gate: PolicyGate,
     private readonly templates: EnvTemplatesService,
+    private readonly audit: AuditService,
   ) {}
 
   async listForProject(projectId: string, page: PageRequest): Promise<Page<ProjectEnvConfig>> {
@@ -56,9 +54,7 @@ export class EnvConfigsService {
     userId: string,
     dto: CreateEnvConfigDto,
   ): Promise<ProjectEnvConfig> {
-    const preset = dto.template_id
-      ? await this.templates.presetFor(dto.template_id, userId)
-      : null;
+    const preset = dto.template_id ? await this.templates.presetFor(dto.template_id, userId) : null;
 
     const generated = await this.generator.generate({
       stackInput: dto.stack_input,
@@ -80,7 +76,13 @@ export class EnvConfigsService {
       }),
     );
 
-    return this.runPolicyGate(config);
+    const checked = await this.runPolicyGate(config);
+    await this.audit.record({
+      user_id: userId,
+      action: 'env_config.create',
+      project_id: projectId,
+    });
+    return checked;
   }
 
   /**
@@ -139,7 +141,13 @@ export class EnvConfigsService {
     this.requireStatus(config, ['policy_passed'], '승인');
 
     config.build_status = 'approved';
-    return this.configs.save(config);
+    const saved = await this.configs.save(config);
+    await this.audit.record({
+      user_id: userId,
+      action: 'env_config.approve',
+      project_id: config.project_id,
+    });
+    return saved;
   }
 
   /** 반려. 승인 대기 상태에서만 의미가 있다. */
@@ -148,7 +156,13 @@ export class EnvConfigsService {
     this.requireStatus(config, ['policy_passed', 'policy_blocked'], '반려');
 
     config.build_status = 'rejected';
-    return this.configs.save(config);
+    const saved = await this.configs.save(config);
+    await this.audit.record({
+      user_id: userId,
+      action: 'env_config.reject',
+      project_id: config.project_id,
+    });
+    return saved;
   }
 
   /**
@@ -163,6 +177,12 @@ export class EnvConfigsService {
 
     config.build_status = 'running';
     const saved = await this.configs.save(config);
+
+    await this.audit.record({
+      user_id: userId,
+      action: 'env_config.execute',
+      project_id: config.project_id,
+    });
 
     this.logger.warn(
       `환경 구성 ${config.id}가 running으로 전이했지만 실행 어댑터가 없습니다 ` +

@@ -6,6 +6,7 @@ import { DatabaseModule } from './database/database.module';
 import { CommonModule } from './common/common.module';
 import { SecretsModule } from './common/secrets/secrets.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { AuditModule } from './modules/audit/audit.module';
 import { ProjectCoreModule } from './modules/project-core/project-core.module';
 import { DocStoreModule } from './modules/doc-store/doc-store.module';
 import { EnvCatalogModule } from './modules/env-catalog/env-catalog.module';
@@ -23,6 +24,8 @@ import { ReportsModule } from './modules/reports/reports.module';
     CommonModule,
     SecretsModule,
     AuthModule,
+    // @Global — 다섯 개 모듈이 감사 기록을 남긴다 (audit.module.ts 주석 참조).
+    AuditModule,
     ProjectCoreModule,
     DocStoreModule,
     EnvCatalogModule,

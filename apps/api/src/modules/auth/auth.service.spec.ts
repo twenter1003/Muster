@@ -2,6 +2,7 @@ import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { OAuthStateService } from './oauth-state.service';
 import { ApiException } from '../../common/errors/api.exception';
+import { AuditService } from '../audit/audit.service';
 
 /**
  * buildAuthorizeUrl의 설정 의존 경로만 좁게 검증한다.
@@ -18,6 +19,7 @@ const make = (values: Record<string, string | undefined>) =>
     {} as never,
     new OAuthStateService(configWith({ OAUTH_STATE_SECRET: 'unit-test-secret-0123456789' })),
     configWith(values),
+    { record: async () => undefined } as unknown as AuditService,
   );
 
 describe('AuthService.buildAuthorizeUrl', () => {

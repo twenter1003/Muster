@@ -3,6 +3,8 @@ import { AuthController } from './auth.controller';
 import { SESSION_COOKIE_NAME } from '../../common/auth/session-cookie';
 import type { SessionService } from './session.service';
 import type { AuthService } from './auth.service';
+import { AuditService } from '../audit/audit.service';
+import type { AuthenticatedUser } from '../../common/auth/authenticated-user';
 
 /** setHeader만 기록하는 최소 응답 객체. passthrough라 Nest가 나머지를 처리한다. */
 function fakeRes() {
@@ -15,6 +17,8 @@ function fakeRes() {
 
 const reqWith = (headers: Record<string, string>) => ({ headers }) as unknown as Request;
 
+const USER = { id: 'user-1', github_login: 'tester', email: null } as unknown as AuthenticatedUser;
+
 describe('AuthController.logout', () => {
   const clearSessionCookie = () =>
     `${SESSION_COOKIE_NAME}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`;
@@ -24,6 +28,7 @@ describe('AuthController.logout', () => {
     const controller = new AuthController(
       { revoke } as unknown as SessionService,
       { clearSessionCookie } as unknown as AuthService,
+      { record: async () => undefined } as unknown as AuditService,
     );
     return { controller, revoke };
   }
@@ -32,7 +37,7 @@ describe('AuthController.logout', () => {
     const { controller, revoke } = make();
     const { res, headers } = fakeRes();
 
-    await controller.logout(reqWith({ cookie: `${SESSION_COOKIE_NAME}=tok` }), res);
+    await controller.logout(reqWith({ cookie: `${SESSION_COOKIE_NAME}=tok` }), res, USER);
 
     expect(revoke).toHaveBeenCalledWith('tok');
     expect(headers['Set-Cookie']).toContain('Max-Age=0');
@@ -42,7 +47,7 @@ describe('AuthController.logout', () => {
     const { controller, revoke } = make();
     const { res } = fakeRes();
 
-    await controller.logout(reqWith({ authorization: 'Bearer tok' }), res);
+    await controller.logout(reqWith({ authorization: 'Bearer tok' }), res, USER);
 
     expect(revoke).toHaveBeenCalledWith('tok');
   });
@@ -51,7 +56,7 @@ describe('AuthController.logout', () => {
     const { controller, revoke } = make();
     const { res, headers } = fakeRes();
 
-    await controller.logout(reqWith({}), res);
+    await controller.logout(reqWith({}), res, USER);
 
     expect(revoke).not.toHaveBeenCalled();
     expect(headers['Set-Cookie']).toContain('Max-Age=0');
@@ -69,6 +74,7 @@ describe('AuthController.callback', () => {
       {
         completeLogin,
       } as unknown as AuthService,
+      { record: async () => undefined } as unknown as AuditService,
     );
     const { res, headers } = fakeRes();
 
@@ -83,6 +89,7 @@ describe('AuthController.callback', () => {
     const controller = new AuthController(
       {} as unknown as SessionService,
       {} as unknown as AuthService,
+      { record: async () => undefined } as unknown as AuditService,
     );
     const { res } = fakeRes();
 

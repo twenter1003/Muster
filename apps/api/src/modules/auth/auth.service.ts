@@ -7,6 +7,7 @@ import { SECRET_STORE, type SecretStore } from '../../common/secrets/secret-stor
 import { ApiException } from '../../common/errors/api.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { clearedSessionCookie, sessionCookie } from '../../common/auth/session-cookie';
+import { AuditService } from '../audit/audit.service';
 import { SessionService } from './session.service';
 import { OAuthStateService } from './oauth-state.service';
 import {
@@ -24,6 +25,7 @@ export class AuthService {
     private readonly sessions: SessionService,
     private readonly state: OAuthStateService,
     private readonly config: ConfigService,
+    private readonly audit: AuditService,
   ) {}
 
   /** GitHub 인증 페이지 URL. state로 CSRF를 막는다. */
@@ -74,6 +76,9 @@ export class AuthService {
     }
 
     const { token, expires_at } = await this.sessions.issue(user.id);
+
+    // 세션이 실제로 발급된 뒤에 남긴다 — 그 전에 남기면 실패한 시도가 로그인으로 보인다.
+    await this.audit.record({ user_id: user.id, action: 'login' });
 
     return {
       redirectUrl: new URL(this.config.get<string>('FRONTEND_URL') ?? '').toString(),

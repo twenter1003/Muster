@@ -3,10 +3,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '../../database/inject-repository.decorator';
 import { Agent, AgentRun, ProjectBudget } from '../../database/entities';
-import {
-  DomainEvent,
-  type BudgetThresholdExceededEvent,
-} from '../../common/events/domain-events';
+import { DomainEvent, type BudgetThresholdExceededEvent } from '../../common/events/domain-events';
 import type { PutBudgetDto } from './dto/put-budget.dto';
 
 export interface BudgetUsage {
@@ -86,7 +83,14 @@ export class BudgetService {
     const after = await this.sumUsage(projectId);
     const threshold = Number(budget.alert_threshold_pct);
 
-    this.alertIfCrossed(projectId, 'tokens', before.tokens, after.tokens, budget.token_limit, threshold);
+    this.alertIfCrossed(
+      projectId,
+      'tokens',
+      before.tokens,
+      after.tokens,
+      budget.token_limit,
+      threshold,
+    );
     this.alertIfCrossed(projectId, 'cost', before.cost, after.cost, budget.cost_limit, threshold);
   }
 

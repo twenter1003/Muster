@@ -17,12 +17,14 @@ import { AuthService } from './auth.service';
 import { Public } from '../../common/auth/public.decorator';
 import { ApiException } from '../../common/errors/api.exception';
 import { sessionTokenFrom } from '../../common/auth/session-cookie';
+import { AuditService } from '../audit/audit.service';
 
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly sessions: SessionService,
     private readonly auth: AuthService,
+    private readonly audit: AuditService,
   ) {}
 
   /** 설계서 Part 4 §2 — GitHub 인증 페이지로 리다이렉트. */
@@ -73,10 +75,15 @@ export class AuthController {
    */
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<void> {
+  async logout(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
     const token = sessionTokenFrom(req.headers);
 
     if (token) await this.sessions.revoke(token);
     res.setHeader('Set-Cookie', this.auth.clearSessionCookie());
+    await this.audit.record({ user_id: user.id, action: 'logout' });
   }
 }

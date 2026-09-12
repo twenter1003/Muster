@@ -111,10 +111,10 @@ describe('BudgetService', () => {
     });
 
     it('토큰과 비용이 동시에 넘으면 각각 발행한다', async () => {
-      const { service, events } = make(
-        budgetRow({ token_limit: '1000', cost_limit: '10' }),
-        { tokens: '900', cost: '9' },
-      );
+      const { service, events } = make(budgetRow({ token_limit: '1000', cost_limit: '10' }), {
+        tokens: '900',
+        cost: '9',
+      });
       const seen = listen(events);
 
       await service.recalculateAndAlert(PROJECT, { tokens: '100', cost: '1' });

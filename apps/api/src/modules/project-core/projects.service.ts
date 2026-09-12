@@ -6,6 +6,7 @@ import { Project, ProjectMember, ProjectStageHistory } from '../../database/enti
 import { ApiException } from '../../common/errors/api.exception';
 import { buildPage, type Page, type PageRequest } from '../../common/pagination/paginate';
 import { DomainEvent, type ProjectStageChangedEvent } from '../../common/events/domain-events';
+import { AuditService } from '../audit/audit.service';
 import type { CreateProjectDto } from './dto/create-project.dto';
 import type { UpdateProjectDto } from './dto/update-project.dto';
 
@@ -16,6 +17,7 @@ export class ProjectsService {
     @InjectRepository(ProjectMember) private readonly members: Repository<ProjectMember>,
     private readonly dataSource: DataSource,
     private readonly events: EventEmitter2,
+    private readonly audit: AuditService,
   ) {}
 
   /**
@@ -67,6 +69,12 @@ export class ProjectsService {
         }),
       );
 
+      // 이미 트랜잭션 안이라 같은 매니저를 넘긴다 — 프로젝트·멤버십·감사 기록이 한 덩어리다.
+      await this.audit.record(
+        { user_id: userId, action: 'project.create', project_id: project.id },
+        manager,
+      );
+
       return project;
     });
   }
@@ -78,7 +86,12 @@ export class ProjectsService {
     return project;
   }
 
-  async update(projectId: string, dto: UpdateProjectDto): Promise<Project> {
+  /**
+   * userId를 받는 이유는 감사 기록뿐이다 — 갱신 자체에는 쓰이지 않는다.
+   * 컨트롤러에서 따로 기록하지 않고 여기로 내린 것은, 이미 열려 있는 트랜잭션에
+   * 같은 매니저로 넣기 위해서다.
+   */
+  async update(projectId: string, userId: string, dto: UpdateProjectDto): Promise<Project> {
     const project = await this.findOneOrFail(projectId);
     const stageChanged =
       dto.current_stage !== undefined && dto.current_stage !== project.current_stage;
@@ -99,6 +112,11 @@ export class ProjectsService {
           }),
         );
       }
+
+      await this.audit.record(
+        { user_id: userId, action: 'project.update', project_id: saved.id },
+        manager,
+      );
 
       return saved;
     });
@@ -121,9 +139,10 @@ export class ProjectsService {
    * 설계서 Part 4 §3 — soft delete. 감사 로그 보존을 위해 물리 삭제하지 않는다.
    * GCS 문서 파일은 30일 경과 후 별도 정리한다(해당 배치는 아직 없음).
    */
-  async softDelete(projectId: string): Promise<void> {
+  async softDelete(projectId: string, userId: string): Promise<void> {
     await this.findOneOrFail(projectId);
     await this.projects.softDelete(projectId);
+    await this.audit.record({ user_id: userId, action: 'project.delete', project_id: projectId });
   }
 
   /** 설계서 Part 4 §1 — 프로젝트 하위 리소스는 요청자가 PROJECT_MEMBERS인지 검사한다. */

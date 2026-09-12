@@ -8,10 +8,7 @@ import {
 } from './env-catalog.controller';
 import { EnvTemplatesService } from './env-templates.service';
 import { EnvConfigsService } from './env-configs.service';
-import {
-  DOCKER_CONFIG_GENERATOR,
-  type DockerConfigGenerator,
-} from './docker-config-generator';
+import { DOCKER_CONFIG_GENERATOR, type DockerConfigGenerator } from './docker-config-generator';
 import { GeminiDockerConfigGenerator } from './gemini-docker-config.generator';
 import { VertexDockerConfigGenerator } from './vertex-docker-config.generator';
 import { POLICY_GATE, type PolicyGate } from './policy-gate';

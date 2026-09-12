@@ -20,6 +20,7 @@ import { EnvConfigsService } from './env-configs.service';
 import { CreateEnvTemplateDto } from './dto/create-env-template.dto';
 import { CreateEnvConfigDto } from './dto/create-env-config.dto';
 import type { EnvTemplate, PolicyCheckResult, ProjectEnvConfig } from '../../database/entities';
+import { AuditService } from '../audit/audit.service';
 
 interface TemplateView {
   id: string;
@@ -75,7 +76,10 @@ const toCheckView = (r: PolicyCheckResult): PolicyCheckView => ({
 /** 설계서 Part 4 §5.1 — 템플릿은 사용자 소유다. 프로젝트 하위가 아니다. */
 @Controller('env-templates')
 export class EnvTemplatesController {
-  constructor(private readonly templates: EnvTemplatesService) {}
+  constructor(
+    private readonly templates: EnvTemplatesService,
+    private readonly audit: AuditService,
+  ) {}
 
   @Get()
   async list(
@@ -92,7 +96,10 @@ export class EnvTemplatesController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateEnvTemplateDto,
   ): Promise<TemplateView> {
-    return toTemplateView(await this.templates.create(user.id, dto));
+    const template = await this.templates.create(user.id, dto);
+    // 템플릿은 사용자 소유라 프로젝트가 없다 — project_id가 null인 기록의 대표적인 경우다.
+    await this.audit.record({ user_id: user.id, action: 'template.create', project_id: null });
+    return toTemplateView(template);
   }
 
   @Get(':id')
@@ -107,6 +114,7 @@ export class EnvTemplatesController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser): Promise<void> {
     await this.templates.remove(id, user.id);
+    await this.audit.record({ user_id: user.id, action: 'template.delete', project_id: null });
   }
 }
 
