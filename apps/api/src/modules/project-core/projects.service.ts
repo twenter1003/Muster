@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DataSource, IsNull, Repository } from 'typeorm';
 import { InjectRepository } from '../../database/inject-repository.decorator';
 import { Project, ProjectMember, ProjectStageHistory } from '../../database/entities';
 import { ApiException } from '../../common/errors/api.exception';
 import { buildPage, type Page, type PageRequest } from '../../common/pagination/paginate';
+import { DomainEvent, type ProjectStageChangedEvent } from '../../common/events/domain-events';
 import type { CreateProjectDto } from './dto/create-project.dto';
 import type { UpdateProjectDto } from './dto/update-project.dto';
 
@@ -13,6 +15,7 @@ export class ProjectsService {
     @InjectRepository(Project) private readonly projects: Repository<Project>,
     @InjectRepository(ProjectMember) private readonly members: Repository<ProjectMember>,
     private readonly dataSource: DataSource,
+    private readonly events: EventEmitter2,
   ) {}
 
   /**
@@ -80,7 +83,7 @@ export class ProjectsService {
     const stageChanged =
       dto.current_stage !== undefined && dto.current_stage !== project.current_stage;
 
-    return this.dataSource.transaction(async (manager) => {
+    const saved = await this.dataSource.transaction(async (manager) => {
       if (dto.name !== undefined) project.name = dto.name;
       if (dto.current_stage !== undefined) project.current_stage = dto.current_stage;
 
@@ -99,6 +102,19 @@ export class ProjectsService {
 
       return saved;
     });
+
+    // 커밋 뒤에 발행한다 (Part 4 §7.3의 SSE `stage_change`). 트랜잭션 안에서 발행하면
+    // 롤백된 전환이 화면에만 남는다. 이력 자체는 위에서 current_stage와 원자적으로
+    // 기록되므로, 발행이 실패해도 타임라인에는 구멍이 나지 않는다.
+    if (stageChanged) {
+      this.events.emit(DomainEvent.PROJECT_STAGE_CHANGED, {
+        project_id: saved.id,
+        stage: saved.current_stage,
+        entered_at: new Date().toISOString(),
+      } satisfies ProjectStageChangedEvent);
+    }
+
+    return saved;
   }
 
   /**
