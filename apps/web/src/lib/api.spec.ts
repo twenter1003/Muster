@@ -1,7 +1,7 @@
 // vitest globals를 켜지 않았다. 설정을 바꾸는 대신 명시적으로 들여온다 —
 // 이 저장소의 첫 프론트엔드 테스트라, 전역 주입을 켜는 판단은 테스트가 더 쌓인 뒤가 맞다.
 import { afterEach, describe, expect, it } from 'vitest';
-import { ApiError, apiFetch } from './api';
+import { ApiError, apiFetch, apiPost } from './api';
 
 /**
  * 204를 잘못 다루면 서버에서는 삭제가 끝났는데 화면만 실패로 보인다.
@@ -76,5 +76,54 @@ describe('apiFetch', () => {
     });
 
     await expect(apiFetch('/anything')).rejects.toMatchObject({ status: 502, code: 'INTERNAL' });
+  });
+});
+
+/**
+ * apiPost는 화면마다 손으로 적던 method/body/헤더를 한 곳으로 모은 것뿐이다.
+ * 그래서 테스트가 확인하는 것도 "손으로 적던 것과 똑같이 나가는가" 하나다.
+ */
+describe('apiPost', () => {
+  let seen: { url: string; init: RequestInit } | null = null;
+
+  const capture = () => {
+    seen = null;
+    globalThis.fetch = ((url: string, init: RequestInit) => {
+      seen = { url, init };
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: () => null } as unknown as Headers,
+        json: () => Promise.resolve({ id: 'c1' }),
+      } as Response);
+    }) as unknown as typeof fetch;
+  };
+
+  afterEach(() => {
+    delete (globalThis as { fetch?: unknown }).fetch;
+  });
+
+  it('본문을 JSON으로 직렬화하고 Content-Type을 붙인다', async () => {
+    capture();
+    await expect(apiPost<{ id: string }>('/env-configs', { name: 'x' })).resolves.toEqual({
+      id: 'c1',
+    });
+
+    const call = seen as unknown as { url: string; init: RequestInit };
+    expect(call.url).toBe('/api/v1/env-configs');
+    expect(call.init.method).toBe('POST');
+    expect(call.init.body).toBe('{"name":"x"}');
+    expect(call.init.headers).toMatchObject({ 'Content-Type': 'application/json' });
+  });
+
+  // 승인·거부처럼 경로만으로 뜻이 완결되는 POST는 본문 없이 나가야 한다.
+  // `{}`를 보내면 "빈 객체를 보냈다"와 "아무것도 안 보냈다"가 서버에서 섞인다.
+  it('본문을 생략하면 body 없이 보낸다', async () => {
+    capture();
+    await apiPost('/env-configs/x/approve');
+
+    const call = seen as unknown as { init: RequestInit };
+    expect(call.init.method).toBe('POST');
+    expect('body' in call.init).toBe(false);
   });
 });

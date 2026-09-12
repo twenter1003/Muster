@@ -36,6 +36,14 @@ export const PROJECT_STAGES = [
 ] as const;
 export type ProjectStage = (typeof PROJECT_STAGES)[number];
 
+/** POLICY_CHECK_RESULTS.tool — 2종 */
+export const POLICY_TOOLS = ['trivy', 'conftest'] as const;
+export type PolicyTool = (typeof POLICY_TOOLS)[number];
+
+/** POLICY_CHECK_RESULTS.verdict — 2종 */
+export const POLICY_VERDICTS = ['pass', 'fail'] as const;
+export type PolicyVerdict = (typeof POLICY_VERDICTS)[number];
+
 /** LOG_ENTRIES.level */
 export const LOG_LEVELS = ['error', 'warn', 'info'] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
@@ -76,4 +84,14 @@ export type Measurable<T> = T | null;
 
 export function formatMeasurable<T>(value: Measurable<T>, format: (v: T) => string): string {
   return value === null ? EM_DASH : format(value);
+}
+
+/**
+ * 0~1 비율 → "74%". null이면 —다.
+ *
+ * 화면(리포트)에 있던 것을 여기로 올렸다. 성공률·1차 통과율 같은 비율은 화면이 늘어날수록
+ * 여러 곳에서 찍히는데, 반올림 자리수나 빈 값 표기가 화면마다 갈리면 같은 수치가 다르게 읽힌다.
+ */
+export function formatRate(rate: Measurable<number>): string {
+  return formatMeasurable(rate, (v) => `${Math.round(v * 100)}%`);
 }
