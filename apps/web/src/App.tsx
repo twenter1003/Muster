@@ -3,6 +3,7 @@ import { SessionProvider } from './lib/session';
 import { AppShell } from './shell/AppShell';
 import { NotReadyPage } from './routes/pages';
 import { InboxPage } from './routes/InboxPage';
+import { AuditLogPage } from './routes/AuditLogPage';
 import { LoginPage } from './routes/LoginPage';
 import { RequireSession } from './routes/RequireSession';
 import { DashboardPage } from './routes/DashboardPage';
@@ -43,6 +44,7 @@ export default function App() {
               <Route path="/projects/:id/env/new" element={<EnvConfigCreatePage />} />
               <Route path="/inbox" element={<InboxPage />} />
               <Route path="/reports" element={<ReportsPage />} />
+              <Route path="/audit" element={<AuditLogPage />} />
               {/* 설정은 탭(예산·API 키·연동)이 하위 경로로 붙을 자리라 처음부터 /* 로 연다. */}
               <Route path="/settings/*" element={<SettingsPage />} />
               {/* 사이드바의 모듈 항목 등 아직 없는 경로. 막다른 404 대신 자리표시자로 받는다. */}
