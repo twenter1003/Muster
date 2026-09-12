@@ -61,6 +61,13 @@ a {
 .shell__main {
   grid-area: main;
   padding: var(--space-screen-padding);
+  /*
+   * 그리드 항목의 기본값(min-width: auto)은 트랙 최소 크기를 내용의 min-content로 잠근다.
+   * 그래서 본문에 최소 폭을 가진 표가 있으면 1fr 트랙이 그 폭까지 벌어지고, .scroll-x가
+   * 표를 감싸고 있어도 소용이 없다 — 스크롤은 상자 안에서 멈추는데 상자 자체가 뷰포트보다
+   * 넓어지기 때문이다. 좁은 화면에서 페이지 전체가 가로로 밀리던 원인이 이것이다.
+   */
+  min-width: 0;
 }
 
 .shell__bottom-tabs {

@@ -1,0 +1,56 @@
+/*
+ * AgentRegistry — 공용 클래스 위에 이 표만의 밀도·폭만 얹는다. 신호색은 쓰지 않는다
+ * (등록 현황에는 사용자가 지금 할 처리가 없다). hex는 하나도 없다.
+ */
+
+.aregistry__empty {
+  padding: var(--space-6) var(--space-3);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  text-align: center;
+}
+
+/* 네 열이 겹치지 않는 최소 폭. */
+.aregistry__table {
+  min-width: 520px;
+}
+
+.aregistry__table th {
+  padding: var(--space-2);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.aregistry__table td {
+  height: var(--row-height-one-line);
+  padding: var(--space-2);
+  vertical-align: middle;
+}
+
+.aregistry__name {
+  font-weight: 500;
+}
+
+.aregistry__name:hover,
+.aregistry__project:hover {
+  text-decoration: underline;
+}
+
+.aregistry__time {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--color-ink-mid);
+}
+
+.aregistry__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.aregistry__pager {
+  margin-left: auto;
+  display: flex;
+  gap: var(--space-1);
+}

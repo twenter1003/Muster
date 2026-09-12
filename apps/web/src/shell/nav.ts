@@ -3,9 +3,10 @@ import type { Measurable } from '../lib/domain';
 /**
  * 사이드바 구성. 목업 1a의 항목·그룹을 그대로 옮겼다.
  *
- * 배지 값은 지금 하드코딩하지 않는다. 숫자를 박아 두면 "7"이 실제 측정값처럼 읽히는데
- * 아직 아무것도 측정하지 않았다. Measurable<number> = null 로 두면 화면에는 —(측정 불가)가
- * 나오고, Phase 6에서 값을 채울 자리가 타입으로 남는다. 0은 측정 결과라 지금 쓸 수 없다.
+ * 배지는 사이드바가 실제로 세어 주는 항목에만 단다. 지금은 알림 하나뿐이다.
+ * 프로젝트에도 자리표시자(null)를 달아 두었었는데, 그 자리는 채워지지 않은 채 —(측정 불가)만
+ * 상시 떠 있었다 — 측정할 수 있는 값을 측정하지 못하는 것처럼 보이게 하는 표시다.
+ * 세어 주는 쪽이 생기면 그때 badge를 도로 단다. 0은 측정 결과라 자리표시자로 쓸 수 없다.
  */
 export interface NavItem {
   to: string;
@@ -25,7 +26,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     label: '개요',
     items: [
       { to: '/', label: '대시보드', icon: '◼' },
-      { to: '/projects', label: '프로젝트', icon: '▤', badge: null },
+      { to: '/projects', label: '프로젝트', icon: '▤' },
       { to: '/inbox', label: '알림', icon: '✉', badge: null },
     ],
   },

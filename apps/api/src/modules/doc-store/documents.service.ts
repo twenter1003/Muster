@@ -1,10 +1,16 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '../../database/inject-repository.decorator';
-import { Document, ProjectMember } from '../../database/entities';
-import type { UploadStatus } from '../../database/entities/enums';
+import { Document, Project, ProjectMember } from '../../database/entities';
+import type { DocumentType, UploadStatus } from '../../database/entities/enums';
 import { ApiException } from '../../common/errors/api.exception';
-import { buildPage, type Page, type PageRequest } from '../../common/pagination/paginate';
+import {
+  buildPage,
+  keysetPage,
+  type Page,
+  type PageRequest,
+  type ScopedPage,
+} from '../../common/pagination/paginate';
 import { OBJECT_STORAGE, type ObjectStorage } from './object-storage';
 import { AuditService } from '../audit/audit.service';
 import type { CreateDocumentDto } from './dto/create-document.dto';
@@ -58,6 +64,55 @@ export class DocumentsService {
 
     const rows = await qb.getMany();
     return buildPage(rows, page.limit, (d) => ({ ts: d.created_at.toISOString(), id: d.id }));
+  }
+
+  /**
+   * `GET /documents` — 프로젝트를 가로지르는 문서 목록.
+   *
+   * 사이드바의 DocStore 화면은 프로젝트 하나가 아니라 내가 가진 전부를 본다. 이 엔드포인트가
+   * 없을 때 그 화면이 할 수 있는 일은 프로젝트 목록을 받아 프로젝트마다 문서를 다시 받는
+   * 것뿐이었고, 그건 프로젝트 수만큼의 요청(N+1)이면서 페이지네이션도 성립하지 않는다.
+   */
+  async listForMember(
+    userId: string,
+    page: PageRequest,
+    filters: { type?: DocumentType },
+  ): Promise<ScopedPage<Document>> {
+    // 범위를 **먼저** 좁힌다. 멤버가 아닌 프로젝트의 문서가 한 건이라도 섞이면 남의
+    // 프로젝트 이름과 문서 제목이 그대로 새어 나간다.
+    const names = await this.memberProjects(userId);
+    const ids = [...names.keys()];
+
+    // IN ()은 문법 오류다. 멤버인 프로젝트가 없으면 질의 자체를 하지 않는다.
+    if (ids.length === 0) return { items: [], next_cursor: null, project_names: names };
+
+    const qb = this.documents.createQueryBuilder('d').where('d.project_id IN (:...ids)', { ids });
+
+    if (filters.type) qb.andWhere('d.type = :type', { type: filters.type });
+
+    const result = await keysetPage(qb, 'created_at', page, (d) => d.created_at);
+    return { ...result, project_names: names };
+  }
+
+  /**
+   * 요청자가 멤버인, 살아 있는 프로젝트의 id→이름.
+   *
+   * ReportsService·InboxService와 같은 질의를 다시 적는다. 공통 헬퍼로 빼지 않는 이유는
+   * ingest/member-scope.ts 주석 참조 — 도메인 테이블을 읽는 헬퍼는 common/에 둘 자리가 없고,
+   * Ingest는 어차피 밖에서 가져다 쓸 수 없다.
+   */
+  private async memberProjects(userId: string): Promise<Map<string, string>> {
+    const rows = await this.members
+      .createQueryBuilder('m')
+      // soft delete된 프로젝트는 조인 조건에서 떨군다. 별도 WHERE로 두면 조건을 빠뜨렸을 때
+      // 삭제된 프로젝트의 문서가 조용히 목록에 들어온다.
+      .innerJoin(Project, 'p', 'p.id = m.project_id AND p.deleted_at IS NULL')
+      .select('m.project_id', 'project_id')
+      .addSelect('p.name', 'name')
+      .where('m.user_id = :userId', { userId })
+      .getRawMany<{ project_id: string; name: string }>();
+
+    return new Map(rows.map((r) => [r.project_id, r.name]));
   }
 
   /**

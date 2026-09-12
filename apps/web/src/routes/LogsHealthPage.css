@@ -1,0 +1,120 @@
+/*
+ * 로그 · 헬스 — 공용 클래스(.page/.panel/.table/.chip/.scroll-x) 위에 밀도·폭만 얹는다.
+ * 신호색은 이 파일에 한 줄도 없다: 로그 error는 LogRow가, 헬스 2.5 미만은 HealthIndicator가
+ * 각자 규칙으로 칠한다. hex도 없다.
+ */
+
+.loghealth__tab {
+  padding: 0 var(--space-2);
+  font-size: var(--font-size-badge);
+}
+
+/* 레벨 필터는 목록 전체를 가르는 단일 선택이라 선택을 채움으로 그린다(인박스 탭과 같다). */
+.loghealth__tab[aria-pressed='true'] {
+  background: var(--color-ink);
+  border-color: var(--color-ink);
+  color: var(--color-bg);
+}
+
+/* DORA 4지표 + 종합 + 프로젝트 + 시각. 일곱 열이 겹치지 않는 최소 폭. */
+.loghealth__table {
+  min-width: 760px;
+}
+
+.loghealth__table th {
+  padding: var(--space-2);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.loghealth__table td {
+  height: var(--row-height-one-line);
+  padding: var(--space-2);
+  vertical-align: middle;
+}
+
+.loghealth__project:hover {
+  text-decoration: underline;
+}
+
+/* 점수와 시각은 세로로 자리가 흔들리면 훑기가 어렵다. */
+.loghealth__num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--color-ink-mid);
+}
+
+.loghealth__logs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+}
+
+/*
+ * LogRow(시각 · 레벨 · 메시지)를 그대로 두고 오른쪽에 프로젝트 이름을 붙인다.
+ * LogRow가 자기 아래 선을 긋는데 그 선은 첫 칸까지만 닿으므로, 남은 칸에 같은 선을 이어
+ * 행이 중간에서 끊겨 보이지 않게 한다.
+ */
+.loghealth__log {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  min-width: 0;
+}
+
+/*
+ * 시각 칸만 넓힌다. 공용 .log-row의 56px는 한 프로젝트의 로그를 보는 화면(개요) 기준이라
+ * "09:41"이면 충분했다. 여기는 여러 프로젝트의 며칠치가 섞여 날짜가 같이 필요하고,
+ * 56px에서는 "09. 12. 13:37"이 두 줄로 접혀 행 높이가 들쭉날쭉해진다.
+ */
+.loghealth__log .log-row {
+  grid-template-columns: 92px 72px 1fr;
+}
+
+.loghealth__log .log-row__time {
+  white-space: nowrap;
+}
+
+.loghealth__log-project {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  padding-left: var(--space-2);
+  border-bottom: 1px solid var(--color-rule);
+  white-space: nowrap;
+}
+
+.loghealth__log-project:hover {
+  text-decoration: underline;
+}
+
+.loghealth__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.loghealth__pager {
+  margin-left: auto;
+  display: flex;
+  gap: var(--space-1);
+}
+
+/*
+ * <768: 한 줄에 시각 · 레벨 · 메시지 · 프로젝트 넷은 들어가지 않는다. 프로젝트를 아래 줄로
+ * 내리되 메시지 칸과 줄을 맞춰, 어느 로그의 프로젝트인지가 들여쓰기로 읽히게 한다.
+ */
+@media (max-width: 767px) {
+  .loghealth__log {
+    grid-template-columns: 1fr;
+    border-bottom: 1px solid var(--color-rule);
+  }
+
+  .loghealth__log-project {
+    padding-left: calc(92px + 72px + var(--space-2) * 2);
+    padding-bottom: var(--space-1);
+    border-bottom: none;
+  }
+}

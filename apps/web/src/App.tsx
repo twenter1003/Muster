@@ -12,9 +12,13 @@ import { ProjectOverviewPage } from './routes/ProjectOverviewPage';
 import { EnvConfigCreatePage } from './routes/EnvConfigCreatePage';
 import { ReportsPage } from './routes/ReportsPage';
 import { SettingsPage } from './routes/SettingsPage';
+import { DocStorePage } from './routes/DocStorePage';
+import { EnvCatalogPage } from './routes/EnvCatalogPage';
+import { AgentRegistryPage } from './routes/AgentRegistryPage';
+import { LogsHealthPage } from './routes/LogsHealthPage';
 
 /**
- * 라우팅(설계서 02). 8개 경로가 전부 여기 한 곳에 있다.
+ * 라우팅(설계서 02). 12개 경로가 전부 여기 한 곳에 있다.
  *
  * react-router-dom을 들인 이유: 경로 8개 중 둘이 파라미터(:id)를 쓰고 설정은 /settings/* 하위
  * 경로를 갖는다. 직접 짜면 history API·뒤로가기·활성 링크 표시·중첩 레이아웃을 다시 만들게 되고,
@@ -43,11 +47,17 @@ export default function App() {
               <Route path="/projects/:id" element={<ProjectOverviewPage />} />
               <Route path="/projects/:id/env/new" element={<EnvConfigCreatePage />} />
               <Route path="/inbox" element={<InboxPage />} />
+              {/* 모듈 넷은 프로젝트를 가로지르는 조회다. 프로젝트 하위 화면으로는
+                  "내 프로젝트 전체에서 어디가 막혔나"를 물을 방법이 없어서 따로 있다. */}
+              <Route path="/docstore" element={<DocStorePage />} />
+              <Route path="/envcatalog" element={<EnvCatalogPage />} />
+              <Route path="/agentregistry" element={<AgentRegistryPage />} />
+              <Route path="/logs" element={<LogsHealthPage />} />
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/audit" element={<AuditLogPage />} />
               {/* 설정은 탭(예산·API 키·연동)이 하위 경로로 붙을 자리라 처음부터 /* 로 연다. */}
               <Route path="/settings/*" element={<SettingsPage />} />
-              {/* 사이드바의 모듈 항목 등 아직 없는 경로. 막다른 404 대신 자리표시자로 받는다. */}
+              {/* 아직 없는 경로. 막다른 404 대신 자리표시자로 받는다. */}
               <Route path="*" element={<NotReadyPage />} />
             </Route>
           </Route>

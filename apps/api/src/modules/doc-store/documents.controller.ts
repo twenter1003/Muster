@@ -13,12 +13,13 @@ import {
 } from '@nestjs/common';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user';
-import { toPageRequest, type Page } from '../../common/pagination/paginate';
+import { toPageRequest, withProjectName, type Page } from '../../common/pagination/paginate';
 import { ProjectMemberGuard } from '../../common/auth/project-member.guard';
 import { DocumentsService } from './documents.service';
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto';
 import { ListDocumentsQuery } from './dto/list-documents.query';
+import { ListAllDocumentsQuery } from './dto/list-all-documents.query';
 import type { Document } from '../../database/entities';
 import { AuditService } from '../audit/audit.service';
 
@@ -94,6 +95,26 @@ export class DocumentsController {
     private readonly documents: DocumentsService,
     private readonly audit: AuditService,
   ) {}
+
+  /**
+   * 프로젝트를 가로지르는 문서 목록. 사이드바의 DocStore 화면이 쓴다.
+   *
+   * 라우트 순서: Nest는 선언 순으로 매칭하므로 `@Get()`과 `@Get(':id')`는 충돌하지 않지만,
+   * 인자 없는 쪽을 먼저 두어야 읽는 사람이 `:id`에 가려지지 않았음을 바로 안다.
+   */
+  @Get()
+  async list(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: ListAllDocumentsQuery,
+  ): Promise<Page<DocumentView & { project_name: string }>> {
+    const page = await this.documents.listForMember(user.id, toPageRequest(query), {
+      type: query.type,
+    });
+    return {
+      items: page.items.map((d) => withProjectName(toView(d), page.project_names)),
+      next_cursor: page.next_cursor,
+    };
+  }
 
   @Post(':id/complete')
   @HttpCode(HttpStatus.OK)

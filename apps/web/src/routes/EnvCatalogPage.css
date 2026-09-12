@@ -1,0 +1,101 @@
+/*
+ * EnvCatalog — 공용 클래스(.page/.table/.chip/.panel/.scroll-x) 위에 밀도·폭만 얹는다.
+ * 상태 색은 StatusBadge가 규칙에서 정하므로 여기에 상태별 색이 하나도 없다. hex도 없다.
+ */
+
+.envcat__tab {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--font-size-badge);
+  /* 상태값이 원문(policy_blocked 등)이라 칸을 넘나들며 줄이 깨지면 읽기 어렵다. */
+  white-space: nowrap;
+}
+
+/* 상태 필터는 목록 전체를 가르는 단일 선택이라 선택을 채움으로 그린다(인박스 탭과 같다). */
+.envcat__tab[aria-pressed='true'] {
+  background: var(--color-ink);
+  border-color: var(--color-ink);
+  color: var(--color-bg);
+}
+
+.envcat__empty {
+  padding: var(--space-6) var(--space-3);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  text-align: center;
+}
+
+/* 다섯 열이 겹치지 않는 최소 폭. */
+.envcat__table {
+  min-width: 640px;
+}
+
+.envcat__table th {
+  padding: var(--space-2);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.envcat__table td {
+  height: var(--row-height-one-line);
+  padding: var(--space-2);
+  vertical-align: middle;
+}
+
+.envcat__project:hover {
+  text-decoration: underline;
+}
+
+.envcat__stack {
+  color: var(--color-ink-mid);
+  font-size: var(--font-size-meta);
+}
+
+.envcat__time {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--color-ink-mid);
+}
+
+.envcat__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.envcat__pager {
+  margin-left: auto;
+  display: flex;
+  gap: var(--space-1);
+}
+
+/* 템플릿은 표가 아니라 목록이다 — 열이 셋뿐이고 서로 비교할 수치가 없다. */
+.envcat__templates {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+}
+
+.envcat__template {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  min-height: var(--row-height-one-line);
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.envcat__template:last-child {
+  border-bottom: none;
+}
+
+.envcat__template-name {
+  font-weight: 500;
+}
+
+.envcat__template time {
+  margin-left: auto;
+}

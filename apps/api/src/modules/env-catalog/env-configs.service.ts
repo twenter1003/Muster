@@ -4,13 +4,20 @@ import { InjectRepository } from '../../database/inject-repository.decorator';
 import {
   EnvConfigTransition,
   PolicyCheckResult,
+  Project,
   ProjectEnvConfig,
   ProjectMember,
 } from '../../database/entities';
 import type { BuildStatus } from '../../database/entities/enums';
 import { ApiException } from '../../common/errors/api.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
-import { buildPage, type Page, type PageRequest } from '../../common/pagination/paginate';
+import {
+  buildPage,
+  keysetPage,
+  type Page,
+  type PageRequest,
+  type ScopedPage,
+} from '../../common/pagination/paginate';
 import { DOCKER_CONFIG_GENERATOR, type DockerConfigGenerator } from './docker-config-generator';
 import { POLICY_GATE, type PolicyGate } from './policy-gate';
 import { AuditService } from '../audit/audit.service';
@@ -81,6 +88,50 @@ export class EnvConfigsService {
 
     const rows = await qb.getMany();
     return buildPage(rows, page.limit, (c) => ({ ts: c.created_at.toISOString(), id: c.id }));
+  }
+
+  /**
+   * `GET /env-configs` — 프로젝트를 가로지르는 환경 구성 목록. 사이드바의 EnvCatalog 화면이 쓴다.
+   * 근거는 DocumentsService.listForMember 주석과 같다.
+   */
+  async listForMember(
+    userId: string,
+    page: PageRequest,
+    filters: { build_status?: BuildStatus },
+  ): Promise<ScopedPage<ProjectEnvConfig>> {
+    // 범위를 **먼저** 좁힌다. 환경 구성은 남의 스택 구성과 차단 사유까지 실어 나른다.
+    const names = await this.memberProjects(userId);
+    const ids = [...names.keys()];
+
+    // IN ()은 문법 오류다. 멤버인 프로젝트가 없으면 질의 자체를 하지 않는다.
+    if (ids.length === 0) return { items: [], next_cursor: null, project_names: names };
+
+    const qb = this.configs.createQueryBuilder('c').where('c.project_id IN (:...ids)', { ids });
+
+    if (filters.build_status) {
+      qb.andWhere('c.build_status = :status', { status: filters.build_status });
+    }
+
+    const result = await keysetPage(qb, 'created_at', page, (c) => c.created_at);
+    return { ...result, project_names: names };
+  }
+
+  /**
+   * 요청자가 멤버인, 살아 있는 프로젝트의 id→이름.
+   * 같은 질의가 여러 서비스에 있는 이유는 ingest/member-scope.ts 주석 참조.
+   */
+  private async memberProjects(userId: string): Promise<Map<string, string>> {
+    const rows = await this.members
+      .createQueryBuilder('m')
+      // soft delete된 프로젝트는 조인 조건에서 떨군다. 별도 WHERE로 두면 조건을 빠뜨렸을 때
+      // 삭제된 프로젝트가 조용히 목록에 들어온다.
+      .innerJoin(Project, 'p', 'p.id = m.project_id AND p.deleted_at IS NULL')
+      .select('m.project_id', 'project_id')
+      .addSelect('p.name', 'name')
+      .where('m.user_id = :userId', { userId })
+      .getRawMany<{ project_id: string; name: string }>();
+
+    return new Map(rows.map((r) => [r.project_id, r.name]));
   }
 
   /**

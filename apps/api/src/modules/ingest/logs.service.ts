@@ -2,10 +2,16 @@ import { Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Repository } from 'typeorm';
 import { InjectRepository } from '../../database/inject-repository.decorator';
-import { Agent, LogEntry } from '../../database/entities';
+import { Agent, LogEntry, ProjectMember } from '../../database/entities';
 import { ApiException } from '../../common/errors/api.exception';
-import { keysetPage, type Page, type PageRequest } from '../../common/pagination/paginate';
+import {
+  keysetPage,
+  type Page,
+  type PageRequest,
+  type ScopedPage,
+} from '../../common/pagination/paginate';
 import { DomainEvent, type LogAppendedEvent } from '../../common/events/domain-events';
+import { memberProjects } from './member-scope';
 import type { AppendLogDto } from './dto/append-log.dto';
 
 @Injectable()
@@ -13,6 +19,7 @@ export class LogsService {
   constructor(
     @InjectRepository(LogEntry) private readonly logs: Repository<LogEntry>,
     @InjectRepository(Agent) private readonly agents: Repository<Agent>,
+    @InjectRepository(ProjectMember) private readonly members: Repository<ProjectMember>,
     private readonly events: EventEmitter2,
   ) {}
 
@@ -51,6 +58,34 @@ export class LogsService {
     if (level) qb.andWhere('l.level = :level', { level });
 
     return keysetPage(qb, 'created_at', page, (l) => l.created_at);
+  }
+
+  /**
+   * `GET /logs` — 프로젝트를 가로지르는 로그 목록.
+   *
+   * 로그 화면은 프로젝트 하나가 아니라 내가 가진 전부를 최신순으로 본다. 이 엔드포인트가
+   * 없으면 그 화면은 프로젝트마다 목록을 따로 받아 클라이언트에서 병합해야 하는데,
+   * 그러면 키셋 커서가 프로젝트별로 쪼개져 페이지네이션 자체가 성립하지 않는다.
+   */
+  async listForMember(
+    userId: string,
+    level: string | undefined,
+    page: PageRequest,
+  ): Promise<ScopedPage<LogEntry>> {
+    // 범위를 **먼저** 좁힌다. 멤버가 아닌 프로젝트의 로그가 한 줄이라도 섞이면 남의
+    // 프로젝트 이름과 로그 본문이 그대로 새어 나간다.
+    const names = await memberProjects(this.members, userId);
+    const ids = [...names.keys()];
+
+    // IN ()은 문법 오류다. 멤버인 프로젝트가 없으면 질의 자체를 하지 않는다.
+    if (ids.length === 0) return { items: [], next_cursor: null, project_names: names };
+
+    const qb = this.logs.createQueryBuilder('l').where('l.project_id IN (:...ids)', { ids });
+
+    if (level) qb.andWhere('l.level = :level', { level });
+
+    const result = await keysetPage(qb, 'created_at', page, (l) => l.created_at);
+    return { ...result, project_names: names };
   }
 
   /**

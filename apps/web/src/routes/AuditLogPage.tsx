@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../components/Button';
 import type { Page } from '../lib/api';
-import { EM_DASH } from '../lib/domain';
+import { EM_DASH, formatDateTime } from '../lib/domain';
 import { useApi } from '../lib/useApi';
 import './AuditLogPage.css';
 
@@ -76,18 +76,6 @@ const GROUPS = [
 ] as const;
 
 type GroupKey = (typeof GROUPS)[number]['key'];
-
-function formatTime(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return EM_DASH;
-  return new Intl.DateTimeFormat('ko-KR', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(d);
-}
 
 /**
  * 감사 로그(설계서 Part 4 §8 · 목업 1i).
@@ -170,7 +158,7 @@ export function AuditLogPage() {
               {visible.map((log) => (
                 <tr key={log.id}>
                   <td className="audit__time">
-                    <time dateTime={log.created_at}>{formatTime(log.created_at)}</time>
+                    <time dateTime={log.created_at}>{formatDateTime(log.created_at)}</time>
                   </td>
                   <td>
                     {ACTION_LABEL[log.action] ?? log.action}
