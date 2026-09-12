@@ -12,6 +12,7 @@ import { EnvCatalogModule } from './modules/env-catalog/env-catalog.module';
 import { AgentRegistryModule } from './modules/agent-registry/agent-registry.module';
 import { IngestModule } from './modules/ingest/ingest.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
+import { ReportsModule } from './modules/reports/reports.module';
 
 @Module({
   imports: [
@@ -28,6 +29,8 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
     AgentRegistryModule,
     IngestModule,
     RealtimeModule,
+    // 설계서 Part 2 §2의 7개 모듈 목록에 없는 신설 모듈 (reports.module.ts 주석 참조).
+    ReportsModule,
   ],
 })
 export class AppModule {}
