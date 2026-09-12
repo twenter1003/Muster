@@ -163,12 +163,12 @@ describe('DB 스키마 ↔ ERD 일치 검증', () => {
    * (AddCheckConstraints 마이그레이션이 SQL로 직접 추가한 것들). 생성된 SQL을 검토 없이
    * 머지하면 승인 게이트를 지탱하는 제약이 조용히 사라지므로, 개수를 테스트로 고정한다.
    */
-  it('CHECK 제약 27개가 그대로 살아 있다', async () => {
+  it('CHECK 제약 28개가 그대로 살아 있다', async () => {
     const rows = await q<{ n: string }>(
       `SELECT count(*)::text AS n FROM pg_constraint
        WHERE contype = 'c' AND conname LIKE 'chk_%'`,
     );
-    expect(Number(rows[0].n)).toBe(27);
+    expect(Number(rows[0].n)).toBe(28);
   });
 
   it('USERS.github_token_ref는 nullable이다 (토큰 원문이 아닌 참조만 보관)', async () => {

@@ -12,6 +12,19 @@ import type { AuditAction, BuildStatus, PolicyTool } from '../../database/entiti
 export const INBOX_CATEGORIES = ['policy', 'budget', 'deployment', 'audit'] as const;
 export type InboxCategory = (typeof INBOX_CATEGORIES)[number];
 
+/**
+ * 화면이 신호색(붉은색)을 쓸지 가르는 값.
+ *
+ * 화면이 category와 approvable로 역산하던 것을 서버로 옮긴다. 역산으로는 예산을 가를 수
+ * 없었다 — 임계치 초과와 한도 초과는 다음 행동이 다른데(후자는 실행이 멈출 수 있다)
+ * 응답에서는 detail 문구로만 갈렸고, 화면이 문구를 파싱해 색을 정하는 것은 문구를 고치면
+ * 색이 조용히 바뀐다는 뜻이다.
+ *
+ * - `critical` — 지금 막혀 있거나 이미 실패한 것. Policy 차단 · 배포 실패 · 예산 한도 초과.
+ * - `notice` — 읽고 판단할 것. 승인 대기 · 예산 임계치 · 감사 기록.
+ */
+export type InboxSeverity = 'critical' | 'notice';
+
 export interface InboxItem {
   /**
    * `<category>:<출처 행 id>`. 저장된 알림 행이 아니라 현재 상태에서 유도한 항목이라
@@ -29,6 +42,7 @@ export interface InboxItem {
   href: string;
   /** href와 같은 대상을 식별자로 한 번 더 싣는다 — 경로 규칙이 바뀌어도 대상은 남는다. */
   target: { kind: 'env_config' | 'budget' | 'deployment_event' | 'audit_log'; id: string };
+  severity: InboxSeverity;
   /**
    * 승인 버튼으로 해소되는 항목인가.
    *
@@ -142,6 +156,7 @@ export function buildPolicyItems(
       title: blocked ? `${name} 환경 구성이 차단되었습니다` : `${name} 구성이 승인 대기 중입니다`,
       detail: blocked ? blockedDetail(rows) : passedDetail(rows),
       occurred_at: c.created_at.toISOString(),
+      severity: blocked ? ('critical' as const) : ('notice' as const),
       href: `/projects/${c.project_id}?tab=env`,
       target: { kind: 'env_config' as const, id: c.id },
       approvable: !blocked,
@@ -224,6 +239,8 @@ export function buildBudgetItems(
       // 그 시각에 가장 가까운 관측값이 마지막 실행 시각이다. 실행이 없는데 임계치를
       // 넘을 수는 없지만, 방어적으로 예산 수정 시각으로 떨어진다.
       occurred_at: (used.last_run_at ?? b.updated_at).toISOString(),
+      // 한도를 넘긴 것만 신호다. 임계치는 "곧 넘는다"는 예고라 아직 막힌 것이 없다.
+      severity: worst.pct >= 100 ? 'critical' : 'notice',
       href: `/settings/budget?project=${b.project_id}`,
       target: { kind: 'budget', id: b.project_id },
       approvable: false,
@@ -248,6 +265,7 @@ export function buildDeploymentItems(
       title: `${name} 배포 실패`,
       detail: `${e.kind} failure · 커밋 ${e.commit_sha.slice(0, 7)} — MTTR 지표에 반영됩니다`,
       occurred_at: e.occurred_at.toISOString(),
+      severity: 'critical' as const,
       href: `/projects/${e.project_id}`,
       target: { kind: 'deployment_event' as const, id: e.id },
       approvable: false,
@@ -297,6 +315,8 @@ export function buildAuditItems(rows: readonly AuditRow[], projects: ProjectName
       // 원인 = 누가 했는가. 감사 항목에서 다음 행동을 정하는 정보는 그것뿐이다.
       detail: `${a.actor} · ${a.action}`,
       occurred_at: a.created_at.toISOString(),
+      // 감사는 이력이다. 이미 일어난 일에 사용자가 할 수 있는 처리가 없다.
+      severity: 'notice',
       href: `/projects/${a.project_id}?tab=audit`,
       target: { kind: 'audit_log', id: a.id },
       approvable: false,

@@ -342,6 +342,12 @@
 
 .rp-reasons__text {
   word-break: break-word;
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+.rp-reasons__text:hover {
+  text-decoration: underline;
 }
 
 /* ── 반응형 (설계서 09) ───────────────────────────────────────────────── */

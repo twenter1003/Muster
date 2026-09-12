@@ -28,9 +28,17 @@ export class ProjectApiKey {
   @Column({ type: 'varchar', length: 64 })
   key_hash!: string;
 
-  /** 어떤 용도의 키인지 사람이 알아보기 위한 이름. 원문을 다시 볼 수 없으므로 이게 유일한 식별 수단이다. */
+  /** 어떤 용도의 키인지 사람이 알아보기 위한 이름. */
   @Column({ type: 'varchar', length: 100 })
   label!: string;
+
+  /**
+   * 원문의 마지막 4자. 화면의 `muster_••••4f2a` 표기가 이것 하나에 달려 있다.
+   * 이 컬럼이 생기기 전에 발급된 키는 null이다 — 해시만 남아 채울 방법이 없다.
+   * 왜 말미를 저장해도 되는지는 AddApiKeySuffix 마이그레이션 주석에 적었다.
+   */
+  @Column({ type: 'varchar', length: 4, nullable: true })
+  key_suffix!: string | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
   created_at!: Date;

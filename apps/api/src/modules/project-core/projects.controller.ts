@@ -19,6 +19,7 @@ import { ProjectsService } from './projects.service';
 import { GitIntegrationService } from './git-integration.service';
 import { CreateGitIntegrationDto } from './dto/create-git-integration.dto';
 import { ApiKeysService, type ApiKeyView } from './api-keys.service';
+import { MembersService, type ProjectMemberView } from './members.service';
 import { CreateApiKeyDto } from './dto/create-api-key.dto';
 import { ProjectMemberGuard } from '../../common/auth/project-member.guard';
 import { CreateProjectDto } from './dto/create-project.dto';
@@ -67,6 +68,7 @@ export class ProjectsController {
     private readonly projects: ProjectsService,
     private readonly gitIntegrations: GitIntegrationService,
     private readonly apiKeys: ApiKeysService,
+    private readonly members: MembersService,
     private readonly audit: AuditService,
   ) {}
 
@@ -164,6 +166,26 @@ export class ProjectsController {
   }
 
   /** 설계서 Part 4 §3 — 발급된 API 키 목록. 원문은 재조회 불가라 label/생성일만 나온다. */
+  /**
+   * 설계서 Part 4 §3 — 프로젝트 멤버 목록.
+   *
+   * 배열을 그대로 내보내지 않고 `{ items, counts }`로 감싼다. 화면이 필요로 하는 것은
+   * 나열과 **역할별 수**(목업의 "owner 1") 둘 다이고, 배열만 주면 화면마다 각자 세게 된다.
+   * 페이지네이션이 없는 이유는 MembersService 주석 참조.
+   */
+  @Get(':id/members')
+  @UseGuards(ProjectMemberGuard)
+  async listMembers(
+    @Param('id') projectId: string,
+  ): Promise<{ items: ProjectMemberView[]; counts: Record<string, number> }> {
+    const items = await this.members.listByProject(projectId);
+
+    const counts: Record<string, number> = {};
+    for (const m of items) counts[m.role] = (counts[m.role] ?? 0) + 1;
+
+    return { items, counts };
+  }
+
   @Get(':id/api-keys')
   @UseGuards(ProjectMemberGuard)
   listApiKeys(

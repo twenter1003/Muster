@@ -65,7 +65,12 @@ interface PolicyGateView {
   first_pass_rate: number | null;
   trivy_blocked: number;
   conftest_blocked: number;
-  top_block_reasons: { reason: string; count: number }[];
+  top_block_reasons: {
+    reason: string;
+    count: number;
+    /** 가장 최근에 그 사유로 막힌 구성. 사유에서 실제 구성으로 건너갈 수 있게 서버가 준다. */
+    latest: { env_config_id: string; project_id: string };
+  }[];
 }
 
 interface DoraView {
@@ -745,7 +750,15 @@ function PolicyWidget({ gate, loading }: { gate: PolicyGateView | null; loading:
                 <ol className="rp-reasons__list">
                   {gate.top_block_reasons.map((r) => (
                     <li key={r.reason} className="rp-reasons__item">
-                      <span className="rp-reasons__text">{r.reason}</span>
+                      {/* 사유만 보여 주던 때에는 "그래서 어느 구성인가"를 사용자가
+                          프로젝트를 하나씩 열어 찾아야 했다. 가장 최근 건으로 보낸다. */}
+                      <Link
+                        className="rp-reasons__text"
+                        to={`/projects/${r.latest.project_id}?tab=env`}
+                        title="가장 최근에 이 사유로 막힌 구성 보기"
+                      >
+                        {r.reason}
+                      </Link>
                       <span className="rp-bar__value">{r.count}</span>
                     </li>
                   ))}

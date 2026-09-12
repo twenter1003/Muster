@@ -37,6 +37,8 @@ interface BudgetView {
 }
 
 interface ApiKeyView {
+  /** 원문의 마지막 4자. 이 컬럼이 생기기 전 키는 null. */
+  key_suffix: string | null;
   id: string;
   label: string;
   created_at: string;
@@ -149,7 +151,6 @@ export function SettingsPage() {
               onClick={() => setTab(t.id)}
             >
               <span>{t.label}</span>
-              {t.id === 'members' ? <span className="badge">확장</span> : null}
             </button>
           ))}
         </nav>
@@ -170,7 +171,7 @@ export function SettingsPage() {
           ) : tab === 'git' ? (
             <GitTab projectId={projectId} />
           ) : (
-            <MembersTab />
+            <MembersTab projectId={projectId} />
           )}
         </div>
       </div>
@@ -555,8 +556,12 @@ function ApiKeysTab({ projectId }: { projectId: string }) {
                 return (
                   <tr key={k.id}>
                     <td>{k.label}</td>
-                    {/* 서버가 접두·말미를 주지 않으므로 마스킹은 형식만 보여 주는 고정 표기다. */}
-                    <td className="settings__mono">muster_{'•'.repeat(8)}</td>
+                    {/* 말미 4자는 서버가 준다. 이 컬럼이 생기기 전에 발급된 키는 null이라
+                        말미 없이 가린다 — 없는 값을 지어내면 그게 진짜 말미로 읽힌다. */}
+                    <td className="settings__mono">
+                      muster_{'•'.repeat(8)}
+                      {k.key_suffix ?? ''}
+                    </td>
                     <td>{shortDate(k.created_at)}</td>
                     <td>
                       {revoked ? (
@@ -734,19 +739,79 @@ function GitTab({ projectId }: { projectId: string }) {
   );
 }
 
-/* ───────────────────────── 멤버 (자리만) ───────────────────────── */
+/* ───────────────────────── 멤버 ───────────────────────── */
 
-function MembersTab() {
+interface ProjectMemberView {
+  user_id: string;
+  github_login: string;
+  role: string;
+  joined_at: string;
+}
+
+interface MembersResponse {
+  items: ProjectMemberView[];
+  /** 역할별 수. 목업의 "owner 1" 표기가 이것이다 — 화면이 직접 세지 않는다. */
+  counts: Record<string, number>;
+}
+
+/**
+ * 멤버 — **읽기 전용**이다.
+ *
+ * 초대·역할 변경·추방 API가 아직 없다. 버튼을 먼저 그려 두면 눌러도 아무 일이 없는
+ * 화면이 되고, 그건 없는 것보다 나쁘다. 목록만 보여 주고 그 사실을 적는다.
+ */
+function MembersTab({ projectId }: { projectId: string | null }) {
+  const { data, error, loading } = useApi<MembersResponse>(
+    projectId === null ? null : `/projects/${projectId}/members`,
+  );
+
+  const members = data?.items ?? [];
+  const summary = Object.entries(data?.counts ?? {})
+    .map(([role, n]) => `${role} ${n}`)
+    .join(' · ');
+
   return (
     <div className="settings__section">
       <h2 className="settings__section-title">
-        멤버 <span className="badge">확장</span>
+        멤버 {summary.length > 0 ? <span className="settings__meta">{summary}</span> : null}
       </h2>
-      {/* 자리를 두되 없는 기능을 있는 것처럼 그리지 않는다. 빈 표는 "멤버가 없다"는
-          거짓말이 되므로, 아예 화면이 없다는 사실만 적는다. */}
+
+      {error !== null ? (
+        <p className="settings__error" role="alert">
+          멤버를 불러오지 못했다: {errorMessage(error)}
+        </p>
+      ) : loading ? (
+        <p className="settings__meta">불러오는 중…</p>
+      ) : members.length === 0 ? (
+        <p className="settings__meta">멤버가 없다.</p>
+      ) : (
+        <div className="settings__scroll">
+          <table className="settings__table">
+            <thead>
+              <tr>
+                <th scope="col">계정</th>
+                <th scope="col">역할</th>
+                <th scope="col">합류</th>
+              </tr>
+            </thead>
+            <tbody>
+              {members.map((m) => (
+                <tr key={m.user_id}>
+                  <td>{m.github_login}</td>
+                  <td>
+                    <span className="badge">{m.role}</span>
+                  </td>
+                  <td>{shortDate(m.joined_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       <p className="settings__meta">
-        아직 내용이 없다. PROJECT_MEMBERS는 이미 쌓이고 있지만 멤버를 읽고 바꿀 API가 없어,
-        지금 화면을 만들면 조작할 수 없는 목록만 남는다.
+        초대·역할 변경은 아직 없다. 서버에 쓰기 API가 없어, 버튼을 그려 두면 눌러도 아무 일이
+        일어나지 않는 화면이 된다.
       </p>
     </div>
   );

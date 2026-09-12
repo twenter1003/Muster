@@ -3,6 +3,7 @@ import { ApiKeysController, ProjectsController } from './projects.controller';
 import { ProjectsService } from './projects.service';
 import { GitIntegrationService } from './git-integration.service';
 import { ApiKeysService } from './api-keys.service';
+import { MembersService } from './members.service';
 import { GITHUB_REPO_CLIENT, HttpGitHubRepoClient } from './github-repo.client';
 
 /**
@@ -18,6 +19,7 @@ import { GITHUB_REPO_CLIENT, HttpGitHubRepoClient } from './github-repo.client';
     ProjectsService,
     GitIntegrationService,
     ApiKeysService,
+    MembersService,
     { provide: GITHUB_REPO_CLIENT, useClass: HttpGitHubRepoClient },
   ],
   exports: [ProjectsService, ApiKeysService],

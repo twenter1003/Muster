@@ -48,7 +48,17 @@ export interface PolicyGate {
   first_pass_rate: number | null;
   trivy_blocked: number;
   conftest_blocked: number;
-  top_block_reasons: { reason: string; count: number }[];
+  /**
+   * 사유별 건수와 **가장 최근에 그 사유로 막힌 구성**.
+   *
+   * latest가 있어야 화면이 "이 사유로 막힌 구성 보기"로 넘어갈 수 있다. 사유 문구만 주던
+   * 때에는 사용자가 프로젝트를 하나씩 열어 찾아야 했다.
+   */
+  top_block_reasons: {
+    reason: string;
+    count: number;
+    latest: { env_config_id: string; project_id: string };
+  }[];
 }
 
 /** cost_by_project — 비용 내림차순 상위 N개 + 나머지 묶음. */
@@ -105,7 +115,11 @@ export function buildPolicyGate(input: {
   verdicts: readonly { tool: PolicyTool; verdict: 'pass' | 'fail'; count: number }[];
   /** 환경 구성별 fail 행 수. fail이 0이면 1차 통과다. */
   configFailCounts: readonly { fails: number }[];
-  reasons: readonly { reason: string; count: number }[];
+  reasons: readonly {
+    reason: string;
+    count: number;
+    latest: { env_config_id: string; project_id: string };
+  }[];
 }): PolicyGate {
   const total_checks = input.verdicts.reduce((sum, v) => sum + v.count, 0);
   const blocked = (tool: PolicyTool) =>
@@ -121,7 +135,11 @@ export function buildPolicyGate(input: {
     first_pass_rate: configs_checked === 0 ? null : round4(first_pass_configs / configs_checked),
     trivy_blocked: blocked('trivy'),
     conftest_blocked: blocked('conftest'),
-    top_block_reasons: input.reasons.map((r) => ({ reason: r.reason, count: r.count })),
+    top_block_reasons: input.reasons.map((r) => ({
+      reason: r.reason,
+      count: r.count,
+      latest: r.latest,
+    })),
   };
 }
 

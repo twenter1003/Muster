@@ -2,7 +2,7 @@ import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user';
 import { ProjectMemberGuard } from '../../common/auth/project-member.guard';
-import { CursorPaginationQuery } from '../../common/pagination/pagination.dto';
+import { AuditLogQuery } from './dto/audit.query';
 import { toPageRequest, type Page } from '../../common/pagination/paginate';
 import type { AuditLog } from '../../database/entities';
 import { AuditService } from './audit.service';
@@ -39,9 +39,11 @@ export class ProjectAuditController {
   @UseGuards(ProjectMemberGuard)
   async list(
     @Param('id') projectId: string,
-    @Query() query: CursorPaginationQuery,
+    @Query() query: AuditLogQuery,
   ): Promise<Page<AuditLogView>> {
-    const page = await this.audit.listForProject(projectId, toPageRequest(query));
+    const page = await this.audit.listForProject(projectId, toPageRequest(query), {
+      action: query.action,
+    });
     return { items: page.items.map(toView), next_cursor: page.next_cursor };
   }
 }
@@ -57,9 +59,11 @@ export class AuditLogsController {
   @Get()
   async list(
     @CurrentUser() user: AuthenticatedUser,
-    @Query() query: CursorPaginationQuery,
+    @Query() query: AuditLogQuery,
   ): Promise<Page<AuditLogView>> {
-    const page = await this.audit.listForUser(user.id, toPageRequest(query));
+    const page = await this.audit.listForUser(user.id, toPageRequest(query), {
+      action: query.action,
+    });
     return { items: page.items.map(toView), next_cursor: page.next_cursor };
   }
 }

@@ -185,14 +185,28 @@ export class ReportsService {
     const rows = await this.policyScope(ids, from, to)
       .select('r.risk_notes', 'reason')
       .addSelect('COUNT(*)', 'count')
+      // 사유 문구만으로는 화면이 "그래서 어느 구성인가"로 넘어갈 수 없었다. 같은 사유가
+      // 여러 구성에서 나오므로 하나를 골라야 하는데, **가장 최근 것**을 고른다 —
+      // 지금 고쳐야 할 구성은 최근 것이고, 오래된 것은 이미 처리됐을 수 있다.
+      .addSelect('(array_agg(c.id ORDER BY r.checked_at DESC))[1]', 'env_config_id')
+      .addSelect('(array_agg(c.project_id ORDER BY r.checked_at DESC))[1]', 'project_id')
       .andWhere("r.verdict = 'fail'")
       .andWhere('r.risk_notes IS NOT NULL')
       .groupBy('r.risk_notes')
       .orderBy('count', 'DESC')
       .limit(TOP_REASON_COUNT)
-      .getRawMany<{ reason: string; count: string }>();
+      .getRawMany<{
+        reason: string;
+        count: string;
+        env_config_id: string;
+        project_id: string;
+      }>();
 
-    return rows.map((r) => ({ reason: r.reason, count: Number(r.count) }));
+    return rows.map((r) => ({
+      reason: r.reason,
+      count: Number(r.count),
+      latest: { env_config_id: r.env_config_id, project_id: r.project_id },
+    }));
   }
 
   /** 세 정책 질의가 공유하는 범위·구간 조건. 한 곳에서만 정의해 셋이 갈라지지 않게 한다. */

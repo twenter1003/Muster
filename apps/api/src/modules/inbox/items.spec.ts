@@ -78,6 +78,13 @@ describe('policy 항목', () => {
     expect(item.detail).toBe('정책 검사 실패. 승인 절차로 우회할 수 없습니다.');
   });
 
+  it('차단은 신호이고 승인 대기는 아니다', () => {
+    const blocked = buildPolicyItems([config()], [], projects);
+    const waiting = buildPolicyItems([config({ build_status: 'policy_passed' })], [], projects);
+    expect(blocked[0].severity).toBe('critical');
+    expect(waiting[0].severity).toBe('notice');
+  });
+
   it('승인 대기는 approvable이고 통과한 검사들을 보여준다', () => {
     const [item] = buildPolicyItems(
       [config({ build_status: 'policy_passed' })],
@@ -106,11 +113,20 @@ describe('budget 항목 — 임계치 경계', () => {
     expect(items).toHaveLength(1);
     expect(items[0].title).toContain('80%');
     expect(items[0].detail).toBe('$36.00 / $45.00 · 알림 임계치 80% 초과');
+    // 아직 막힌 것이 없다 — 임계치는 "곧 넘는다"는 예고다.
+    expect(items[0].severity).toBe('notice');
   });
 
   it('한도를 넘으면 임계치 초과가 아니라 한도 초과라고 말한다', () => {
     const items = buildBudgetItems([budget()], [usage({ cost: '50.0000' })], projects);
     expect(items[0].detail).toContain('한도 초과');
+    // 화면이 detail 문구를 파싱해 색을 정하지 않도록 severity가 따로 말한다.
+    expect(items[0].severity).toBe('critical');
+  });
+
+  it('100%에 정확히 닿으면 한도 초과다 (경계)', () => {
+    const items = buildBudgetItems([budget()], [usage({ cost: '45.0000' })], projects);
+    expect(items[0].severity).toBe('critical');
   });
 
   it('한도가 없으면 사용량이 얼마든 들어가지 않는다', () => {
