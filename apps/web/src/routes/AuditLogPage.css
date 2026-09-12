@@ -1,0 +1,149 @@
+/* 감사 로그 — 구조·밀도는 목업 1i, 색·타이포는 토큰. 신호색은 쓰지 않는다(이력이다). */
+
+.audit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.audit__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.audit__count {
+  font-size: var(--font-size-meta);
+  font-weight: 400;
+  color: var(--color-ink-mid);
+}
+
+.audit__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.audit__tab {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-ink-mid);
+  font-size: var(--font-size-badge);
+  cursor: pointer;
+}
+
+.audit__tab[aria-pressed='true'] {
+  background: var(--color-ink);
+  border-color: var(--color-ink);
+  color: var(--color-bg);
+  font-weight: 600;
+}
+
+.audit__tab-count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+.audit__meta,
+.audit__empty {
+  margin: 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+.audit__empty {
+  padding: var(--space-6) var(--space-3);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  text-align: center;
+}
+
+.audit__error {
+  margin: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--color-signal);
+  border-radius: var(--radius);
+  background: var(--color-signal-bg);
+  color: var(--color-signal);
+  font-size: var(--font-size-meta);
+}
+
+.audit__scroll {
+  overflow-x: auto;
+  min-width: 0;
+}
+
+.audit__table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  font-size: var(--font-size-body);
+}
+
+.audit__table th {
+  text-align: left;
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--color-rule);
+  font-size: var(--font-size-meta);
+  font-weight: 600;
+  color: var(--color-ink-mid);
+  white-space: nowrap;
+}
+
+.audit__table td {
+  height: var(--row-height-one-line);
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--color-rule);
+  vertical-align: middle;
+}
+
+/* 시각은 세로로 자리가 흔들리면 훑기가 어렵다. */
+.audit__time {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--color-ink-mid);
+}
+
+.audit__code {
+  margin-left: var(--space-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--font-size-badge);
+  color: var(--color-ink-mid);
+}
+
+.audit__project {
+  color: var(--color-ink);
+}
+
+.audit__dash,
+.audit__gone {
+  color: var(--color-ink-mid);
+}
+
+.audit__gone {
+  font-size: var(--font-size-meta);
+}
+
+.audit__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.audit__pager {
+  margin-left: auto;
+  display: flex;
+  gap: var(--space-1);
+}
+
+/* <768: 원문 코드를 접는다. 좁은 화면에서 한 셀에 두 표기는 줄을 깨뜨린다. */
+@media (max-width: 767px) {
+  .audit__code {
+    display: none;
+  }
+}
