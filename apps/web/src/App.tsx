@@ -1,7 +1,8 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { SessionProvider } from './lib/session';
 import { AppShell } from './shell/AppShell';
-import { InboxPage, NotReadyPage } from './routes/pages';
+import { NotReadyPage } from './routes/pages';
+import { InboxPage } from './routes/InboxPage';
 import { LoginPage } from './routes/LoginPage';
 import { RequireSession } from './routes/RequireSession';
 import { DashboardPage } from './routes/DashboardPage';

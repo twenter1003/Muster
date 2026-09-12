@@ -14,15 +14,6 @@ export function Page({ title, note }: { title: string; note?: string }) {
   );
 }
 
-/**
- * 인박스. 백엔드가 없어서 비워 둔다 — 설계서 Part 4 §8(GET /audit-logs)이 미구현이고
- * AUDIT_LOGS는 엔티티만 있고 쓰는 곳도 읽는 곳도 없다. 화면만 먼저 만들면 빈 목록을
- * "알림이 없다"로 보여 주게 되는데, 그건 사실이 아니라 거짓말이다.
- */
-export const InboxPage = () => (
-  <Page title="알림" note="감사 로그 API(Part 4 §8)가 아직 없어 비워 둔다." />
-);
-
 /** 사이드바의 모듈 항목처럼 아직 라우트가 없는 링크가 막다른 길이 되지 않게 받는다. */
 export const NotReadyPage = () => (
   <Page title="준비 중" note="아직 만들지 않은 화면이다." />

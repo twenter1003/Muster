@@ -1,0 +1,184 @@
+/*
+ * 인박스 — 구조·밀도는 목업 1g, 색·타이포는 토큰. hex는 하나도 없다.
+ */
+
+.inbox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.inbox__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.inbox__count {
+  font-size: var(--font-size-meta);
+  font-weight: 400;
+  color: var(--color-ink-mid);
+}
+
+.inbox__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.inbox__tab {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-ink-mid);
+  font-size: var(--font-size-badge);
+  cursor: pointer;
+}
+
+/* 선택은 색이 아니라 채움+굵기로도 읽힌다. */
+.inbox__tab[aria-pressed='true'] {
+  background: var(--color-ink);
+  border-color: var(--color-ink);
+  color: var(--color-bg);
+  font-weight: 600;
+}
+
+.inbox__tab-count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+.inbox__meta,
+.inbox__empty {
+  margin: 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+.inbox__empty {
+  padding: var(--space-6) var(--space-3);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  text-align: center;
+}
+
+.inbox__error {
+  margin: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--color-signal);
+  border-radius: var(--radius);
+  background: var(--color-signal-bg);
+  color: var(--color-signal);
+  font-size: var(--font-size-meta);
+}
+
+.inbox__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+}
+
+.inbox__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-rule);
+  min-width: 0;
+}
+
+.inbox__item:last-child {
+  border-bottom: none;
+}
+
+/*
+ * 처리를 요구하는 항목만 왼쪽에 신호 띠를 세운다. 배경까지 물들이면 목록의 절반이
+ * 붉어져서 "훑어보면 눈에 띈다"는 성질 자체가 사라진다. 띠는 색 말고 위치로도 읽힌다.
+ */
+.inbox__item[data-signal] {
+  border-left: 3px solid var(--color-signal);
+  padding-left: calc(var(--space-3) - 3px);
+}
+
+.inbox__item-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.inbox__tag {
+  flex: none;
+  padding: 0 var(--space-1);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  font-size: var(--font-size-badge);
+  color: var(--color-ink-mid);
+}
+
+.inbox__title {
+  min-width: 0;
+  font-size: var(--font-size-body);
+  font-weight: 500;
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+.inbox__title:hover {
+  text-decoration: underline;
+}
+
+.inbox__item[data-signal] .inbox__title {
+  color: var(--color-signal);
+}
+
+.inbox__time {
+  margin-left: auto;
+  flex: none;
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+  font-variant-numeric: tabular-nums;
+}
+
+.inbox__detail {
+  margin: 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+  overflow-wrap: anywhere;
+}
+
+.inbox__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.inbox__project {
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+.inbox__flag {
+  padding: 0 var(--space-1);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  font-size: var(--font-size-badge);
+  color: var(--color-ink-mid);
+}
+
+/* <768: 시각을 제목 줄 오른쪽 끝에 붙이면 제목이 한 글자씩 끊긴다. 아래 줄로 내린다. */
+@media (max-width: 767px) {
+  .inbox__time {
+    margin-left: 0;
+  }
+}
