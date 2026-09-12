@@ -113,13 +113,24 @@ a {
   font-variant-numeric: tabular-nums;
 }
 
+/*
+ * min-width: 0이 없으면 플렉스 자식의 기본값(min-width: auto)이 min-content로 잠긴다.
+ * 그러면 좁은 화면에서 경로 표기가 줄어드는 대신 글자 단위로 세로 줄바꿈되고,
+ * 상단바 전체가 뷰포트보다 넓어져 페이지가 가로로 밀린다.
+ */
 .topbar__crumb {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: var(--font-size-meta);
   color: var(--color-ink-mid);
 }
 
 .topbar__search {
   flex: 1;
+  /* <input>은 고유 너비가 있어 flex:1만으로는 줄어들지 않는다(min-width: auto 때문). */
+  min-width: 0;
   max-width: 420px;
   min-height: 32px;
   padding: 0 var(--space-2);
@@ -216,6 +227,12 @@ a {
   }
 
   .shell__sidebar {
+    display: none;
+  }
+
+  /* 설계서 09: 모바일은 기능 축소가 아니라 과업 축소다. 검색은 이동 중의 과업이 아니고,
+     상단바 폭의 절반을 먹으면서 경로 표기를 밀어낸다. */
+  .topbar__search {
     display: none;
   }
 
