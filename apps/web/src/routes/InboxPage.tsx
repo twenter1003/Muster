@@ -107,20 +107,20 @@ export function InboxPage() {
   };
 
   return (
-    <section className="inbox">
-      <header className="inbox__head">
+    <section className="page inbox">
+      <header className="page__head">
         <h1 className="page__title">
           알림{' '}
-          <span className="inbox__count">
+          <span className="page__count">
             처리 대기 {counts === null ? EM_DASH : counts.total}건
           </span>
         </h1>
       </header>
 
-      <div className="inbox__tabs" role="group" aria-label="분류 필터">
+      <div className="chip-row" role="group" aria-label="분류 필터">
         <button
           type="button"
-          className="inbox__tab"
+          className="chip inbox__tab"
           aria-pressed={active === null}
           onClick={() => select(null)}
         >
@@ -130,7 +130,7 @@ export function InboxPage() {
           <button
             key={category}
             type="button"
-            className="inbox__tab"
+            className="chip inbox__tab"
             aria-pressed={active === category}
             onClick={() => select(category)}
           >
@@ -142,19 +142,19 @@ export function InboxPage() {
         ))}
       </div>
 
-      <p className="inbox__meta">
+      <p className="meta">
         최근 순 · 원인이 해소되면 목록에서 사라진다(읽음 표시는 없다)
         {data?.truncated === true && ' · 상한에 걸려 일부만 표시한다'}
       </p>
 
       {error !== null ? (
-        <p className="inbox__error" role="alert">
+        <p className="error-note" role="alert">
           목록을 불러오지 못했다: {error.message}
         </p>
       ) : loading ? (
-        <p className="inbox__meta">불러오는 중…</p>
+        <p className="meta">불러오는 중…</p>
       ) : items.length === 0 ? (
-        <p className="inbox__empty">
+        <p className="meta inbox__empty">
           {active === null
             ? '처리를 기다리는 일이 없다.'
             : `${CATEGORY_LABEL[active]} 분류에 처리를 기다리는 일이 없다.`}
@@ -176,7 +176,7 @@ export function InboxPage() {
               </div>
               <p className="inbox__detail">{item.detail}</p>
               <div className="inbox__foot">
-                <Link className="inbox__project" to={`/projects/${item.project_id}`}>
+                <Link className="meta inbox__project" to={`/projects/${item.project_id}`}>
                   {item.project_name}
                 </Link>
                 {/* 승인은 아직 이 화면에서 하지 않는다. 승인 동작은 환경 구성 화면에 있고,

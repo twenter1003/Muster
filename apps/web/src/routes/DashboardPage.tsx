@@ -270,7 +270,7 @@ export function DashboardPage() {
       <header className="dash__header">
         <div>
           <h1 className="page__title">전체 현황</h1>
-          <p className="dash__subtitle">
+          <p className="meta">
             {new Date().toLocaleDateString('ko-KR', {
               year: 'numeric',
               month: 'long',
@@ -369,17 +369,17 @@ function ProjectProgressWidget({
   loading: boolean;
 }) {
   return (
-    <section className="widget widget--wide" aria-labelledby="w-projects">
-      <div className="widget__head">
-        <h2 className="widget__title" id="w-projects">
+    <section className="card widget widget--wide" aria-labelledby="w-projects">
+      <div className="card__head">
+        <h2 className="card__title" id="w-projects">
           프로젝트 진행 상황
         </h2>
-        <span className="widget__meta">current_stage 기준</span>
+        <span className="card__meta">current_stage 기준</span>
       </div>
       {projects === null ? (
-        <p className="widget__empty">{loading ? '불러오는 중' : '표시할 프로젝트가 없다.'}</p>
+        <p className="meta widget__empty">{loading ? '불러오는 중' : '표시할 프로젝트가 없다.'}</p>
       ) : (
-        <table className="dash-table">
+        <table className="table dash-table">
           <thead>
             <tr>
               <th scope="col">프로젝트</th>
@@ -474,16 +474,16 @@ function StreamWidget({ projects }: { projects: readonly ProjectView[] | null })
           : { label: '스트림 중지', mod: ' stream-dot--closed' };
 
   return (
-    <section className="widget" aria-labelledby="w-stream">
-      <div className="widget__head">
-        <h2 className="widget__title" id="w-stream">
+    <section className="card widget" aria-labelledby="w-stream">
+      <div className="card__head">
+        <h2 className="card__title" id="w-stream">
           에이전트 실행 스트림
         </h2>
-        <span className="widget__meta">event: log</span>
+        <span className="card__meta">event: log</span>
       </div>
 
       <div className="stream__bar">
-        <label className="stream__label" htmlFor="stream-project">
+        <label className="meta" htmlFor="stream-project">
           프로젝트
         </label>
         <select
@@ -506,7 +506,7 @@ function StreamWidget({ projects }: { projects: readonly ProjectView[] | null })
       </div>
 
       {rows.length === 0 ? (
-        <p className="widget__empty">
+        <p className="meta widget__empty">
           {seedState.loading ? '불러오는 중' : '아직 들어온 로그가 없다.'}
         </p>
       ) : (
@@ -544,15 +544,15 @@ function PolicyGateWidget({
   onApproved: (configId: string, status: BuildStatus) => void;
 }) {
   return (
-    <section className="widget" aria-labelledby="w-gate">
-      <div className="widget__head">
-        <h2 className="widget__title" id="w-gate">
+    <section className="card widget" aria-labelledby="w-gate">
+      <div className="card__head">
+        <h2 className="card__title" id="w-gate">
           Policy Gate 대기
         </h2>
         <span className="badge">{loading ? LOADING : `${items.length}건`}</span>
       </div>
       {items.length === 0 ? (
-        <p className="widget__empty">{loading ? '불러오는 중' : '대기 중인 구성이 없다.'}</p>
+        <p className="meta widget__empty">{loading ? '불러오는 중' : '대기 중인 구성이 없다.'}</p>
       ) : (
         <div className="gate">
           {items.map(({ project, config }) => (
@@ -618,28 +618,28 @@ function GateCard({
         <span className="gate-card__project">{projectName}</span>
         <StatusBadge status={badgeStatus} />
       </div>
-      <p className="gate-card__stack">{stack === '' ? EM_DASH : stack}</p>
+      <p className="meta">{stack === '' ? EM_DASH : stack}</p>
 
       {blocked ? (
         <>
-          <p className="gate-card__note">승인 절차와 무관하게 차단됐다.</p>
+          <p className="meta gate-card__note">승인 절차와 무관하게 차단됐다.</p>
           <div className="gate-card__actions">
             <Button onClick={() => setShowRisk((v) => !v)}>위험 설명</Button>
           </div>
           {showRisk && (
             <div className="gate-card__risk">
-              {checks.loading && <p className="widget__empty">불러오는 중</p>}
+              {checks.loading && <p className="meta widget__empty">불러오는 중</p>}
               {checks.error !== null && (
-                <p className="widget__empty">검사 결과를 불러오지 못했다.</p>
+                <p className="meta widget__empty">검사 결과를 불러오지 못했다.</p>
               )}
               {(checks.data?.items ?? []).map((c) => (
-                <p key={c.id} className="gate-card__risk-line">
+                <p key={c.id} className="meta">
                   <span className="gate-card__tool">{c.tool}</span> {c.verdict}
                   {c.risk_notes !== null && ` — ${c.risk_notes}`}
                 </p>
               ))}
               {checks.data !== null && checks.data.items.length === 0 && (
-                <p className="widget__empty">기록된 검사 결과가 없다.</p>
+                <p className="meta widget__empty">기록된 검사 결과가 없다.</p>
               )}
             </div>
           )}
@@ -652,7 +652,7 @@ function GateCard({
               {busy ? '승인 중' : '승인'}
             </Button>
           </div>
-          {error !== null && <p className="gate-card__note">{error}</p>}
+          {error !== null && <p className="meta gate-card__note">{error}</p>}
         </>
       )}
     </article>
@@ -681,18 +681,18 @@ function DoraWidget({
         ];
 
   return (
-    <section className="widget" aria-labelledby="w-dora">
-      <div className="widget__head">
-        <h2 className="widget__title" id="w-dora">
+    <section className="card widget" aria-labelledby="w-dora">
+      <div className="card__head">
+        <h2 className="card__title" id="w-dora">
           DORA 종합
         </h2>
-        <span className="widget__meta">
+        <span className="card__meta">
           composite{' '}
           {dora?.composite_score != null ? dora.composite_score.toFixed(1) : loading ? LOADING : EM_DASH}
         </span>
       </div>
       {dora === null ? (
-        <p className="widget__empty">{loading ? '불러오는 중' : '집계를 불러오지 못했다.'}</p>
+        <p className="meta widget__empty">{loading ? '불러오는 중' : '집계를 불러오지 못했다.'}</p>
       ) : (
         <div className="dora">
           {metrics.map((m) => (
@@ -703,7 +703,7 @@ function DoraWidget({
               <HealthIndicator score={m.score} />
             </div>
           ))}
-          <p className="widget__meta">
+          <p className="card__meta">
             최근 {dora.window_days}일 · 프로젝트 {dora.projects_counted}개 · 이벤트 0건 지표는
             평균에서 제외
           </p>

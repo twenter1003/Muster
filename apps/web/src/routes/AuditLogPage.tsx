@@ -121,19 +121,19 @@ export function AuditLogPage() {
   const visible = useMemo(() => logs.filter((l) => matcher.match(l.action)), [logs, matcher]);
 
   return (
-    <section className="audit">
-      <header className="audit__head">
+    <section className="page audit">
+      <header className="page__head">
         <h1 className="page__title">
-          감사 로그 <span className="audit__count">내 이력 · 최근 {logs.length}건</span>
+          감사 로그 <span className="page__count">내 이력 · 최근 {logs.length}건</span>
         </h1>
       </header>
 
-      <div className="audit__tabs" role="group" aria-label="행위 필터">
+      <div className="chip-row" role="group" aria-label="행위 필터">
         {GROUPS.map((g) => (
           <button
             key={g.key}
             type="button"
-            className="audit__tab"
+            className="chip audit__tab"
             aria-pressed={group === g.key}
             onClick={() => setGroup(g.key)}
           >
@@ -142,23 +142,23 @@ export function AuditLogPage() {
         ))}
       </div>
 
-      <p className="audit__meta">
+      <p className="meta">
         최근 순 · 커서 페이지네이션 limit {PAGE_LIMIT} · 필터는 이 페이지 안에서만 적용된다
       </p>
 
       {error !== null ? (
-        <p className="audit__error" role="alert">
+        <p className="error-note" role="alert">
           이력을 불러오지 못했다: {error.message}
         </p>
       ) : loading ? (
-        <p className="audit__meta">불러오는 중…</p>
+        <p className="meta">불러오는 중…</p>
       ) : visible.length === 0 ? (
-        <p className="audit__empty">
+        <p className="meta audit__empty">
           {logs.length === 0 ? '남은 이력이 없다.' : '이 페이지에 해당 행위 기록이 없다.'}
         </p>
       ) : (
-        <div className="audit__scroll">
-          <table className="audit__table">
+        <div className="scroll-x">
+          <table className="table audit__table">
             <thead>
               <tr>
                 <th scope="col">시각</th>
@@ -198,7 +198,7 @@ export function AuditLogPage() {
       )}
 
       <div className="audit__foot">
-        <span className="audit__meta">
+        <span className="meta">
           {visible.length}건 표시 · {data?.next_cursor ? '다음 있음' : '마지막 페이지'}
         </span>
         <div className="audit__pager">

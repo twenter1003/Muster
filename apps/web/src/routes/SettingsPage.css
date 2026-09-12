@@ -24,11 +24,6 @@
   gap: var(--space-2);
 }
 
-.settings__picker-label {
-  font-size: var(--font-size-meta);
-  color: var(--color-ink-mid);
-}
-
 .settings__select {
   min-width: 200px;
   padding: var(--space-1) var(--space-2);
@@ -38,14 +33,6 @@
   background: var(--color-bg);
   border: 1px solid var(--color-rule);
   border-radius: var(--radius);
-}
-
-.settings__note,
-.settings__meta,
-.settings__hint {
-  margin: 0;
-  font-size: var(--font-size-meta);
-  color: var(--color-ink-mid);
 }
 
 /*
@@ -117,36 +104,15 @@
   gap: var(--space-4);
 }
 
-.settings__field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-.settings__label {
-  font-size: var(--font-size-meta);
-  color: var(--color-ink-mid);
-}
-
+/* .input 위에 이 화면의 여백·글자 크기만 얹는다. */
 .settings__input {
   padding: var(--space-2);
-  font: inherit;
   font-size: var(--font-size-body);
-  color: var(--color-ink);
-  background: var(--color-bg);
-  border: 1px solid var(--color-rule);
-  border-radius: var(--radius);
 }
 
 .settings__input--wide {
   min-width: 280px;
   flex: 1 1 280px;
-}
-
-.settings__input:disabled {
-  color: var(--color-ink-mid);
-  background: var(--color-surface);
 }
 
 /* 입력이 유효하지 않을 때도 색 외에 아래 힌트 문장이 함께 바뀐다. */
@@ -171,11 +137,6 @@
   background: var(--color-surface);
   border: 1px solid var(--color-rule);
   border-radius: var(--radius);
-}
-
-.settings__usage dt {
-  font-size: var(--font-size-meta);
-  color: var(--color-ink-mid);
 }
 
 .settings__usage dd {
@@ -256,35 +217,20 @@
   color: var(--color-signal);
 }
 
-.settings__ok {
-  margin: 0;
-  font-size: var(--font-size-meta);
-  color: var(--color-ink-mid);
-}
-
 /* 좁은 폭에서는 표만 가로로 스크롤한다 — 화면 전체가 밀리면 탭 레일까지 따라 나간다. */
 .settings__scroll {
   overflow-x: auto;
 }
 
-.settings__table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--font-size-body);
-}
-
+/* .table 위에 이 표만의 여백과 머리 굵기를 얹는다. */
 .settings__table th,
 .settings__table td {
   padding: var(--space-2) var(--space-3);
-  text-align: left;
-  border-bottom: 1px solid var(--color-rule);
   vertical-align: middle;
 }
 
 .settings__table th {
-  font-size: var(--font-size-meta);
   font-weight: 500;
-  color: var(--color-ink-mid);
 }
 
 .settings__cell-action {

@@ -98,10 +98,10 @@ function Card({
   children: ReactNode;
 }) {
   return (
-    <section className="ec-card">
+    <section className="panel ec-card">
       <h2 className="ec-card__head">
         {title}
-        {aside !== undefined && <span className="ec-card__aside">{aside}</span>}
+        {aside !== undefined && <span className="panel__aside">{aside}</span>}
       </h2>
       <div className="ec-card__body">{children}</div>
     </section>
@@ -302,7 +302,7 @@ export function EnvConfigCreatePage() {
   };
 
   if (id === undefined) {
-    return <p className="ec-note ec-note--signal">프로젝트 id가 없는 주소다.</p>;
+    return <p className="meta ec-note ec-note--signal">프로젝트 id가 없는 주소다.</p>;
   }
 
   const status = config === null ? null : asBuildStatus(config.build_status);
@@ -334,7 +334,7 @@ export function EnvConfigCreatePage() {
     <section>
       <header className="ec__header">
         <div>
-          <div className="ec__crumb">프로젝트 / 환경 구성</div>
+          <div className="meta">프로젝트 / 환경 구성</div>
           <h1 className="ec__title">새 환경 구성</h1>
         </div>
         <div className="ec__actions">
@@ -384,40 +384,40 @@ export function EnvConfigCreatePage() {
           >
             {tab === 'ui' ? (
               <div className="ec-form">
-                <label className="ec-field">
-                  <span className="ec-field__label">언어</span>
+                <label className="field ec-field">
+                  <span className="meta">언어</span>
                   <input
-                    className="ec-input"
+                    className="input ec-input"
                     value={language}
                     placeholder="node"
                     disabled={config !== null}
                     onChange={(e) => setLanguage(e.target.value)}
                   />
                 </label>
-                <label className="ec-field">
-                  <span className="ec-field__label">프레임워크</span>
+                <label className="field ec-field">
+                  <span className="meta">프레임워크</span>
                   <input
-                    className="ec-input"
+                    className="input ec-input"
                     value={framework}
                     placeholder="nestjs"
                     disabled={config !== null}
                     onChange={(e) => setFramework(e.target.value)}
                   />
                 </label>
-                <label className="ec-field">
-                  <span className="ec-field__label">데이터베이스</span>
+                <label className="field ec-field">
+                  <span className="meta">데이터베이스</span>
                   <input
-                    className="ec-input"
+                    className="input ec-input"
                     value={database}
                     placeholder="postgresql 16"
                     disabled={config !== null}
                     onChange={(e) => setDatabase(e.target.value)}
                   />
                 </label>
-                <label className="ec-field">
-                  <span className="ec-field__label">템플릿</span>
+                <label className="field ec-field">
+                  <span className="meta">템플릿</span>
                   <select
-                    className="ec-input"
+                    className="input ec-input"
                     value={templateId}
                     disabled={config !== null}
                     onChange={(e) => setTemplateId(e.target.value)}
@@ -430,20 +430,20 @@ export function EnvConfigCreatePage() {
                     ))}
                   </select>
                   {templates.error !== null && (
-                    <span className="ec-note ec-note--signal">
+                    <span className="meta ec-note ec-note--signal">
                       템플릿 목록을 불러오지 못했다 — {templates.error.message}
                     </span>
                   )}
                 </label>
 
-                <div className="ec-field ec-field--wide">
-                  <span className="ec-field__label">추가 서비스</span>
-                  <div className="ec-chips">
+                <div className="field ec-field ec-field--wide">
+                  <span className="meta">추가 서비스</span>
+                  <div className="chip-row">
                     {EXTRA_SERVICES.map((name) => (
                       <button
                         key={name}
                         type="button"
-                        className="ec-chip"
+                        className="chip ec-chip"
                         aria-pressed={extras.includes(name)}
                         disabled={config !== null}
                         onClick={() => toggleExtra(name)}
@@ -455,7 +455,7 @@ export function EnvConfigCreatePage() {
                 </div>
               </div>
             ) : (
-              <p className="ec-note">
+              <p className="meta ec-note">
                 폼을 비워 두고 아래 글만 적으면 자연어 입력으로 보낸다. 폼에 값이 있으면 폼이 뼈대가
                 되고 글은 보완 설명으로 함께 전달된다.
               </p>
@@ -465,10 +465,10 @@ export function EnvConfigCreatePage() {
               자연어 칸은 탭과 무관하게 항상 자리에 있다(주석 4). 탭 안에 숨기면
               "폼으로 뼈대를 잡고 자연어로 보완한다"는 사용 방식이 화면에서 사라진다.
             */}
-            <label className="ec-field ec-field--wide">
-              <span className="ec-field__label">자연어 보완 설명 (LLM 전달)</span>
+            <label className="field ec-field ec-field--wide">
+              <span className="meta">자연어 보완 설명 (LLM 전달)</span>
               <textarea
-                className="ec-input ec-textarea"
+                className="input ec-input ec-textarea"
                 rows={4}
                 value={notes}
                 disabled={config !== null}
@@ -483,7 +483,7 @@ export function EnvConfigCreatePage() {
             aside={status !== null ? <StatusBadge status={status} /> : undefined}
           >
             {busy && config === null ? (
-              <p className="ec-note" role="status">
+              <p className="meta ec-note" role="status">
                 LLM이 Dockerfile과 compose를 쓰고 있다 — {elapsed}초 경과. 수십 초까지 걸릴 수 있어
                 창을 닫지 않는다. 생성이 끝나면 Policy Gate 결과가 오른쪽에 채워진다.
               </p>
@@ -492,12 +492,12 @@ export function EnvConfigCreatePage() {
                 const { headline, hint } = describeFailure(createError);
                 return (
                   <div role="alert">
-                    <p className="ec-note ec-note--signal">{headline}</p>
+                    <p className="meta ec-note ec-note--signal">{headline}</p>
                     {/* 서버 message를 그대로 남긴다 — 무엇이 없어서 실패했는지는 서버만 안다. */}
-                    <p className="ec-note ec-mono">
+                    <p className="meta ec-note ec-mono">
                       {createError.status} {createError.code} — {createError.message}
                     </p>
-                    {hint !== null && <p className="ec-note">{hint}</p>}
+                    {hint !== null && <p className="meta ec-note">{hint}</p>}
                     <Button onClick={() => void create()} disabled={busy}>
                       다시 생성
                     </Button>
@@ -505,11 +505,11 @@ export function EnvConfigCreatePage() {
                 );
               })()
             ) : config === null ? (
-              <p className="ec-note">아직 생성하지 않았다.</p>
+              <p className="meta ec-note">아직 생성하지 않았다.</p>
             ) : detail.loading && detail.data === null ? (
-              <p className="ec-note">불러오는 중…</p>
+              <p className="meta ec-note">불러오는 중…</p>
             ) : detail.error !== null ? (
-              <p className="ec-note ec-note--signal">
+              <p className="meta ec-note ec-note--signal">
                 생성은 됐지만 상세를 불러오지 못했다 — {detail.error.message}
               </p>
             ) : (
@@ -517,18 +517,18 @@ export function EnvConfigCreatePage() {
                 {rationale !== null && <p className="ec-rationale">{rationale}</p>}
                 {dockerfile !== null && (
                   <>
-                    <div className="ec-pre__label">Dockerfile</div>
+                    <div className="meta">Dockerfile</div>
                     <pre className="ec-pre">{dockerfile}</pre>
                   </>
                 )}
                 {compose !== null && (
                   <>
-                    <div className="ec-pre__label">docker-compose.yml</div>
+                    <div className="meta">docker-compose.yml</div>
                     <pre className="ec-pre">{compose}</pre>
                   </>
                 )}
                 {dockerfile === null && compose === null && (
-                  <p className="ec-note">서버가 설정 본문을 주지 않았다.</p>
+                  <p className="meta ec-note">서버가 설정 본문을 주지 않았다.</p>
                 )}
               </>
             )}
@@ -541,17 +541,17 @@ export function EnvConfigCreatePage() {
           */}
           <Card title="위험도 설명" aside="도커 지식이 없어도 판단할 수 있게">
             {config === null ? (
-              <p className="ec-note">
+              <p className="meta ec-note">
                 생성 뒤 trivy·conftest가 무엇을 보았는지 여기에 남는다. 통과해도 사라지지 않는다.
               </p>
             ) : checks.loading && checkItems === null ? (
-              <p className="ec-note">불러오는 중…</p>
+              <p className="meta ec-note">불러오는 중…</p>
             ) : checks.error !== null ? (
-              <p className="ec-note ec-note--signal">
+              <p className="meta ec-note ec-note--signal">
                 검사 결과를 불러오지 못했다 — {checks.error.message}
               </p>
             ) : riskNotes.length === 0 ? (
-              <p className="ec-note">
+              <p className="meta ec-note">
                 검사 도구가 남긴 설명이 없다. 설명이 없다는 것이 위험이 없다는 뜻은 아니다.
               </p>
             ) : (
@@ -569,13 +569,13 @@ export function EnvConfigCreatePage() {
         <div className="ec__col">
           <Card title="Policy Gate">
             {config === null ? (
-              <p className="ec-note">생성과 동시에 서버가 검사를 돌린다.</p>
+              <p className="meta ec-note">생성과 동시에 서버가 검사를 돌린다.</p>
             ) : checks.loading && checkItems === null ? (
-              <p className="ec-note">불러오는 중…</p>
+              <p className="meta ec-note">불러오는 중…</p>
             ) : checks.error !== null ? (
-              <p className="ec-note ec-note--signal">불러오지 못했다 — {checks.error.message}</p>
+              <p className="meta ec-note ec-note--signal">불러오지 못했다 — {checks.error.message}</p>
             ) : checkItems === null || checkItems.length === 0 ? (
-              <p className="ec-note ec-note--signal">검사 결과가 없다 — 승인 단계를 열지 않는다.</p>
+              <p className="meta ec-note ec-note--signal">검사 결과가 없다 — 승인 단계를 열지 않는다.</p>
             ) : (
               <ul className="ec-checks">
                 {checkItems.map((c) => (
@@ -589,7 +589,7 @@ export function EnvConfigCreatePage() {
                 ))}
               </ul>
             )}
-            <p className="ec-note">
+            <p className="meta ec-note">
               두 도구가 모두 pass일 때만 승인 단계가 열립니다. 하나라도 fail이면 사람 승인과
               무관하게 policy_blocked로 차단됩니다.
             </p>
@@ -601,14 +601,14 @@ export function EnvConfigCreatePage() {
 
           <Card title="판정">
             {config === null ? (
-              <p className="ec-note">아직 판정할 구성이 없다.</p>
+              <p className="meta ec-note">아직 판정할 구성이 없다.</p>
             ) : status === 'policy_blocked' ? (
               /*
                * 승인 버튼을 아예 렌더하지 않는다. 비활성 버튼도 두지 않는다 —
                * 비활성은 "권한이 없다 / 나중에 열린다"로 읽히지만 이건 계약이라 영원히 안 열린다.
                */
               <div>
-                <p className="ec-note ec-note--signal">
+                <p className="meta ec-note ec-note--signal">
                   policy_blocked — 사람의 승인으로 통과시킬 수 없다. 입력을 고쳐 다시 생성해야 한다.
                 </p>
                 <div className="ec__decision">
@@ -619,7 +619,7 @@ export function EnvConfigCreatePage() {
               </div>
             ) : approvable ? (
               <div>
-                <p className="ec-note">
+                <p className="meta ec-note">
                   승인하면 곧바로 docker build/run이 실행된다. 되돌리는 절차는 없다.
                 </p>
                 <div className="ec__decision">
@@ -631,22 +631,22 @@ export function EnvConfigCreatePage() {
                     반려
                   </Button>
                 </div>
-                <p className="ec-note">승인 시 감사 로그에 env_config.approve 기록</p>
+                <p className="meta ec-note">승인 시 감사 로그에 env_config.approve 기록</p>
               </div>
             ) : status === 'approved' || status === 'running' || status === 'succeeded' ? (
-              <p className="ec-note">이미 실행 단계로 넘어갔다. 현재 상태: {config.build_status}</p>
+              <p className="meta ec-note">이미 실행 단계로 넘어갔다. 현재 상태: {config.build_status}</p>
             ) : status === 'rejected' ? (
-              <p className="ec-note">반려했다. 새 구성을 만들어야 한다.</p>
+              <p className="meta ec-note">반려했다. 새 구성을 만들어야 한다.</p>
             ) : (
               /* policy_passed인데 검사 결과가 아직/전부 pass가 아닌 경우도 여기로 온다. */
-              <p className="ec-note">
+              <p className="meta ec-note">
                 검사 결과가 모두 pass로 확인되기 전에는 승인 단계를 열지 않는다. 현재 상태:{' '}
                 {config.build_status}
               </p>
             )}
 
             {actionError !== null && (
-              <p className="ec-note ec-note--signal" role="alert">
+              <p className="meta ec-note ec-note--signal" role="alert">
                 {actionError.status === 409
                   ? '서버가 상태 전이를 거부했다(409) — '
                   : '요청이 실패했다 — '}

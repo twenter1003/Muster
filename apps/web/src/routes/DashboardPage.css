@@ -20,12 +20,6 @@
   flex-wrap: wrap;
 }
 
-.dash__subtitle {
-  margin: 0;
-  font-size: var(--font-size-meta);
-  color: var(--color-ink-mid);
-}
-
 .dash__actions {
   margin-left: auto;
   display: flex;
@@ -64,65 +58,21 @@
   grid-column: span 2;
 }
 
-.widget {
-  display: flex;
-  flex-direction: column;
-  background: var(--color-surface);
-  border: 1px solid var(--color-rule);
-  border-radius: var(--radius);
-  padding: var(--space-card-padding);
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-.widget__head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding-bottom: var(--space-2);
-  border-bottom: 1px solid var(--color-rule);
-}
-
-.widget__title {
-  margin: 0;
-  font-size: var(--font-size-section);
-  font-weight: 600;
-}
-
-.widget__meta {
-  margin: 0;
-  margin-left: auto;
-  font-size: var(--font-size-meta);
-  color: var(--color-ink-mid);
-}
-
+/* .meta 위에 위아래 여백만 더한다 — 빈 위젯이 머리 줄에 붙지 않게. */
 .widget__empty {
-  margin: 0;
   padding: var(--space-3) 0;
-  font-size: var(--font-size-meta);
-  color: var(--color-ink-mid);
 }
 
 /* ── 프로젝트 진행 상황 표 ─────────────────────────────────────────────── */
 
-.dash-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--font-size-body);
-}
-
+/* .table 위에 이 표만의 밀도를 얹는다. 대시보드는 한 줄 행에 머리가 가늘다. */
 .dash-table th {
-  text-align: left;
-  font-size: var(--font-size-meta);
   font-weight: 400;
-  color: var(--color-ink-mid);
   padding: var(--space-1) var(--space-2);
-  border-bottom: 1px solid var(--color-rule);
 }
 
 .dash-table td {
   padding: var(--space-2);
-  border-bottom: 1px solid var(--color-rule);
   height: var(--row-height-one-line);
   vertical-align: middle;
 }
@@ -149,11 +99,6 @@
   align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
-}
-
-.stream__label {
-  font-size: var(--font-size-meta);
-  color: var(--color-ink-mid);
 }
 
 .stream__select {
@@ -234,14 +179,6 @@
 
 .gate-card__head .badge {
   margin-left: auto;
-}
-
-.gate-card__stack,
-.gate-card__note,
-.gate-card__risk-line {
-  margin: 0;
-  font-size: var(--font-size-meta);
-  color: var(--color-ink-mid);
 }
 
 .gate-card--blocked .gate-card__note {
