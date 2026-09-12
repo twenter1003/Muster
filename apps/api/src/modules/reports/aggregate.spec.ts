@@ -131,8 +131,16 @@ describe('buildPolicyGate', () => {
         { fails: 2 },
       ],
       reasons: [
-        { reason: 'CRITICAL 취약점 포함 베이스 이미지', count: 3 },
-        { reason: 'root 사용자로 실행', count: 1 },
+        {
+          reason: 'CRITICAL 취약점 포함 베이스 이미지',
+          count: 3,
+          latest: { env_config_id: 'c-9', project_id: 'p-1' },
+        },
+        {
+          reason: 'root 사용자로 실행',
+          count: 1,
+          latest: { env_config_id: 'c-4', project_id: 'p-2' },
+        },
       ],
     });
 
@@ -143,6 +151,11 @@ describe('buildPolicyGate', () => {
     expect(result.trivy_blocked).toBe(3);
     expect(result.conftest_blocked).toBe(1);
     expect(result.top_block_reasons[0].reason).toBe('CRITICAL 취약점 포함 베이스 이미지');
+    // 사유만으로는 화면이 그 구성으로 넘어갈 수 없다. 식별자가 그대로 실려야 한다.
+    expect(result.top_block_reasons[0].latest).toEqual({
+      env_config_id: 'c-9',
+      project_id: 'p-1',
+    });
   });
 
   it('차단이 하나도 없으면 도구별 차단은 0이고 1차 통과는 100%다', () => {

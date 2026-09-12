@@ -168,4 +168,39 @@ describe('Phase 6 — Audit (e2e)', () => {
     expect(new Set(collected).size).toBe(6);
     expect(cursor).toBeNull();
   });
+  it('action 필터가 서버에서 걸린다 — 페이지 밖의 기록도 걸러진다', async () => {
+    const projectId = await createProject(aliceToken, `audit-filter-${Date.now()}`);
+
+    // project.update를 여럿 쌓아 project.create를 첫 페이지 밖으로 밀어낸다.
+    // 클라이언트 필터로는 못 찾던 상황이 바로 이것이다.
+    for (let i = 0; i < 5; i += 1) {
+      await http()
+        .patch(`/api/v1/projects/${projectId}`)
+        .set(auth(aliceToken))
+        .send({ name: `filtered-${i}` })
+        .expect(200);
+    }
+
+    const res = await http()
+      .get(`/api/v1/projects/${projectId}/audit-logs?action=project.create&limit=2`)
+      .set(auth(aliceToken))
+      .expect(200);
+
+    expect(res.body.items).toHaveLength(1);
+    expect(res.body.items[0].action).toBe('project.create');
+  });
+
+  it('내 전체 이력에도 같은 필터가 걸린다', async () => {
+    const res = await http()
+      .get('/api/v1/audit-logs?action=project.create')
+      .set(auth(aliceToken))
+      .expect(200);
+
+    expect(res.body.items.length).toBeGreaterThan(0);
+    for (const item of res.body.items) expect(item.action).toBe('project.create');
+  });
+
+  it('알려지지 않은 action은 400이다 — 조용히 무시하면 전체 목록을 필터 결과로 읽는다', async () => {
+    await http().get('/api/v1/audit-logs?action=project.explode').set(auth(aliceToken)).expect(400);
+  });
 });

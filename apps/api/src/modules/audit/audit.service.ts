@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { EntityManager, Repository } from 'typeorm';
+import type { EntityManager, Repository, SelectQueryBuilder } from 'typeorm';
 import { InjectRepository } from '../../database/inject-repository.decorator';
 import { AuditLog } from '../../database/entities';
 import type { AuditAction } from '../../database/entities/enums';
@@ -58,12 +58,17 @@ export class AuditService {
   }
 
   /** 설계서 Part 4 §8 — 프로젝트 스코프 이력. 접근 제어는 ProjectMemberGuard가 한다. */
-  listForProject(projectId: string, page: PageRequest): Promise<Page<AuditLog>> {
+  listForProject(
+    projectId: string,
+    page: PageRequest,
+    filter: AuditFilter = {},
+  ): Promise<Page<AuditLog>> {
     const qb = this.logs
       .createQueryBuilder('a')
       .leftJoinAndSelect('a.project', 'p')
       .where('a.project_id = :projectId', { projectId });
 
+    applyFilter(qb, filter);
     return keysetPage(qb, 'created_at', page, (a) => a.created_at);
   }
 
@@ -74,7 +79,11 @@ export class AuditService {
    * 속하지 않는데, 이 조회에서 빠지면 "내 계정에 무슨 일이 있었나"를 볼 방법이 사라진다.
    * (필터를 user_id 하나로만 거는 것이 그 구현이다.)
    */
-  listForUser(userId: string, page: PageRequest): Promise<Page<AuditLog>> {
+  listForUser(
+    userId: string,
+    page: PageRequest,
+    filter: AuditFilter = {},
+  ): Promise<Page<AuditLog>> {
     const qb = this.logs
       .createQueryBuilder('a')
       // 프로젝트 이름을 같은 쿼리로 가져온다. action + created_at만으로는 화면이
@@ -83,6 +92,20 @@ export class AuditService {
       .leftJoinAndSelect('a.project', 'p')
       .where('a.user_id = :userId', { userId });
 
+    applyFilter(qb, filter);
     return keysetPage(qb, 'created_at', page, (a) => a.created_at);
+  }
+}
+
+/** 두 조회가 공유하는 필터. 한 곳에서만 정의해 둘이 갈라지지 않게 한다. */
+export interface AuditFilter {
+  action?: AuditAction;
+}
+
+function applyFilter(qb: SelectQueryBuilder<AuditLog>, filter: AuditFilter): void {
+  // 값의 유효성은 DTO의 IsIn이 이미 검사했다. 여기서는 파라미터 바인딩만 한다 —
+  // 문자열을 이어 붙이면 그 순간 주입 경로가 된다.
+  if (filter.action !== undefined) {
+    qb.andWhere('a.action = :action', { action: filter.action });
   }
 }

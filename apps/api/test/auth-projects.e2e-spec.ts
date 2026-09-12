@@ -1,6 +1,7 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
+import { createHash } from 'node:crypto';
 import type { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { DATA_SOURCE } from '../src/database/database.module';
@@ -102,7 +103,7 @@ describe('Phase 3 — Auth + ProjectCore (e2e)', () => {
       // 만료 시각을 과거로 밀어 시간 경과를 흉내낸다.
       await ds.query(
         `UPDATE sessions SET expires_at = now() - interval '1 second' WHERE token_hash = $1`,
-        [require('node:crypto').createHash('sha256').update(token).digest('hex')],
+        [createHash('sha256').update(token).digest('hex')],
       );
 
       await http().get('/api/v1/auth/me').set(auth(token)).expect(401);
@@ -336,6 +337,45 @@ describe('Phase 3 — Auth + ProjectCore (e2e)', () => {
         .set(auth(aliceToken))
         .expect(400);
       expect(res.body.error.code).toBe('INVALID_CURSOR');
+    });
+  });
+  describe('GET /projects/:id/members', () => {
+    /** 이 describe 안에서만 쓰는 프로젝트. 다른 테스트의 목록 개수에 끼어들지 않게 따로 만든다. */
+    const ownProject = async (): Promise<string> => {
+      const res = await http()
+        .post('/api/v1/projects')
+        .set(auth(aliceToken))
+        .send({ name: `members-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` })
+        .expect(201);
+      return res.body.id as string;
+    };
+
+    it('멤버 전원과 역할별 수를 준다 — 화면이 직접 세지 않게', async () => {
+      const projectId = await ownProject();
+      const res = await http()
+        .get(`/api/v1/projects/${projectId}/members`)
+        .set(auth(aliceToken))
+        .expect(200);
+
+      expect(res.body.items).toHaveLength(1);
+      expect(res.body.items[0].github_login).toBe(alice.github_login);
+      expect(res.body.items[0].role).toBe('owner');
+      expect(res.body.counts).toEqual({ owner: 1 });
+    });
+
+    it('이메일은 실리지 않는다 — 목록을 보여 주려고 연락처를 나눠 줄 이유가 없다', async () => {
+      const projectId = await ownProject();
+      const res = await http()
+        .get(`/api/v1/projects/${projectId}/members`)
+        .set(auth(aliceToken))
+        .expect(200);
+
+      expect(res.body.items[0]).not.toHaveProperty('email');
+    });
+
+    it('비멤버는 남의 멤버 목록을 볼 수 없다', async () => {
+      const projectId = await ownProject();
+      await http().get(`/api/v1/projects/${projectId}/members`).set(auth(bobToken)).expect(404);
     });
   });
 });

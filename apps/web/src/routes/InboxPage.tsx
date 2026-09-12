@@ -20,6 +20,14 @@ export interface InboxItem {
   title: string;
   detail: string;
   occurred_at: string;
+  /**
+   * 신호색(붉은색)을 쓸지 서버가 정해 준다.
+   *
+   * 화면이 category와 approvable로 역산하던 것을 서버로 옮겼다. 역산으로는 예산을 가를 수
+   * 없었다 — 임계치 초과와 한도 초과는 다음 행동이 다른데 detail 문구로만 갈렸고, 화면이
+   * 문구를 파싱해 색을 정하면 문구를 고칠 때 색이 조용히 바뀐다.
+   */
+  severity: 'critical' | 'notice';
   href: string;
   target: { kind: string; id: string };
   approvable: boolean;
@@ -38,23 +46,6 @@ const CATEGORY_LABEL: Record<InboxCategory, string> = {
   deployment: '배포',
   audit: '감사',
 };
-
-/**
- * 신호색(붉은색)을 쓸 항목.
- *
- * 설계서 10: 신호색은 **사용자의 처리를 요구하는 것**에만 쓴다. 같은 규칙을 여기서 다시
- * 세우지 않고 카테고리로부터 유도한다:
- * - policy + approvable=false → 차단. 승인으로 우회할 수 없으니 구성을 고쳐야 한다.
- * - deployment → 실패. MTTR이 흐르고 있다.
- * 나머지(승인 대기·예산 임계치·감사)는 읽고 판단할 일이지 사고가 난 것이 아니다.
- * 예산은 한도 **초과**면 신호여야 맞지만 응답이 임계치 초과와 한도 초과를 구분해 주지
- * 않는다(detail 문구로만 갈린다). 문구를 파싱해 색을 정하지는 않는다 — 서버가 필드로
- * 말해 줄 때 고친다.
- */
-function isSignal(item: InboxItem): boolean {
-  if (item.category === 'deployment') return true;
-  return item.category === 'policy' && !item.approvable;
-}
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -171,7 +162,7 @@ export function InboxPage() {
       ) : (
         <ul className="inbox__list">
           {items.map((item) => (
-            <li key={item.id} className="inbox__item" data-signal={isSignal(item) || undefined}>
+            <li key={item.id} className="inbox__item" data-signal={item.severity === 'critical' || undefined}>
               {/* 행 전체가 아니라 제목만 링크다. 행을 통째로 링크로 만들면 안에 있는
                   프로젝트 링크가 중첩돼 마크업이 깨진다. */}
               <div className="inbox__item-head">

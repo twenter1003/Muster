@@ -10,13 +10,22 @@ import { buildPage, type Page, type PageRequest } from '../../common/pagination/
 export interface ApiKeyView {
   id: string;
   label: string;
+  /** 마지막 4자. 이 컬럼이 생기기 전에 발급된 키는 null이고, 화면은 말미 없이 가린다. */
+  key_suffix: string | null;
   created_at: string;
   revoked_at: string | null;
 }
 
+/** 발급되는 키의 접두. 화면이 문자열을 지어내지 않도록 서버가 상수로 갖는다. */
+const KEY_PREFIX = 'muster_';
+
+/** 말미로 남기는 자릿수. 마이그레이션의 CHECK와 같은 값이어야 한다. */
+const SUFFIX_LENGTH = 4;
+
 const toView = (k: ProjectApiKey): ApiKeyView => ({
   id: k.id,
   label: k.label,
+  key_suffix: k.key_suffix,
   created_at: k.created_at.toISOString(),
   revoked_at: k.revoked_at?.toISOString() ?? null,
 });
@@ -30,10 +39,15 @@ export class ApiKeysService {
    * 세션 토큰과 같은 방식이다 — 해시 함수도 그대로 재사용한다.
    */
   async issue(projectId: string, label: string): Promise<ApiKeyView & { key: string }> {
-    const key = `muster_${randomBytes(24).toString('base64url')}`;
+    const key = `${KEY_PREFIX}${randomBytes(24).toString('base64url')}`;
 
     const saved = await this.keys.save(
-      this.keys.create({ project_id: projectId, key_hash: hashToken(key), label }),
+      this.keys.create({
+        project_id: projectId,
+        key_hash: hashToken(key),
+        label,
+        key_suffix: key.slice(-SUFFIX_LENGTH),
+      }),
     );
 
     return { ...toView(saved), key };

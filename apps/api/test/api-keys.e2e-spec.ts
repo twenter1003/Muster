@@ -63,6 +63,8 @@ describe('Phase 4 — PROJECT_API_KEYS (e2e)', () => {
     expect(res.body.key).toEqual(expect.any(String));
     expect(res.body.key.length).toBeGreaterThan(20);
     expect(res.body.label).toBe('ci-runner');
+    // 화면이 muster_••••4f2a를 그리려면 말미가 실려야 하고, 그 말미는 원문과 같아야 한다.
+    expect(res.body.key_suffix).toBe(res.body.key.slice(-4));
   });
 
   it('원문 키는 DB에 없고 해시만 남는다', async () => {
@@ -77,6 +79,20 @@ describe('Phase 4 — PROJECT_API_KEYS (e2e)', () => {
     ])) as Array<Record<string, unknown>>;
     expect(JSON.stringify(rows)).not.toContain(res.body.key);
     expect(rows[0].key_hash).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('목록에는 원문 키가 나오지 않지만 말미는 남는다 — 어느 키를 폐기할지 고르는 근거다', async () => {
+    const issued = await http()
+      .post(`/api/v1/projects/${projectId}/api-keys`)
+      .set(auth())
+      .send({ label: 'suffix-check' })
+      .expect(201);
+
+    const list = await http().get(`/api/v1/projects/${projectId}/api-keys`).set(auth()).expect(200);
+
+    const found = list.body.items.find((k: { id: string }) => k.id === issued.body.id);
+    expect(found.key_suffix).toBe(issued.body.key.slice(-4));
+    expect(JSON.stringify(list.body)).not.toContain(issued.body.key);
   });
 
   it('목록에는 원문 키가 나오지 않는다', async () => {
