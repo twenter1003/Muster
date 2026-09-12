@@ -1,4 +1,5 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { useSession } from '../lib/session';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { BOTTOM_TABS, NAV_GROUPS } from './nav';
@@ -31,11 +32,15 @@ function useCrumbs(): string[] {
  */
 export function AppShell() {
   const crumbs = useCrumbs();
+  // 셸이 이미 RequireSession 안쪽이라 user는 사실상 항상 있다. 그래도 null을 그대로 넘긴다 —
+  // TopBar가 "로그인 전에는 이름을 지어내지 않는다"는 계약을 갖고 있고, 여기서 빈 문자열로
+  // 바꾸면 그 계약이 무의미해진다.
+  const { user } = useSession();
 
   return (
     <div className="shell">
       <Sidebar />
-      <TopBar crumbs={crumbs} />
+      <TopBar crumbs={crumbs} userName={user?.github_login ?? null} />
       <main className="shell__main">
         <Outlet />
       </main>
