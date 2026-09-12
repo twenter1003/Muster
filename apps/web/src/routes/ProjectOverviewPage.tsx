@@ -45,6 +45,13 @@ interface DocumentView {
   created_at: string;
 }
 
+/** 설계서 Part 4 §8의 감사 기록. project_name은 서버가 조인해 실어 준다. */
+interface AuditLogView {
+  id: string;
+  action: string;
+  created_at: string;
+}
+
 interface AgentView {
   id: string;
   name: string;
@@ -420,6 +427,9 @@ export function ProjectOverviewPage() {
     on('stages', `/projects/${id}/stage-history?limit=50`),
   );
 
+  // 감사 탭. 다른 탭과 같은 지연 로딩 규칙을 따른다 — 열 때 처음 부른다.
+  const audit = useApi<ApiPage<AuditLogView>>(on('audit', `/projects/${id}/audit-logs?limit=50`));
+
   // 로그 레벨 필터도 URL에 남긴다 — "이 프로젝트의 error 로그" 링크가 성립해야 한다.
   const setLevel = (next: LogLevel | null) => {
     const copy = new URLSearchParams(params);
@@ -752,16 +762,31 @@ export function ProjectOverviewPage() {
         )}
 
         {tab === 'audit' && (
-          <Card title="감사">
-            {/*
-              빈 목록을 "기록 없음"으로 보여 주면 거짓말이 된다 — 기록이 없는 게 아니라
-              읽을 API가 없다. 설계서 Part 4 §8(GET /projects/:id/audit-logs)이 미구현이다.
-            */}
-            <p className="po-note">
-              감사 로그 API(설계서 Part 4 §8,{' '}
-              <span className="po-mono">GET /projects/:id/audit-logs</span>
-              )가 아직 없다. 기록이 없다는 뜻이 아니라 아직 읽을 수 없다는 뜻이다.
-            </p>
+          <Card title="감사" aside="AUDIT_LOGS">
+            <Async state={audit}>
+              {(page) =>
+                page.items.length === 0 ? (
+                  <p className="po-note">이 프로젝트에 기록된 행위가 없다.</p>
+                ) : (
+                  <ol className="po-timeline">
+                    {page.items.map((a) => (
+                      <li className="po-timeline__item" key={a.id}>
+                        <span className="po-timeline__dot" aria-hidden="true" />
+                        <span>
+                          {/*
+                            action을 그대로 보여 준다. `env_config.approve` 같은 값은 설계서
+                            Part 3이 정한 닫힌 집합이고, 한국어로 옮기면 서버가 기록한 값과
+                            화면의 표기가 갈라져 로그를 대조할 때 오히려 방해가 된다.
+                          */}
+                          <span className="po-mono">{a.action}</span>
+                          <span className="po-timeline__time">{formatDateTime(a.created_at)}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                )
+              }
+            </Async>
           </Card>
         )}
       </div>
