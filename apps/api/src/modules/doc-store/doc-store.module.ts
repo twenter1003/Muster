@@ -1,7 +1,5 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ProjectCoreModule } from '../project-core/project-core.module';
-import { ProjectMemberGuard } from '../project-core/project-member.guard';
 import { DocumentsController, ProjectDocumentsController } from './documents.controller';
 import { DocumentsService } from './documents.service';
 import { OBJECT_STORAGE, type ObjectStorage } from './object-storage';
@@ -41,15 +39,12 @@ class UnconfiguredObjectStorage implements ObjectStorage {
 /**
  * DocStore — 문서 메타데이터 + GCS 원본 (설계서 Part 1 §3.1 / Part 4 §4).
  *
- * ProjectMemberGuard가 ProjectsService에 의존하므로 ProjectCoreModule을 들여온다.
+ * ProjectMemberGuard는 CommonModule(@Global)이 제공한다.
  */
 @Module({
-  imports: [ProjectCoreModule],
   controllers: [ProjectDocumentsController, DocumentsController],
   providers: [
     DocumentsService,
-    // 가드는 이 모듈의 인젝터에서 만들어진다. ProjectsService는 ProjectCoreModule이 내보낸다.
-    ProjectMemberGuard,
     {
       provide: OBJECT_STORAGE,
       inject: [ConfigService],

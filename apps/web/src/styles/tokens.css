@@ -1,0 +1,113 @@
+/*
+ * 디자인 토큰 — UI/UX 설계서 v2.1 "01 · 기반"
+ *
+ * 왜 한 파일에 두 테마를 같은 토큰 이름으로 두는가:
+ * 설계서가 "두 테마를 같은 토큰 이름으로 정의해 두면 전환은 값 교체로 끝난다"고 못박았다.
+ * 컴포넌트 CSS는 var(--color-*)만 쓰고 테마를 몰라야 한다. 그래야 시안이 바뀌어도
+ * 색 결정이 이 파일 한 곳에만 남는다.
+ *
+ * 라이트가 기본이다(설계서 권장). 리포트의 표·차트를 인쇄·공유·스크린샷으로 쓰기 때문.
+ */
+
+:root {
+  /* ── 색: 라이트 매핑 ── */
+  --color-bg: #ffffff;
+  --color-surface: #f3f4f6;
+  --color-ink: #16191d;
+  --color-ink-mid: #5a6068;
+  --color-rule: #c9cdd2;
+  --color-signal: #8e1b1b;
+  --color-signal-bg: #f7e9e9;
+  /*
+   * 채운 신호 배지 위의 글자색. 라이트에서는 흰 글자(#8E1B1B 대비 9.0:1, AAA),
+   * 다크에서는 신호색이 #D98A8A로 밝아지므로 흰 글자를 쓰면 1.4:1로 읽을 수 없다.
+   * 그래서 다크에서는 잉크 글자(7.3:1)로 뒤집는다 — 토큰으로 분리해 둔 이유다.
+   */
+  --color-on-signal: #ffffff;
+
+  /*
+   * ── 타입 스케일 ──
+   * 설계서 값(11 / 7.4 / 6.2 / 5.4 / 5.0 pt)은 포스터 스케일 캔버스의 pt다.
+   * 본문 6.2pt를 웹에 그대로 옮기면 약 8px이라 읽을 수 없다. 그래서 "비율만" 가져온다.
+   *   환산 계수 k = 14px(웹 본문 권장) / 6.2pt = 2.2581
+   *   화면 제목 11    × k = 24.84 → 25px
+   *   섹션 제목 7.4   × k = 16.71 → 17px
+   *   본문     6.2   × k = 14.00 → 14px  (기준점)
+   *   보조     5.4   × k = 12.19 → 12px
+   *   배지     5.0   × k = 11.29 → 11px
+   * 반올림은 정수 px까지만 한다. 단계는 설계서와 같은 5단이며 새 단계를 만들지 않는다.
+   */
+  --font-size-title: 25px;
+  --font-size-section: 17px;
+  --font-size-body: 14px;
+  --font-size-meta: 12px;
+  --font-size-badge: 11px;
+
+  /*
+   * ── 간격 ──
+   * 설계서 안에 모순이 있다: "4의 배수만 쓴다"고 선언해 놓고 카드 내부 여백을 9로 적었다.
+   * 규칙(4의 배수)이 개별 수치보다 상위라고 보고 9 → 12로 올린다. 8로 내리면 카드 사이
+   * 간격(8)과 같아져 "여백 > 카드 간격"이라는 설계서의 상대 관계가 무너지기 때문이다.
+   * 나머지는 설계서 수치 그대로다: 카드 사이 8 · 섹션 사이 16 · 화면 여백 12.
+   */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  --space-card-padding: var(--space-3); /* 설계서 9 → 4의 배수로 올림 */
+  --space-card-gap: var(--space-2);
+  --space-section-gap: var(--space-4);
+  --space-screen-padding: var(--space-3);
+
+  /*
+   * 행 높이는 간격이 아니라 "텍스트가 들어가는 상자"라서 4의 배수 격자가 아니라
+   * 웹 타입 스케일에서 다시 계산한다. 설계서의 캔버스 값(두 줄 26 · 한 줄 17)에
+   * 같은 계수 k를 적용하면 58.7 / 38.4이고, 이를 4의 배수로 정리해 56 / 40을 쓴다.
+   */
+  --row-height-two-line: 56px;
+  --row-height-one-line: 40px;
+
+  --radius: 4px;
+  --sidebar-width: 224px;
+  --sidebar-width-compact: 64px; /* 768–1279: 아이콘만 */
+  --topbar-height: 56px;
+  --bottom-tabs-height: 56px;
+
+  color-scheme: light;
+}
+
+/*
+ * 다크는 두 경로로 켜진다.
+ * 1) prefers-color-scheme — 아무 설정도 하지 않은 사용자의 OS 취향을 존중한다.
+ * 2) data-theme="dark" — 명시적 토글. :root[data-theme] 쪽이 뒤에 와서 미디어쿼리를 이긴다.
+ * 라이트를 명시적으로 고른 사용자는 OS가 다크여도 라이트로 남아야 하므로
+ * 미디어쿼리 블록에 :not([data-theme="light"]) 가드를 건다.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-bg: #14161a;
+    --color-surface: #1c1f24;
+    --color-ink: #e8eaed;
+    --color-ink-mid: #9aa1a9;
+    --color-rule: #2e333a;
+    --color-signal: #d98a8a;
+    --color-signal-bg: #2a1c1d;
+    --color-on-signal: #14161a;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --color-bg: #14161a;
+  --color-surface: #1c1f24;
+  --color-ink: #e8eaed;
+  --color-ink-mid: #9aa1a9;
+  --color-rule: #2e333a;
+  --color-signal: #d98a8a;
+  --color-signal-bg: #2a1c1d;
+  --color-on-signal: #14161a;
+  color-scheme: dark;
+}

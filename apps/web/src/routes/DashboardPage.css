@@ -1,0 +1,311 @@
+/*
+ * 대시보드 전용 레이아웃 (설계서 03 · 목업 1a).
+ *
+ * 색·치수는 전부 tokens.css 변수만 쓴다 — 목업의 Nocturne 보라는 설계서가 폐기했고,
+ * 여기에 hex를 적는 순간 라이트/다크 두 매핑 중 하나가 깨진다.
+ * 반복 요소(.badge/.kpi-card/.health/.log-row/.btn)는 app.css의 것을 그대로 쓰고,
+ * 이 파일은 "위젯을 어떻게 놓는가"만 담당한다.
+ */
+
+.dash {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-section-gap);
+}
+
+.dash__header {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.dash__subtitle {
+  margin: 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+.dash__actions {
+  margin-left: auto;
+  display: flex;
+  gap: var(--space-2);
+}
+
+.dash__error {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-signal);
+  border-radius: var(--radius);
+  color: var(--color-signal);
+  font-size: var(--font-size-meta);
+}
+
+/*
+ * KPI 5개. auto-fit이 아니라 5열 고정인 이유는 다섯 번째("승인 대기")가 줄바꿈으로 혼자
+ * 떨어지면 신호 테두리가 경고 배너처럼 보이기 때문이다. 좁아지면 아래 미디어쿼리에서 단수를 줄인다.
+ */
+.dash__kpis {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-card-gap);
+}
+
+/* 위젯 열: ≥1280 3열 / 768–1279 2열 (설계서 09 반응형 기준). */
+.dash__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-card-gap);
+  align-items: start;
+}
+
+/* 표가 들어가는 위젯만 두 칸을 먹는다 — 한 칸이면 프로젝트명이 두 줄로 접힌다. */
+.widget--wide {
+  grid-column: span 2;
+}
+
+.widget {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  padding: var(--space-card-padding);
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.widget__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.widget__title {
+  margin: 0;
+  font-size: var(--font-size-section);
+  font-weight: 600;
+}
+
+.widget__meta {
+  margin: 0;
+  margin-left: auto;
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+.widget__empty {
+  margin: 0;
+  padding: var(--space-3) 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+/* ── 프로젝트 진행 상황 표 ─────────────────────────────────────────────── */
+
+.dash-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-body);
+}
+
+.dash-table th {
+  text-align: left;
+  font-size: var(--font-size-meta);
+  font-weight: 400;
+  color: var(--color-ink-mid);
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.dash-table td {
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--color-rule);
+  height: var(--row-height-one-line);
+  vertical-align: middle;
+}
+
+.dash-table tr:last-child td {
+  border-bottom: none;
+}
+
+.dash-table__name {
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.dash-table__time,
+.dash-table__pending {
+  color: var(--color-ink-mid);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 실행 스트림 ──────────────────────────────────────────────────────── */
+
+.stream__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.stream__label {
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+.stream__select {
+  flex: 1;
+  min-width: 0;
+  min-height: 28px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--font-size-meta);
+}
+
+.stream__state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+/*
+ * 연결 상태 점. 기본 .sse-dot은 app.css(상단바)의 것을 그대로 쓰고, 이 화면이 쓰는 두 상태만
+ * 여기서 정의한다. "끊김"만 신호색이다 — 연결 중까지 붉히면 새로고침마다 경보가 뜬다.
+ */
+.stream-dot--connecting {
+  opacity: 0.5;
+}
+
+.stream-dot--closed {
+  background: var(--color-signal);
+}
+
+.stream__rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.stream__rows .log-row:last-child {
+  border-bottom: none;
+}
+
+/* ── Policy Gate ─────────────────────────────────────────────────────── */
+
+.gate {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.gate-card {
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  padding: var(--space-card-padding);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  background: var(--color-bg);
+}
+
+/* 차단 건은 카드 테두리까지 신호색을 받는다. 승인 버튼이 없는 이유를 훑을 때 알아채야 한다. */
+.gate-card--blocked {
+  border-color: var(--color-signal);
+}
+
+.gate-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.gate-card__project {
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.gate-card__head .badge {
+  margin-left: auto;
+}
+
+.gate-card__stack,
+.gate-card__note,
+.gate-card__risk-line {
+  margin: 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+.gate-card--blocked .gate-card__note {
+  color: var(--color-signal);
+}
+
+.gate-card__actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.gate-card__risk {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-rule);
+}
+
+.gate-card__tool {
+  color: var(--color-ink);
+}
+
+/* ── DORA ────────────────────────────────────────────────────────────── */
+
+.dora {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.dora__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: var(--font-size-body);
+}
+
+/* ── 반응형 (설계서 09) ───────────────────────────────────────────────── */
+
+/* 768–1279: 위젯 2열. 표 위젯은 그대로 두 칸(= 한 줄 전체)을 쓴다. */
+@media (max-width: 1279px) {
+  .dash__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dash__kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* <768: 한 줄에 하나. 모바일의 과업은 "무엇을 처리해야 하는가"를 읽는 것까지다. */
+@media (max-width: 767px) {
+  .dash__grid,
+  .dash__kpis {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .widget--wide {
+    grid-column: auto;
+  }
+
+  .dash__actions {
+    margin-left: 0;
+  }
+}

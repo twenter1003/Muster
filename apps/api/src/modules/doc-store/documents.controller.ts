@@ -14,12 +14,13 @@ import {
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user';
 import { toPageRequest, type Page } from '../../common/pagination/paginate';
-import { ProjectMemberGuard } from '../project-core/project-member.guard';
+import { ProjectMemberGuard } from '../../common/auth/project-member.guard';
 import { DocumentsService } from './documents.service';
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto';
 import { ListDocumentsQuery } from './dto/list-documents.query';
 import type { Document } from '../../database/entities';
+import { AuditService } from '../audit/audit.service';
 
 /**
  * 응답에 실리는 문서 표현.
@@ -49,7 +50,10 @@ const toView = (d: Document): DocumentView => ({
 /** 설계서 Part 4 §4 — DocStore. 프로젝트 하위 경로. */
 @Controller('projects')
 export class ProjectDocumentsController {
-  constructor(private readonly documents: DocumentsService) {}
+  constructor(
+    private readonly documents: DocumentsService,
+    private readonly audit: AuditService,
+  ) {}
 
   @Get(':id/documents')
   @UseGuards(ProjectMemberGuard)
@@ -70,9 +74,11 @@ export class ProjectDocumentsController {
   @HttpCode(HttpStatus.CREATED)
   async create(
     @Param('id') projectId: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateDocumentDto,
   ): Promise<DocumentView & { upload_url: string; upload_expires_at: string }> {
     const result = await this.documents.create(projectId, dto);
+    await this.audit.record({ user_id: user.id, action: 'document.create', project_id: projectId });
     return {
       ...toView(result.document),
       upload_url: result.upload_url,
@@ -84,7 +90,10 @@ export class ProjectDocumentsController {
 /** 설계서 Part 4 §4 — 문서 단위 경로. 접근 제어는 서비스가 문서 → 프로젝트로 거슬러 확인한다. */
 @Controller('documents')
 export class DocumentsController {
-  constructor(private readonly documents: DocumentsService) {}
+  constructor(
+    private readonly documents: DocumentsService,
+    private readonly audit: AuditService,
+  ) {}
 
   @Post(':id/complete')
   @HttpCode(HttpStatus.OK)
@@ -114,12 +123,20 @@ export class DocumentsController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: UpdateDocumentDto,
   ): Promise<DocumentView> {
-    return toView(await this.documents.update(id, user.id, dto));
+    const document = await this.documents.update(id, user.id, dto);
+    await this.audit.record({
+      user_id: user.id,
+      action: 'document.update',
+      project_id: document.project_id,
+    });
+    return toView(document);
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser): Promise<void> {
+    // 감사 기록은 서비스 안에서 남긴다 — 여기서 project_id를 알려면 상세 조회가 한 번 더
+    // 필요하고, 그건 지울 문서의 signed URL을 쓸데없이 발급하는 일이다.
     await this.documents.remove(id, user.id);
   }
 }

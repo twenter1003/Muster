@@ -44,7 +44,9 @@ describe('DB 제약 집행 검증', () => {
 
   it('current_stage 기본값은 planning이다', async () => {
     const id = await newProject();
-    const [row] = (await ds.query(`SELECT current_stage FROM projects WHERE id = $1`, [id])) as Array<{
+    const [row] = (await ds.query(`SELECT current_stage FROM projects WHERE id = $1`, [
+      id,
+    ])) as Array<{
       current_stage: string;
     }>;
     expect(row.current_stage).toBe('planning');
@@ -210,15 +212,15 @@ describe('DB 제약 집행 검증', () => {
     const userId = await newUser();
     const projectId = await newProject();
 
-    await ds.query(`INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'owner')`, [
-      projectId,
-      userId,
-    ]);
+    await ds.query(
+      `INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'owner')`,
+      [projectId, userId],
+    );
     await expect(
-      ds.query(`INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'member')`, [
-        projectId,
-        userId,
-      ]),
+      ds.query(
+        `INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'member')`,
+        [projectId, userId],
+      ),
     ).rejects.toThrow(/uq_project_members_project_user/);
   });
 
@@ -285,10 +287,10 @@ describe('DB 제약 집행 검증', () => {
   it('프로젝트 멤버십은 프로젝트 물리 삭제 시 함께 정리된다 (CASCADE)', async () => {
     const userId = await newUser();
     const projectId = await newProject();
-    await ds.query(`INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'owner')`, [
-      projectId,
-      userId,
-    ]);
+    await ds.query(
+      `INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'owner')`,
+      [projectId, userId],
+    );
 
     await ds.query(`DELETE FROM projects WHERE id = $1`, [projectId]);
 
@@ -304,7 +306,9 @@ describe('DB 제약 집행 검증', () => {
     created.push(['users', id]);
 
     await expect(
-      ds.getRepository(User).save(ds.getRepository(User).create({ github_login: login, email: null })),
+      ds
+        .getRepository(User)
+        .save(ds.getRepository(User).create({ github_login: login, email: null })),
     ).rejects.toThrow(/duplicate key|github_login/i);
   });
 });

@@ -20,11 +20,12 @@ import { GitIntegrationService } from './git-integration.service';
 import { CreateGitIntegrationDto } from './dto/create-git-integration.dto';
 import { ApiKeysService, type ApiKeyView } from './api-keys.service';
 import { CreateApiKeyDto } from './dto/create-api-key.dto';
-import { ProjectMemberGuard } from './project-member.guard';
+import { ProjectMemberGuard } from '../../common/auth/project-member.guard';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import type { GitIntegration, Project } from '../../database/entities';
 import { ApiException } from '../../common/errors/api.exception';
+import { AuditService } from '../audit/audit.service';
 
 /**
  * 응답에 실리는 연동 표현.
@@ -66,6 +67,7 @@ export class ProjectsController {
     private readonly projects: ProjectsService,
     private readonly gitIntegrations: GitIntegrationService,
     private readonly apiKeys: ApiKeysService,
+    private readonly audit: AuditService,
   ) {}
 
   @Get()
@@ -94,15 +96,37 @@ export class ProjectsController {
 
   @Patch(':id')
   @UseGuards(ProjectMemberGuard)
-  async update(@Param('id') id: string, @Body() dto: UpdateProjectDto): Promise<ProjectView> {
-    return toView(await this.projects.update(id, dto));
+  async update(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpdateProjectDto,
+  ): Promise<ProjectView> {
+    return toView(await this.projects.update(id, user.id, dto));
   }
 
   @Delete(':id')
   @UseGuards(ProjectMemberGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id') id: string): Promise<void> {
-    await this.projects.softDelete(id);
+  async remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser): Promise<void> {
+    await this.projects.softDelete(id, user.id);
+  }
+
+  /**
+   * 연동 조회. 설계서 Part 4 §3에는 POST·DELETE만 있고 GET이 없다 — 누락으로 본다.
+   * 목록·개요 화면이 "어느 레포에 붙어 있는가"를 보여줘야 하는데 읽을 방법이 없었다.
+   *
+   * 연동이 없을 때 404가 아니라 200인 이유: ProjectMemberGuard가 이미 "없는 프로젝트"와
+   * "남의 프로젝트"에 404를 쓴다. 여기에 "연동 안 됨"까지 404로 얹으면 클라이언트가 세 경우를
+   * 구분할 수 없다. 미연동은 오류가 아니라 정상 상태이기도 하다.
+   *
+   * `null`을 그대로 반환하지 않고 객체로 감싼다. 컨트롤러가 null을 돌려주면 Nest는 **본문이
+   * 없는 200**을 보내고, 클라이언트의 res.json()이 거기서 터진다(실제로 확인했다).
+   */
+  @Get(':id/git-integration')
+  @UseGuards(ProjectMemberGuard)
+  async getGit(@Param('id') id: string): Promise<{ integration: GitIntegrationView | null }> {
+    const integration = await this.gitIntegrations.findByProject(id);
+    return { integration: integration === null ? null : toGitView(integration) };
   }
 
   /** 설계서 Part 4 §3 — GitHub 레포 연동 등록 (웹훅 자동 등록 포함). */
@@ -114,7 +138,13 @@ export class ProjectsController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateGitIntegrationDto,
   ): Promise<GitIntegrationView> {
-    return toGitView(await this.gitIntegrations.connect(id, user.id, dto.repo_url));
+    const integration = await this.gitIntegrations.connect(id, user.id, dto.repo_url);
+    await this.audit.record({
+      user_id: user.id,
+      action: 'git_integration.create',
+      project_id: id,
+    });
+    return toGitView(integration);
   }
 
   /** 설계서 Part 4 §3 — 연동 해제. GitHub 웹훅과 시크릿도 정리한다. */
@@ -126,6 +156,11 @@ export class ProjectsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<void> {
     await this.gitIntegrations.disconnect(id, user.id);
+    await this.audit.record({
+      user_id: user.id,
+      action: 'git_integration.delete',
+      project_id: id,
+    });
   }
 
   /** 설계서 Part 4 §3 — 발급된 API 키 목록. 원문은 재조회 불가라 label/생성일만 나온다. */
@@ -142,11 +177,14 @@ export class ProjectsController {
   @Post(':id/api-keys')
   @UseGuards(ProjectMemberGuard)
   @HttpCode(HttpStatus.CREATED)
-  createApiKey(
+  async createApiKey(
     @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateApiKeyDto,
   ): Promise<ApiKeyView & { key: string }> {
-    return this.apiKeys.issue(id, dto.label);
+    const issued = await this.apiKeys.issue(id, dto.label);
+    await this.audit.record({ user_id: user.id, action: 'api_key.create', project_id: id });
+    return issued;
   }
 }
 
@@ -159,6 +197,7 @@ export class ApiKeysController {
   constructor(
     private readonly apiKeys: ApiKeysService,
     private readonly projects: ProjectsService,
+    private readonly audit: AuditService,
   ) {}
 
   @Delete(':id')
@@ -170,5 +209,6 @@ export class ApiKeysController {
       throw ApiException.notFound('API 키를 찾을 수 없습니다.');
     }
     await this.apiKeys.revoke(id);
+    await this.audit.record({ user_id: user.id, action: 'api_key.revoke', project_id: projectId });
   }
 }

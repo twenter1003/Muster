@@ -1,0 +1,318 @@
+/*
+ * 환경 구성 생성 + Policy Gate 승인 화면(목업 1e · 설계서 06).
+ *
+ * 구조는 목업을 따르되 색은 목업(다크 Nocturne 보라)이 아니라 tokens.css다 —
+ * 설계서 v2.1이 그 색 체계를 폐기했다. 하드코딩 hex는 한 곳도 없고, 강조는 색이 아니라
+ * 굵기·테두리·배치로 만든다. 이 화면에서 색이 채워지는 것은 신호(fail·blocked)뿐이다.
+ */
+
+.ec__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding-bottom: var(--space-3);
+}
+
+.ec__crumb {
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+.ec__title {
+  margin: var(--space-1) 0 0;
+  font-size: var(--font-size-title);
+  font-weight: 600;
+}
+
+.ec__actions {
+  margin-left: auto;
+  display: flex;
+  gap: var(--space-2);
+}
+
+/*
+ * 주석 1 — 입력(좌)과 판정(우)을 세로로 가른다.
+ * 1fr이 아니라 좌측을 넓게 잡는 이유: 왼쪽은 폼과 설정 본문(고정폭 코드)이 들어가고
+ * 오른쪽은 짧은 목록뿐이라, 반반으로 나누면 코드가 줄바꿈되어 읽히지 않는다.
+ */
+.ec__split {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-section-gap);
+  align-items: start;
+}
+
+.ec__col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-card-gap);
+  min-width: 0;
+}
+
+/* 좁은 화면에서는 세로로 쌓되 판정이 입력 아래로 간다 — 대조는 스크롤로 유지된다. */
+@media (max-width: 1023px) {
+  .ec__split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ── 카드 ── */
+
+.ec-card {
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+}
+
+.ec-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-card-padding);
+  border-bottom: 1px solid var(--color-rule);
+  font-size: var(--font-size-section);
+  font-weight: 600;
+}
+
+.ec-card__aside {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-meta);
+  font-weight: 400;
+  color: var(--color-ink-mid);
+}
+
+.ec-card__body {
+  padding: var(--space-card-padding);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* ── 입력 탭 ── */
+
+.ec-tabs {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.ec-tab {
+  appearance: none;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--color-ink-mid);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-body);
+  padding: var(--space-1) var(--space-2);
+}
+
+.ec-tab[aria-selected='true'] {
+  color: var(--color-ink);
+  font-weight: 600;
+  border-bottom-color: var(--color-ink);
+}
+
+/*
+ * 값이 들어 있는 탭 표시(주석 4). 두 탭이 배타적이지 않다는 사실은 설명문이 아니라
+ * 이 점 하나로 보여야 한다 — 탭을 바꿨을 때 반대쪽 값이 남아 있음을 눈으로 확인시킨다.
+ */
+.ec-tab__dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: var(--space-1);
+  border-radius: 50%;
+  background: var(--color-ink-mid);
+  vertical-align: middle;
+}
+
+/* ── 폼 ── */
+
+.ec-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+@media (max-width: 639px) {
+  .ec-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.ec-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.ec-field--wide {
+  grid-column: 1 / -1;
+}
+
+.ec-field__label {
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+.ec-input {
+  min-height: var(--row-height-one-line);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--font-size-body);
+  width: 100%;
+}
+
+.ec-textarea {
+  min-height: auto;
+  padding: var(--space-2);
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.ec-input:disabled {
+  background: var(--color-surface);
+  color: var(--color-ink-mid);
+}
+
+/* ── 칩 ── */
+
+.ec-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.ec-chip {
+  appearance: none;
+  min-height: 28px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-ink-mid);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-meta);
+}
+
+/* 선택은 색이 아니라 테두리·굵기로 표시한다 — 색은 신호 전용이다. */
+.ec-chip[aria-pressed='true'] {
+  border-color: var(--color-ink);
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+.ec-chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* ── 본문·설명 ── */
+
+.ec-note {
+  margin: 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+.ec-note--signal {
+  color: var(--color-signal);
+  font-weight: 600;
+}
+
+.ec-rationale {
+  margin: 0;
+  font-size: var(--font-size-body);
+}
+
+.ec-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--font-size-meta);
+}
+
+.ec-pre__label {
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+/*
+ * 설정 본문은 접히지 않고 가로로 스크롤된다 — Dockerfile 한 줄이 줄바꿈되면
+ * 사용자가 승인 직전에 읽어야 할 명령이 두 줄로 쪼개져 잘못 읽힌다.
+ */
+.ec-pre {
+  margin: 0;
+  padding: var(--space-2);
+  max-height: 320px;
+  overflow: auto;
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--font-size-meta);
+  line-height: 1.5;
+  white-space: pre;
+}
+
+.ec-risks {
+  margin: 0;
+  padding-left: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--font-size-body);
+}
+
+/* ── Policy Gate · 상태 전이 ── */
+
+.ec-checks,
+.ec-transitions {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ec-checks__row,
+.ec-transitions__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: var(--row-height-one-line);
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.ec-checks__row:last-child,
+.ec-transitions__row:last-child {
+  border-bottom: none;
+}
+
+.ec-transitions__at {
+  font-size: var(--font-size-meta);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink);
+}
+
+/* 주석 5 — 아직 도달하지 않은 상태의 "대기"는 회색이다. 비어 있는 게 아니라 남은 일이다. */
+.ec-transitions__at--pending {
+  color: var(--color-ink-mid);
+}
+
+/* ── 판정 ── */
+
+.ec__decision {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+}

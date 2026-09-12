@@ -62,6 +62,21 @@ export type AgentRunStatus = (typeof AGENT_RUN_STATUSES)[number];
 export const LOG_LEVELS = ['error', 'warn', 'info'] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
 
+/**
+ * DEPLOYMENT_EVENTS.kind — Part 3 Enum 값 정의.
+ * GitHub의 `deployment_status`/`workflow_run` 웹훅 두 갈래에 각각 대응한다.
+ */
+export const DEPLOYMENT_KINDS = ['deployment', 'workflow_run'] as const;
+export type DeploymentKind = (typeof DEPLOYMENT_KINDS)[number];
+
+/**
+ * DEPLOYMENT_EVENTS.status — Part 3 Enum 값 정의.
+ * GitHub은 pending/queued/in_progress 같은 중간 상태도 보내지만, DORA 지표는 **끝난 것**만
+ * 센다. 중간 상태 이벤트는 적재하지 않으므로 이 둘만 있으면 된다.
+ */
+export const DEPLOYMENT_STATUSES = ['success', 'failure'] as const;
+export type DeploymentStatus = (typeof DEPLOYMENT_STATUSES)[number];
+
 /** DOCUMENTS.upload_status — signed URL 발급 시 pending, 완료 확인 후 completed. */
 export const UPLOAD_STATUSES = ['pending', 'completed'] as const;
 export type UploadStatus = (typeof UPLOAD_STATUSES)[number];

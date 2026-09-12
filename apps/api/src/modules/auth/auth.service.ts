@@ -6,6 +6,8 @@ import { User } from '../../database/entities';
 import { SECRET_STORE, type SecretStore } from '../../common/secrets/secret-store';
 import { ApiException } from '../../common/errors/api.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
+import { clearedSessionCookie, sessionCookie } from '../../common/auth/session-cookie';
+import { AuditService } from '../audit/audit.service';
 import { SessionService } from './session.service';
 import { OAuthStateService } from './oauth-state.service';
 import {
@@ -23,6 +25,7 @@ export class AuthService {
     private readonly sessions: SessionService,
     private readonly state: OAuthStateService,
     private readonly config: ConfigService,
+    private readonly audit: AuditService,
   ) {}
 
   /** GitHub 인증 페이지 URL. state로 CSRF를 막는다. */
@@ -46,9 +49,17 @@ export class AuthService {
 
   /**
    * 콜백 처리: code 교환 → 프로필 조회 → 사용자 upsert → GitHub 토큰 보관 → 세션 발급.
-   * 세션 토큰을 fragment에 실어 프론트로 되돌려보낼 URL을 돌려준다.
+   *
+   * 세션 토큰은 HttpOnly 쿠키로 심고, 리다이렉트 URL에는 **아무것도 싣지 않는다**.
+   * 이전에는 `#token=...` fragment로 넘겼다. fragment는 서버 액세스 로그에는 남지 않지만
+   * 브라우저 히스토리·확장 프로그램·프론트가 받아 둘 저장소(localStorage)에는 그대로 남고,
+   * 결국 JS가 읽을 수 있는 토큰이 되어 XSS 한 번에 세션이 통째로 빠져나간다.
+   * 쿠키로 옮기면 토큰이 URL에도 JS에도 존재하지 않는다.
    */
-  async completeLogin(code: string, state: string | undefined): Promise<string> {
+  async completeLogin(
+    code: string,
+    state: string | undefined,
+  ): Promise<{ redirectUrl: string; setCookie: string }> {
     if (!this.state.verify(state)) {
       throw ApiException.unauthenticated('OAuth state가 유효하지 않습니다.');
     }
@@ -64,12 +75,29 @@ export class AuthService {
       await this.users.update({ id: user.id }, { github_token_ref: ref });
     }
 
-    const { token } = await this.sessions.issue(user.id);
+    const { token, expires_at } = await this.sessions.issue(user.id);
 
-    // fragment(#)는 브라우저가 서버로 보내지 않으므로 액세스 로그에 토큰이 남지 않는다.
-    const redirect = new URL(this.config.get<string>('FRONTEND_URL') ?? '');
-    redirect.hash = `token=${encodeURIComponent(token)}`;
-    return redirect.toString();
+    // 세션이 실제로 발급된 뒤에 남긴다 — 그 전에 남기면 실패한 시도가 로그인으로 보인다.
+    await this.audit.record({ user_id: user.id, action: 'login' });
+
+    return {
+      redirectUrl: new URL(this.config.get<string>('FRONTEND_URL') ?? '').toString(),
+      // 쿠키 수명을 세션 수명에 맞춘다. 쿠키가 더 오래 살면 브라우저가 이미 죽은 토큰을
+      // 계속 보내고, 사용자는 매 요청 401을 받으면서 왜 로그아웃됐는지 알 수 없다.
+      setCookie: sessionCookie(token, {
+        secure: this.isProduction(),
+        maxAgeMs: expires_at.getTime() - Date.now(),
+      }),
+    };
+  }
+
+  /** 로그아웃 응답에 실을, 쿠키를 지우는 Set-Cookie 값. */
+  clearSessionCookie(): string {
+    return clearedSessionCookie({ secure: this.isProduction() });
+  }
+
+  private isProduction(): boolean {
+    return this.config.get<string>('NODE_ENV') === 'production';
   }
 
   private async upsertUser(login: string, email: string | null): Promise<User> {

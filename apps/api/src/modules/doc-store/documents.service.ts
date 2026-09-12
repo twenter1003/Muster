@@ -6,6 +6,7 @@ import type { UploadStatus } from '../../database/entities/enums';
 import { ApiException } from '../../common/errors/api.exception';
 import { buildPage, type Page, type PageRequest } from '../../common/pagination/paginate';
 import { OBJECT_STORAGE, type ObjectStorage } from './object-storage';
+import { AuditService } from '../audit/audit.service';
 import type { CreateDocumentDto } from './dto/create-document.dto';
 import type { UpdateDocumentDto } from './dto/update-document.dto';
 
@@ -21,6 +22,7 @@ export class DocumentsService {
     @InjectRepository(Document) private readonly documents: Repository<Document>,
     @InjectRepository(ProjectMember) private readonly members: Repository<ProjectMember>,
     @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
+    private readonly audit: AuditService,
   ) {}
 
   /**
@@ -127,7 +129,11 @@ export class DocumentsService {
   async detail(
     documentId: string,
     userId: string,
-  ): Promise<{ document: Document; download_url: string | null; download_expires_at: Date | null }> {
+  ): Promise<{
+    document: Document;
+    download_url: string | null;
+    download_expires_at: Date | null;
+  }> {
     const document = await this.findAccessibleOrFail(documentId, userId);
 
     if (document.upload_status !== 'completed' || !document.file_url) {
@@ -167,6 +173,14 @@ export class DocumentsService {
     }
 
     await this.documents.delete({ id: document.id });
+
+    // 컨트롤러가 아니라 여기서 남긴다 — 삭제 뒤에는 어느 프로젝트였는지 알 방법이 없고,
+    // 밖에서 알려면 상세 조회를 한 번 더 해야 한다(= 불필요한 signed URL 발급).
+    await this.audit.record({
+      user_id: userId,
+      action: 'document.delete',
+      project_id: document.project_id,
+    });
   }
 
   /**

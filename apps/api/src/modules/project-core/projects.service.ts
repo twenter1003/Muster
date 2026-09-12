@@ -1,9 +1,12 @@
 import { Injectable } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DataSource, IsNull, Repository } from 'typeorm';
 import { InjectRepository } from '../../database/inject-repository.decorator';
 import { Project, ProjectMember, ProjectStageHistory } from '../../database/entities';
 import { ApiException } from '../../common/errors/api.exception';
 import { buildPage, type Page, type PageRequest } from '../../common/pagination/paginate';
+import { DomainEvent, type ProjectStageChangedEvent } from '../../common/events/domain-events';
+import { AuditService } from '../audit/audit.service';
 import type { CreateProjectDto } from './dto/create-project.dto';
 import type { UpdateProjectDto } from './dto/update-project.dto';
 
@@ -13,6 +16,8 @@ export class ProjectsService {
     @InjectRepository(Project) private readonly projects: Repository<Project>,
     @InjectRepository(ProjectMember) private readonly members: Repository<ProjectMember>,
     private readonly dataSource: DataSource,
+    private readonly events: EventEmitter2,
+    private readonly audit: AuditService,
   ) {}
 
   /**
@@ -64,6 +69,12 @@ export class ProjectsService {
         }),
       );
 
+      // 이미 트랜잭션 안이라 같은 매니저를 넘긴다 — 프로젝트·멤버십·감사 기록이 한 덩어리다.
+      await this.audit.record(
+        { user_id: userId, action: 'project.create', project_id: project.id },
+        manager,
+      );
+
       return project;
     });
   }
@@ -75,12 +86,17 @@ export class ProjectsService {
     return project;
   }
 
-  async update(projectId: string, dto: UpdateProjectDto): Promise<Project> {
+  /**
+   * userId를 받는 이유는 감사 기록뿐이다 — 갱신 자체에는 쓰이지 않는다.
+   * 컨트롤러에서 따로 기록하지 않고 여기로 내린 것은, 이미 열려 있는 트랜잭션에
+   * 같은 매니저로 넣기 위해서다.
+   */
+  async update(projectId: string, userId: string, dto: UpdateProjectDto): Promise<Project> {
     const project = await this.findOneOrFail(projectId);
     const stageChanged =
       dto.current_stage !== undefined && dto.current_stage !== project.current_stage;
 
-    return this.dataSource.transaction(async (manager) => {
+    const saved = await this.dataSource.transaction(async (manager) => {
       if (dto.name !== undefined) project.name = dto.name;
       if (dto.current_stage !== undefined) project.current_stage = dto.current_stage;
 
@@ -97,17 +113,36 @@ export class ProjectsService {
         );
       }
 
+      await this.audit.record(
+        { user_id: userId, action: 'project.update', project_id: saved.id },
+        manager,
+      );
+
       return saved;
     });
+
+    // 커밋 뒤에 발행한다 (Part 4 §7.3의 SSE `stage_change`). 트랜잭션 안에서 발행하면
+    // 롤백된 전환이 화면에만 남는다. 이력 자체는 위에서 current_stage와 원자적으로
+    // 기록되므로, 발행이 실패해도 타임라인에는 구멍이 나지 않는다.
+    if (stageChanged) {
+      this.events.emit(DomainEvent.PROJECT_STAGE_CHANGED, {
+        project_id: saved.id,
+        stage: saved.current_stage,
+        entered_at: new Date().toISOString(),
+      } satisfies ProjectStageChangedEvent);
+    }
+
+    return saved;
   }
 
   /**
    * 설계서 Part 4 §3 — soft delete. 감사 로그 보존을 위해 물리 삭제하지 않는다.
    * GCS 문서 파일은 30일 경과 후 별도 정리한다(해당 배치는 아직 없음).
    */
-  async softDelete(projectId: string): Promise<void> {
+  async softDelete(projectId: string, userId: string): Promise<void> {
     await this.findOneOrFail(projectId);
     await this.projects.softDelete(projectId);
+    await this.audit.record({ user_id: userId, action: 'project.delete', project_id: projectId });
   }
 
   /** 설계서 Part 4 §1 — 프로젝트 하위 리소스는 요청자가 PROJECT_MEMBERS인지 검사한다. */

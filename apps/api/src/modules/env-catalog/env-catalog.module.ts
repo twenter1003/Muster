@@ -1,8 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { join } from 'node:path';
-import { ProjectCoreModule } from '../project-core/project-core.module';
-import { ProjectMemberGuard } from '../project-core/project-member.guard';
 import {
   EnvConfigsController,
   EnvTemplatesController,
@@ -10,10 +8,7 @@ import {
 } from './env-catalog.controller';
 import { EnvTemplatesService } from './env-templates.service';
 import { EnvConfigsService } from './env-configs.service';
-import {
-  DOCKER_CONFIG_GENERATOR,
-  type DockerConfigGenerator,
-} from './docker-config-generator';
+import { DOCKER_CONFIG_GENERATOR, type DockerConfigGenerator } from './docker-config-generator';
 import { GeminiDockerConfigGenerator } from './gemini-docker-config.generator';
 import { VertexDockerConfigGenerator } from './vertex-docker-config.generator';
 import { POLICY_GATE, type PolicyGate } from './policy-gate';
@@ -40,12 +35,10 @@ class UnconfiguredGenerator implements DockerConfigGenerator {
  * 설계서 Part 1 §3.2 / Part 4 §5.
  */
 @Module({
-  imports: [ProjectCoreModule],
   controllers: [EnvTemplatesController, ProjectEnvConfigsController, EnvConfigsController],
   providers: [
     EnvTemplatesService,
     EnvConfigsService,
-    ProjectMemberGuard,
     {
       provide: DOCKER_CONFIG_GENERATOR,
       inject: [ConfigService],

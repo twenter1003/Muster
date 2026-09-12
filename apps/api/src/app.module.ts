@@ -6,12 +6,15 @@ import { DatabaseModule } from './database/database.module';
 import { CommonModule } from './common/common.module';
 import { SecretsModule } from './common/secrets/secrets.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { AuditModule } from './modules/audit/audit.module';
 import { ProjectCoreModule } from './modules/project-core/project-core.module';
 import { DocStoreModule } from './modules/doc-store/doc-store.module';
 import { EnvCatalogModule } from './modules/env-catalog/env-catalog.module';
 import { AgentRegistryModule } from './modules/agent-registry/agent-registry.module';
 import { IngestModule } from './modules/ingest/ingest.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
+import { ReportsModule } from './modules/reports/reports.module';
+import { InboxModule } from './modules/inbox/inbox.module';
 
 @Module({
   imports: [
@@ -22,12 +25,18 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
     CommonModule,
     SecretsModule,
     AuthModule,
+    // @Global — 다섯 개 모듈이 감사 기록을 남긴다 (audit.module.ts 주석 참조).
+    AuditModule,
     ProjectCoreModule,
     DocStoreModule,
     EnvCatalogModule,
     AgentRegistryModule,
     IngestModule,
     RealtimeModule,
+    // 설계서 Part 2 §2의 7개 모듈 목록에 없는 신설 모듈 (reports.module.ts 주석 참조).
+    ReportsModule,
+    // 마찬가지로 설계서의 모듈 목록에 없는 신설 모듈 (inbox.module.ts 주석 참조).
+    InboxModule,
   ],
 })
 export class AppModule {}

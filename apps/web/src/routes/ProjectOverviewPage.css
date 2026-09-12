@@ -1,0 +1,382 @@
+/*
+ * 프로젝트 개요 화면 전용 스타일(목업 1d · 설계서 05).
+ * 색·치수는 전부 tokens.css 변수만 쓴다. 목업의 보라 액센트는 설계서 v2.1이 폐기했으므로
+ * 강조는 색이 아니라 굵기·테두리·배치로 만든다.
+ */
+
+.po__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding-bottom: var(--space-3);
+}
+
+.po__crumb {
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+.po__title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.po__title {
+  margin: 0;
+  font-size: var(--font-size-title);
+  font-weight: 600;
+}
+
+.po__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-1);
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+.po__actions {
+  margin-left: auto;
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* ── 탭 ── */
+
+.po__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.po__tab {
+  appearance: none;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--color-ink-mid);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-body);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: -1px;
+}
+
+/* 선택 탭은 색만이 아니라 굵기와 밑줄로도 구분된다(색에만 의존하지 않는다). */
+.po__tab[aria-selected='true'] {
+  color: var(--color-ink);
+  font-weight: 600;
+  border-bottom-color: var(--color-ink);
+}
+
+.po__tab-count {
+  margin-left: var(--space-1);
+  font-size: var(--font-size-badge);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-mid);
+}
+
+.po__panel {
+  padding-top: var(--space-4);
+  display: grid;
+  gap: var(--space-section-gap);
+}
+
+/* 개요 탭은 좌(환경) · 우(헬스·예산) 2단. 좁아지면 1단으로 접는다. */
+.po__two-col {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 340px);
+  gap: var(--space-section-gap);
+}
+
+@media (max-width: 1023px) {
+  .po__two-col {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ── 카드 ── */
+
+.po-card {
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+}
+
+.po-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-card-padding);
+  border-bottom: 1px solid var(--color-rule);
+  font-size: var(--font-size-section);
+  font-weight: 600;
+}
+
+.po-card__aside {
+  margin-left: auto;
+  font-size: var(--font-size-meta);
+  font-weight: 400;
+  color: var(--color-ink-mid);
+}
+
+.po-card__body {
+  padding: var(--space-card-padding);
+  display: grid;
+  gap: var(--space-3);
+}
+
+/* ── 서비스 카드(주석 1·2) ── */
+
+.po-services {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--space-card-gap);
+}
+
+.po-service {
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  background: var(--color-surface);
+  display: grid;
+  gap: var(--space-1);
+}
+
+/*
+ * 외부 의존(GCS)은 점선. 도커 컨테이너가 아니라는 사실이 테두리로 읽혀야 한다.
+ * 점선만으로는 색각·저시력에서 약하므로 카드 안에 "외부 의존" 텍스트도 같이 둔다.
+ */
+.po-service--external {
+  border-style: dashed;
+  background: var(--color-bg);
+}
+
+.po-service__role {
+  font-size: var(--font-size-badge);
+  color: var(--color-ink-mid);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.po-service__name {
+  font-weight: 600;
+}
+
+.po-service__detail {
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  word-break: break-word;
+}
+
+/* ── 상태 전이(주석 3) ── */
+
+.po-transition {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ── 헬스(주석 4) ── */
+
+.po-health {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.po-health__dial {
+  flex: none;
+  width: 104px;
+  height: 104px;
+}
+
+.po-health__track {
+  stroke: var(--color-rule);
+}
+
+.po-health__arc {
+  stroke: var(--color-ink);
+}
+
+.po-health__arc--signal {
+  stroke: var(--color-signal);
+}
+
+.po-health__value {
+  fill: var(--color-ink);
+}
+
+.po-health__caption {
+  fill: var(--color-ink-mid);
+}
+
+.po-health__metrics {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  flex: 1;
+}
+
+.po-health__metric {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-meta);
+}
+
+.po-health__metric > span:first-child {
+  color: var(--color-ink-mid);
+}
+
+.po-health__metric > :last-child {
+  margin-left: auto;
+}
+
+/* ── 표·목록 ── */
+
+.po-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-body);
+}
+
+.po-table th,
+.po-table td {
+  text-align: left;
+  padding: var(--space-2) var(--space-2);
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.po-table th {
+  font-size: var(--font-size-meta);
+  font-weight: 500;
+  color: var(--color-ink-mid);
+}
+
+.po-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+.po-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.po-list__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--row-height-one-line);
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.po-list__row > :last-child {
+  margin-left: auto;
+  color: var(--color-ink-mid);
+  font-size: var(--font-size-meta);
+}
+
+/* ── 단계 이력 타임라인 ── */
+
+.po-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.po-timeline__item {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: start;
+}
+
+.po-timeline__dot {
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--color-ink-mid);
+}
+
+.po-timeline__dot--current {
+  background: var(--color-ink);
+}
+
+.po-timeline__time {
+  display: block;
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+/* ── 예산 막대 ── */
+
+.po-meter {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-rule);
+  overflow: hidden;
+}
+
+.po-meter__fill {
+  display: block;
+  height: 100%;
+  background: var(--color-ink);
+}
+
+.po-meter__fill--signal {
+  background: var(--color-signal);
+}
+
+/* ── 상태 메시지 ── */
+
+.po-note {
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+  margin: 0;
+}
+
+.po-note--signal {
+  color: var(--color-signal);
+}
+
+.po-chips {
+  display: flex;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+
+.po-chip {
+  appearance: none;
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  background: none;
+  color: var(--color-ink-mid);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-badge);
+  padding: 2px var(--space-2);
+}
+
+.po-chip[aria-pressed='true'] {
+  color: var(--color-ink);
+  font-weight: 600;
+  border-color: var(--color-ink);
+}

@@ -14,9 +14,7 @@ import type { CreateEnvTemplateDto } from './dto/create-env-template.dto';
  */
 @Injectable()
 export class EnvTemplatesService {
-  constructor(
-    @InjectRepository(EnvTemplate) private readonly templates: Repository<EnvTemplate>,
-  ) {}
+  constructor(@InjectRepository(EnvTemplate) private readonly templates: Repository<EnvTemplate>) {}
 
   async listForOwner(ownerId: string, page: PageRequest): Promise<Page<EnvTemplate>> {
     const qb = this.templates

@@ -19,16 +19,17 @@ import type { AuthenticatedUser } from '../../common/auth/authenticated-user';
 import { Public } from '../../common/auth/public.decorator';
 import { CursorPaginationQuery } from '../../common/pagination/pagination.dto';
 import { toPageRequest, type Page } from '../../common/pagination/paginate';
-import { ProjectMemberGuard } from '../project-core/project-member.guard';
+import { ProjectMemberGuard } from '../../common/auth/project-member.guard';
 import { AgentsService } from './agents.service';
 import { AgentRunsService } from './agent-runs.service';
 import { BudgetService, type BudgetUsage } from './budget.service';
-import { ApiKeyGuard } from './api-key.guard';
+import { ApiKeyGuard } from '../../common/auth/api-key.guard';
 import { CreateAgentDto } from './dto/create-agent.dto';
 import { UpdateAgentDto } from './dto/update-agent.dto';
 import { UpdateRunDto } from './dto/update-run.dto';
 import { PutBudgetDto } from './dto/put-budget.dto';
 import type { Agent, AgentRun } from '../../database/entities';
+import { AuditService } from '../audit/audit.service';
 
 interface AgentView {
   id: string;
@@ -73,6 +74,7 @@ export class ProjectAgentsController {
   constructor(
     private readonly agents: AgentsService,
     private readonly budget: BudgetService,
+    private readonly audit: AuditService,
   ) {}
 
   @Get(':id/agents')
@@ -88,8 +90,14 @@ export class ProjectAgentsController {
   @Post(':id/agents')
   @UseGuards(ProjectMemberGuard)
   @HttpCode(HttpStatus.CREATED)
-  async create(@Param('id') projectId: string, @Body() dto: CreateAgentDto): Promise<AgentView> {
-    return toView(await this.agents.create(projectId, dto));
+  async create(
+    @Param('id') projectId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateAgentDto,
+  ): Promise<AgentView> {
+    const agent = await this.agents.create(projectId, dto);
+    await this.audit.record({ user_id: user.id, action: 'agent.create', project_id: projectId });
+    return toView(agent);
   }
 
   /** 예산은 프로젝트 단위다 (Part 1 §3.3 — 에이전트 단위가 아니다). */
@@ -108,9 +116,12 @@ export class ProjectAgentsController {
   @UseGuards(ProjectMemberGuard)
   async putBudget(
     @Param('id') projectId: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Body() dto: PutBudgetDto,
   ): Promise<BudgetUsage> {
-    return this.budget.put(projectId, dto);
+    const usage = await this.budget.put(projectId, dto);
+    await this.audit.record({ user_id: user.id, action: 'budget.update', project_id: projectId });
+    return usage;
   }
 }
 
@@ -120,6 +131,7 @@ export class AgentsController {
   constructor(
     private readonly agents: AgentsService,
     private readonly runs: AgentRunsService,
+    private readonly audit: AuditService,
   ) {}
 
   @Get(':id')
@@ -138,13 +150,25 @@ export class AgentsController {
     @Body() dto: UpdateAgentDto,
   ): Promise<AgentView & { config_md: string }> {
     const agent = await this.agents.update(id, user.id, dto);
+    await this.audit.record({
+      user_id: user.id,
+      action: 'agent.update',
+      project_id: agent.project_id,
+    });
     return { ...toView(agent), config_md: agent.config_md };
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser): Promise<void> {
+    // 삭제 전에 project_id를 확보한다. detail은 접근 권한 확인도 겸하므로 추가 비용이 없다.
+    const agent = await this.agents.detail(id, user.id);
     await this.agents.remove(id, user.id);
+    await this.audit.record({
+      user_id: user.id,
+      action: 'agent.delete',
+      project_id: agent.project_id,
+    });
   }
 
   @Get(':id/runs')

@@ -1,0 +1,263 @@
+/*
+ * 프로젝트 목록 — 구조·정보 밀도는 목업 1c에서, 색·타이포는 토큰에서 온다.
+ * 목업의 보라 액센트(Nocturne)는 설계서가 폐기했으므로 여기에는 hex가 하나도 없다.
+ */
+
+.plist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.plist__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.plist__count {
+  font-size: var(--font-size-meta);
+  font-weight: 400;
+  color: var(--color-ink-mid);
+}
+
+/* 표기 자체가 장치라서 코드처럼 보여야 한다 — "지운 항목은 목록에서 빠졌을 뿐 남아 있다". */
+.plist__mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.plist__actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.plist__views {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.plist__body {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.plist__rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-right: var(--space-3);
+  border-right: 1px solid var(--color-rule);
+}
+
+.plist__rail-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.plist__rail-label {
+  margin: 0;
+  font-size: var(--font-size-badge);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-ink-mid);
+}
+
+.plist__rail-empty {
+  margin: 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+.plist__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.plist__chip {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-ink-mid);
+  font-size: var(--font-size-badge);
+  cursor: pointer;
+}
+
+/* 선택은 색이 아니라 채움+굵기로도 읽힌다(색만으로 구분하지 않는다). */
+.plist__chip[aria-pressed='true'] {
+  background: var(--color-ink);
+  border-color: var(--color-ink);
+  color: var(--color-bg);
+  font-weight: 600;
+}
+
+.plist__chip-count {
+  color: inherit;
+  opacity: 0.7;
+}
+
+.plist__reset {
+  margin-top: auto;
+}
+
+.plist__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.plist__meta {
+  margin: 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+.plist__error {
+  margin: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--color-signal);
+  border-radius: var(--radius);
+  background: var(--color-signal-bg);
+  color: var(--color-signal);
+  font-size: var(--font-size-meta);
+}
+
+/* 가로 스크롤은 여기서 멈춘다. 화면 전체가 밀리면 사이드바까지 따라 나간다. */
+.plist__scroll {
+  overflow-x: auto;
+  min-width: 0;
+}
+
+.plist__table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  font-size: var(--font-size-body);
+}
+
+.plist__table th {
+  text-align: left;
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--color-rule);
+  font-size: var(--font-size-meta);
+  font-weight: 600;
+  color: var(--color-ink-mid);
+  white-space: nowrap;
+}
+
+.plist__table td {
+  height: var(--row-height-two-line);
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--color-rule);
+  vertical-align: middle;
+}
+
+.plist__name {
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.plist__sub {
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+.plist__num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.plist__dash {
+  color: var(--color-ink-mid);
+}
+
+/* 아직 안 온 값. —(측정 불가)와 다른 모양이어야 둘이 섞이지 않는다. */
+.plist__loading {
+  color: var(--color-ink-mid);
+  opacity: 0.55;
+  letter-spacing: 0.1em;
+}
+
+.plist__board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 220px;
+  gap: var(--space-2);
+  align-items: start;
+}
+
+.plist__column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.plist__column-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.plist__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-card-padding);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+.plist__card-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* 768–1279: 스택(두 번째 줄)과 문서 컬럼을 접는다(설계서 반응형 기준). */
+@media (max-width: 1279px) {
+  .plist__col-docs,
+  .plist__sub {
+    display: none;
+  }
+
+  .plist__table {
+    min-width: 600px;
+  }
+}
+
+/* <768: 필터 레일을 표 위로 눕힌다. 좁은 화면에서 200px 레일은 표를 먹는다. */
+@media (max-width: 767px) {
+  .plist__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .plist__rail {
+    padding-right: 0;
+    border-right: none;
+    border-bottom: 1px solid var(--color-rule);
+    padding-bottom: var(--space-3);
+  }
+
+  .plist__reset {
+    margin-top: 0;
+    align-self: flex-start;
+  }
+}

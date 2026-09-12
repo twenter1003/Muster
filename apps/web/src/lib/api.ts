@@ -39,5 +39,27 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     );
   }
 
+  // 204 No Content는 본문이 없다. 그대로 res.json()을 부르면 SyntaxError로 터지는데,
+  // 서버에서는 이미 삭제가 끝난 뒤라 화면만 "실패했다"고 말하게 된다 — 사용자가 지워진 것을
+  // 다시 지우려 들게 만드는 종류의 거짓말이다. DELETE /api-keys/:id와
+  // DELETE /projects/:id/git-integration이 실제로 이 경로를 탄다.
+  if (res.status === 204 || res.headers.get('content-length') === '0') {
+    return undefined as T;
+  }
+
   return (await res.json()) as T;
+}
+
+/**
+ * POST 호출. 화면마다 `{ method: 'POST', body: JSON.stringify(...) }`를 손으로 적던 것을 모은다.
+ *
+ * body를 선택으로 두는 이유: 승인·거부·재생성처럼 본문 없이 경로만으로 뜻이 완결되는 POST가
+ * 이 API에 여럿 있다. 그때 `{}`를 보내면 "빈 객체를 보냈다"와 "아무것도 안 보냈다"가 섞인다.
+ */
+export async function apiPost<T>(path: string, body?: unknown, init?: RequestInit): Promise<T> {
+  return apiFetch<T>(path, {
+    ...init,
+    method: 'POST',
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
 }

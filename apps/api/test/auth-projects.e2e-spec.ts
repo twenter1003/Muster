@@ -226,10 +226,7 @@ describe('Phase 3 — Auth + ProjectCore (e2e)', () => {
         .send({ name: 'to-delete' })
         .expect(201);
 
-      await http()
-        .delete(`/api/v1/projects/${created.body.id}`)
-        .set(auth(aliceToken))
-        .expect(204);
+      await http().delete(`/api/v1/projects/${created.body.id}`).set(auth(aliceToken)).expect(204);
 
       await http().get(`/api/v1/projects/${created.body.id}`).set(auth(aliceToken)).expect(404);
 
@@ -276,10 +273,7 @@ describe('Phase 3 — Auth + ProjectCore (e2e)', () => {
     });
 
     it('비멤버는 삭제할 수 없다', async () => {
-      await http()
-        .delete(`/api/v1/projects/${aliceProjectId}`)
-        .set(auth(bobToken))
-        .expect(404);
+      await http().delete(`/api/v1/projects/${aliceProjectId}`).set(auth(bobToken)).expect(404);
 
       await http().get(`/api/v1/projects/${aliceProjectId}`).set(auth(aliceToken)).expect(200);
     });

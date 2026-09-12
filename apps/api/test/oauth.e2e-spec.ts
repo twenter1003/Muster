@@ -132,25 +132,30 @@ describe('Phase 3 — GitHub OAuth 플로우 (e2e)', () => {
         .expect(400);
     });
 
-    it('정상 콜백이면 프론트로 리다이렉트하고 세션 토큰을 fragment에 싣는다', async () => {
+    it('정상 콜백이면 세션을 HttpOnly 쿠키로 심고 프론트로 리다이렉트한다', async () => {
       const res = await http()
         .get(
           `/api/v1/auth/github/callback?code=good-code&state=${encodeURIComponent(state.issue())}`,
         )
         .expect(302);
 
+      // @Res({ passthrough: true })와 @Redirect()가 함께 동작하는지가 이 단언의 핵심이다.
+      // passthrough 없이 res를 잡으면 리다이렉트가 사라지고, 헤더를 직접 쓰지 않으면 쿠키가 없다.
+      const setCookie = String(res.headers['set-cookie']);
+      expect(setCookie).toMatch(/muster_session=[^;]+/);
+      expect(setCookie).toContain('HttpOnly');
+      // Lax면 OAuth 콜백(top-level 네비게이션)에서는 실리고 교차 사이트 요청에서는 빠진다.
+      expect(setCookie).toContain('SameSite=Lax');
+
       const location = new URL(res.headers.location);
       expect(location.origin).toBe('http://localhost:5173');
-      // 토큰은 쿼리스트링이 아니라 fragment에 있어야 서버 로그에 남지 않는다.
+      // 토큰이 URL에 전혀 남지 않아야 한다 — 쿼리스트링도 fragment도 비어 있어야 한다.
       expect(location.search).toBe('');
-      expect(location.hash).toMatch(/^#token=.+/);
+      expect(location.hash).toBe('');
 
-      // 발급된 토큰이 실제로 동작하는지 끝까지 확인한다.
-      const token = decodeURIComponent(location.hash.replace('#token=', ''));
-      const me = await http()
-        .get('/api/v1/auth/me')
-        .set('Authorization', `Bearer ${token}`)
-        .expect(200);
+      // 심어 준 쿠키가 실제로 인증에 쓰이는지 끝까지 확인한다.
+      const cookie = setCookie.split(';')[0];
+      const me = await http().get('/api/v1/auth/me').set('Cookie', cookie).expect(200);
       expect(me.body.github_login).toBe(login);
     });
 
@@ -178,10 +183,9 @@ describe('Phase 3 — GitHub OAuth 플로우 (e2e)', () => {
       expect(user?.github_token_ref).toMatch(/^file:\/\//);
 
       // 컬럼 어디에도 토큰 원문이 없어야 한다.
-      const rows = (await ds.query(
-        `SELECT * FROM users WHERE github_login = $1`,
-        [login],
-      )) as Array<Record<string, unknown>>;
+      const rows = (await ds.query(`SELECT * FROM users WHERE github_login = $1`, [
+        login,
+      ])) as Array<Record<string, unknown>>;
       expect(JSON.stringify(rows)).not.toContain(github.issuedToken);
     });
 

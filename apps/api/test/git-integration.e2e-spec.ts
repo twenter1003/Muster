@@ -111,10 +111,7 @@ describe('Phase 3 — GitHub 레포 연동 (e2e)', () => {
     });
 
     it('응답에 시크릿 참조를 노출하지 않는다', async () => {
-      const res = await http()
-        .get(`/api/v1/projects/${projectId}`)
-        .set(auth())
-        .expect(200);
+      const res = await http().get(`/api/v1/projects/${projectId}`).set(auth()).expect(200);
       expect(JSON.stringify(res.body)).not.toContain('webhook_secret_ref');
     });
 
@@ -200,10 +197,9 @@ describe('Phase 3 — GitHub 레포 연동 (e2e)', () => {
 
       github.failCreate = null;
 
-      const rows = (await ds.query(
-        `SELECT id FROM git_integrations WHERE project_id = $1`,
-        [p],
-      )) as unknown[];
+      const rows = (await ds.query(`SELECT id FROM git_integrations WHERE project_id = $1`, [
+        p,
+      ])) as unknown[];
       // 웹훅이 없는데 연동만 남으면 이벤트가 영영 오지 않는 상태가 된다.
       expect(rows).toHaveLength(0);
     });
@@ -241,6 +237,29 @@ describe('Phase 3 — GitHub 레포 연동 (e2e)', () => {
     it('연동이 없으면 404다', async () => {
       const p = await newProject('never-connected');
       await http().delete(`/api/v1/projects/${p}/git-integration`).set(auth()).expect(404);
+    });
+  });
+
+  /**
+   * 설계서 Part 4 §3에 GET이 없어 추가했다. 목록·개요 화면이 "어느 레포에 붙어 있는가"를
+   * 보여주려면 읽을 방법이 필요하다.
+   */
+  describe('조회', () => {
+    it('연동이 없으면 404가 아니라 integration: null이다', async () => {
+      const unlinked = await newProject('git-unlinked');
+
+      const res = await http()
+        .get(`/api/v1/projects/${unlinked}/git-integration`)
+        .set(auth())
+        .expect(200);
+
+      // 본문이 비어 있으면 클라이언트의 res.json()이 터진다. null을 감싸는 이유다.
+      expect(res.body).toEqual({ integration: null });
+    });
+
+    it('인증 없이는 401이다', async () => {
+      const target = await newProject('git-unauth');
+      await http().get(`/api/v1/projects/${target}/git-integration`).expect(401);
     });
   });
 });
