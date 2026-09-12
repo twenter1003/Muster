@@ -1,34 +1,48 @@
-import { useEffect, useState } from 'react';
-import { ApiError, apiFetch } from './lib/api';
-
-interface Health {
-  status: string;
-  uptime_seconds: number;
-}
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { AppShell } from './shell/AppShell';
+import {
+  DashboardPage,
+  EnvConfigCreatePage,
+  InboxPage,
+  LoginPage,
+  NotReadyPage,
+  ProjectListPage,
+  ProjectOverviewPage,
+  ReportsPage,
+  SettingsPage,
+} from './routes/pages';
 
 /**
- * Phase 1 자리표시자 화면. API 연결과 에러 포맷 처리 경로만 검증한다.
- * 실제 화면(승인 UI, 대시보드)은 해당 모듈 페이즈에서 이 껍데기 위에 붙인다.
+ * 라우팅(설계서 02). 8개 경로가 전부 여기 한 곳에 있다.
+ *
+ * react-router-dom을 들인 이유: 경로 8개 중 둘이 파라미터(:id)를 쓰고 설정은 /settings/* 하위
+ * 경로를 갖는다. 직접 짜면 history API·뒤로가기·활성 링크 표시·중첩 레이아웃을 다시 만들게 되고,
+ * 그건 라우터를 잘못 만드는 일이다. 대안(경로 상태를 useState로 들고 렌더 분기)은 주소창과
+ * 상태가 어긋나 새로고침·링크 공유가 깨진다.
+ * 버전은 기억이 아니라 레지스트리로 확인했다 — `npm view react-router-dom version` → 7.18.3
+ * (peer: react >= 18, 이 앱은 React 18.3). 데이터 라우터(createBrowserRouter)가 아니라 선언형
+ * <Routes>를 쓰는 이유는, 로더·액션이 필요해지기 전까지는 추가 개념이 비용일 뿐이기 때문이다.
  */
 export default function App() {
-  const [health, setHealth] = useState<Health | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    apiFetch<Health>('/health')
-      .then(setHealth)
-      .catch((e: unknown) =>
-        setError(e instanceof ApiError ? `${e.code}: ${e.message}` : String(e)),
-      );
-  }, []);
-
   return (
-    <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem', maxWidth: 640 }}>
-      <h1>Muster</h1>
-      <p style={{ color: '#666' }}>Phase 1 — 스캐폴딩</p>
-      {health && <p>API 상태: {health.status} (uptime {health.uptime_seconds}s)</p>}
-      {error && <p style={{ color: '#b00' }}>API 연결 실패 — {error}</p>}
-      {!health && !error && <p>API 확인 중…</p>}
-    </main>
+    <BrowserRouter>
+      <Routes>
+        {/* 로그인만 셸 밖이다. 인증 전에는 사이드바에 채울 것이 없다. */}
+        <Route path="/login" element={<LoginPage />} />
+
+        <Route element={<AppShell />}>
+          <Route index element={<DashboardPage />} />
+          <Route path="/projects" element={<ProjectListPage />} />
+          <Route path="/projects/:id" element={<ProjectOverviewPage />} />
+          <Route path="/projects/:id/env/new" element={<EnvConfigCreatePage />} />
+          <Route path="/inbox" element={<InboxPage />} />
+          <Route path="/reports" element={<ReportsPage />} />
+          {/* 설정은 탭(예산·API 키·연동)이 하위 경로로 붙을 자리라 처음부터 /* 로 연다. */}
+          <Route path="/settings/*" element={<SettingsPage />} />
+          {/* 사이드바의 모듈 항목 등 아직 없는 경로. 막다른 404 대신 자리표시자로 받는다. */}
+          <Route path="*" element={<NotReadyPage />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
   );
 }

@@ -1,0 +1,383 @@
+/*
+ * 셸과 반복 요소의 스타일. 색·치수는 전부 tokens.css의 변수만 쓴다.
+ * CSS 프레임워크를 들이지 않는 이유: 토큰이 이미 설계서에서 hex까지 확정돼 있어
+ * 유틸리티 클래스 체계가 중복이 되고, 시안(.dc.html)이 들어오면 버려질 층이 된다.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family:
+    system-ui,
+    -apple-system,
+    'Apple SD Gothic Neo',
+    'Noto Sans KR',
+    sans-serif;
+  font-size: var(--font-size-body);
+  line-height: 1.5;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ───────────────────────── 셸 (설계서 02 · 1a 고정 사이드바) ───────────────────────── */
+
+.shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  grid-template-rows: var(--topbar-height) 1fr;
+  grid-template-areas:
+    'sidebar topbar'
+    'sidebar main';
+  min-height: 100vh;
+}
+
+.shell__sidebar {
+  grid-area: sidebar;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-rule);
+  padding: var(--space-3) 0;
+  overflow-y: auto;
+}
+
+.shell__topbar {
+  grid-area: topbar;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.shell__main {
+  grid-area: main;
+  padding: var(--space-screen-padding);
+}
+
+.shell__bottom-tabs {
+  display: none;
+}
+
+.brand {
+  display: block;
+  padding: 0 var(--space-3) var(--space-3);
+  font-size: var(--font-size-section);
+  font-weight: 600;
+}
+
+.nav-group__label {
+  padding: var(--space-3) var(--space-3) var(--space-1);
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--row-height-one-line);
+  padding: 0 var(--space-3);
+  color: var(--color-ink-mid);
+}
+
+.nav-item[aria-current='page'] {
+  color: var(--color-ink);
+  font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--color-ink);
+}
+
+.nav-item__icon {
+  flex: none;
+  width: 20px;
+  text-align: center;
+}
+
+.nav-item__label {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.nav-item__badge {
+  font-size: var(--font-size-badge);
+  color: var(--color-ink-mid);
+  font-variant-numeric: tabular-nums;
+}
+
+.topbar__crumb {
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+.topbar__search {
+  flex: 1;
+  max-width: 420px;
+  min-height: 32px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--font-size-meta);
+}
+
+.topbar__right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+/*
+ * SSE 연결 상태 점. 끊김만 신호색을 쓴다 — 정상은 눈에 띌 필요가 없다(설계서 01).
+ * 점 하나로만 알리면 색맹 사용자가 구분할 수 없으므로 옆에 항상 텍스트를 함께 둔다.
+ */
+.sse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-ink-mid);
+}
+
+.sse-dot--disconnected {
+  background: var(--color-signal);
+}
+
+.sse-dot--connecting {
+  background: transparent;
+  border: 1px solid var(--color-ink-mid);
+}
+
+.theme-toggle {
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-ink-mid);
+  font: inherit;
+  font-size: var(--font-size-meta);
+  padding: 2px var(--space-2);
+  cursor: pointer;
+}
+
+.page__title {
+  margin: 0 0 var(--space-4);
+  font-size: var(--font-size-title);
+  font-weight: 600;
+}
+
+.page__note {
+  color: var(--color-ink-mid);
+  font-size: var(--font-size-meta);
+}
+
+/* ───────────────────────── 반응형 3단 (설계서 02 · 반응형 기준) ───────────────────────── */
+
+/* 768–1279: 사이드바는 아이콘만. 라벨과 배지를 숨기되 DOM에는 남겨 두고
+   aria-label로 이름을 계속 노출한다(스크린 리더는 축약되지 않는다). */
+@media (max-width: 1279px) {
+  .shell {
+    grid-template-columns: var(--sidebar-width-compact) 1fr;
+  }
+
+  .nav-item__label,
+  .nav-item__badge,
+  .nav-group__label,
+  .brand {
+    display: none;
+  }
+
+  .nav-item {
+    justify-content: center;
+    padding: 0;
+  }
+}
+
+/* <768: 사이드바를 버리고 하단 탭 4개. 설계서 09 — "모바일은 기능 축소가 아니라 과업 축소"라
+   사이드바를 접어 넣는 대신 이동 중에 실제로 하는 과업만 남긴다. */
+@media (max-width: 767px) {
+  .shell {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      'topbar'
+      'main';
+    padding-bottom: var(--bottom-tabs-height);
+  }
+
+  .shell__sidebar {
+    display: none;
+  }
+
+  .shell__bottom-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    position: fixed;
+    inset: auto 0 0 0;
+    height: var(--bottom-tabs-height);
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-rule);
+  }
+
+  .bottom-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    font-size: var(--font-size-badge);
+    color: var(--color-ink-mid);
+  }
+
+  .bottom-tab[aria-current='page'] {
+    color: var(--color-ink);
+    font-weight: 600;
+  }
+}
+
+/* ───────────────────────── 반복 요소 (설계서 10 · 컴포넌트 규칙) ───────────────────────── */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  font-size: var(--font-size-badge);
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--color-ink-mid);
+}
+
+/* 채운 배지는 사용자의 처리를 요구하는 상태에만 쓴다. 나머지는 형태만 같고 색은 같다. */
+.badge--signal {
+  background: var(--color-signal);
+  border-color: var(--color-signal);
+  color: var(--color-on-signal);
+}
+
+.health {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.health__bar {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.health__cell {
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--color-rule);
+  border-radius: 1px;
+}
+
+.health__cell--filled {
+  background: var(--color-ink-mid);
+  border-color: var(--color-ink-mid);
+}
+
+.health--signal .health__cell--filled {
+  background: var(--color-signal);
+  border-color: var(--color-signal);
+}
+
+.health--signal .health__value {
+  color: var(--color-signal);
+}
+
+.kpi-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-card-padding);
+  background: var(--color-surface);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+}
+
+/* 행동을 요구하는 카드만 테두리에 신호색. 화면당 최대 1개 — 타입으로는 세지 못하므로
+   KpiCard의 주석과 리뷰로 강제한다. */
+.kpi-card--action {
+  border-color: var(--color-signal);
+}
+
+.kpi-card__label {
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+.kpi-card__value {
+  font-size: var(--font-size-section);
+  font-weight: 600;
+}
+
+.kpi-card__hint {
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+}
+
+.log-row {
+  display: grid;
+  grid-template-columns: 56px 72px 1fr;
+  gap: var(--space-2);
+  align-items: center;
+  min-height: var(--row-height-one-line);
+  border-bottom: 1px solid var(--color-rule);
+  font-size: var(--font-size-meta);
+}
+
+.log-row__time {
+  color: var(--color-ink-mid);
+  font-variant-numeric: tabular-nums;
+}
+
+.log-row__message {
+  color: var(--color-ink);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius);
+  border: 1px solid var(--color-ink);
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--font-size-body);
+  cursor: pointer;
+}
+
+/* 솔리드는 화면당 1개. "지금 이 화면에서 할 일"을 단수로 지정하는 장치다. */
+.btn--solid {
+  background: var(--color-ink);
+  color: var(--color-bg);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 키보드 사용자를 위한 가시 포커스. 토큰 잉크색을 그대로 쓴다. */
+:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+}
