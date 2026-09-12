@@ -1,0 +1,77 @@
+/*
+ * DocStore — 공용 클래스(.page/.table/.chip/.scroll-x) 위에 이 표만의 밀도와 폭만 얹는다.
+ * 신호색은 쓰지 않는다(지나간 문서 목록이다). hex는 하나도 없다.
+ */
+
+.docstore__tab {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--font-size-badge);
+}
+
+/* 종류 필터는 목록 전체를 가르는 단일 선택이라 지금 무엇을 보고 있는지가 한눈에 보여야
+   한다. 인박스 탭과 같은 이유로 선택을 채움으로 그린다. */
+.docstore__tab[aria-pressed='true'] {
+  background: var(--color-ink);
+  border-color: var(--color-ink);
+  color: var(--color-bg);
+}
+
+.docstore__empty {
+  padding: var(--space-6) var(--space-3);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  text-align: center;
+}
+
+/* 다섯 열이 겹치지 않는 최소 폭. 이보다 좁아지면 .scroll-x 안에서만 밀린다. */
+.docstore__table {
+  min-width: 680px;
+}
+
+.docstore__table th {
+  padding: var(--space-2);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.docstore__table td {
+  height: var(--row-height-one-line);
+  padding: var(--space-2);
+  vertical-align: middle;
+}
+
+.docstore__title {
+  font-weight: 500;
+}
+
+.docstore__title:hover,
+.docstore__project:hover {
+  text-decoration: underline;
+}
+
+/* 커밋 해시는 앞 7자만. 전체를 찍으면 제목 열을 통째로 먹는다. */
+.docstore__ref {
+  margin-left: var(--space-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--font-size-badge);
+  color: var(--color-ink-mid);
+}
+
+.docstore__time {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--color-ink-mid);
+}
+
+.docstore__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.docstore__pager {
+  margin-left: auto;
+  display: flex;
+  gap: var(--space-1);
+}

@@ -18,7 +18,7 @@ import { CurrentUser } from '../../common/auth/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user';
 import { Public } from '../../common/auth/public.decorator';
 import { CursorPaginationQuery } from '../../common/pagination/pagination.dto';
-import { toPageRequest, type Page } from '../../common/pagination/paginate';
+import { toPageRequest, withProjectName, type Page } from '../../common/pagination/paginate';
 import { ProjectMemberGuard } from '../../common/auth/project-member.guard';
 import { AgentsService } from './agents.service';
 import { AgentRunsService } from './agent-runs.service';
@@ -133,6 +133,22 @@ export class AgentsController {
     private readonly runs: AgentRunsService,
     private readonly audit: AuditService,
   ) {}
+
+  /**
+   * 프로젝트를 가로지르는 에이전트 목록.
+   * 인자 없는 라우트를 `@Get(':id')`보다 먼저 둔다(Nest는 선언 순으로 매칭한다).
+   */
+  @Get()
+  async list(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: CursorPaginationQuery,
+  ): Promise<Page<AgentView & { project_name: string }>> {
+    const page = await this.agents.listForMember(user.id, toPageRequest(query));
+    return {
+      items: page.items.map((a) => withProjectName(toView(a), page.project_names)),
+      next_cursor: page.next_cursor,
+    };
+  }
 
   @Get(':id')
   async detail(

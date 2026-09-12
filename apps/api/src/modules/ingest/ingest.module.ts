@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { WebhooksController } from './webhooks.controller';
 import { ProjectIngestController } from './project-ingest.controller';
+import { CrossProjectIngestController } from './cross-project-ingest.controller';
 import { WebhookIngestService } from './webhook-ingest.service';
 import { LogsService } from './logs.service';
 import { HealthService } from './health.service';
@@ -19,7 +20,7 @@ import { TimelineService } from './timeline.service';
  * 아니라 common/auth에 있다.
  */
 @Module({
-  controllers: [WebhooksController, ProjectIngestController],
+  controllers: [WebhooksController, ProjectIngestController, CrossProjectIngestController],
   providers: [WebhookIngestService, LogsService, HealthService, TimelineService],
 })
 export class IngestModule {}

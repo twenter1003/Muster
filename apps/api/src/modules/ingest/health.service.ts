@@ -1,9 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import type { EntityManager, Repository } from 'typeorm';
 import { InjectRepository } from '../../database/inject-repository.decorator';
-import { DeploymentEvent, HealthSnapshot } from '../../database/entities';
-import { keysetPage, type Page, type PageRequest } from '../../common/pagination/paginate';
+import { DeploymentEvent, HealthSnapshot, ProjectMember } from '../../database/entities';
+import {
+  keysetPage,
+  type Page,
+  type PageRequest,
+  type ScopedPage,
+} from '../../common/pagination/paginate';
 import { scoreDora, WINDOW_DAYS, type ScoredEvent } from './dora';
+import { memberProjects } from './member-scope';
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -11,6 +17,7 @@ const DAY = 24 * 60 * 60 * 1000;
 export class HealthService {
   constructor(
     @InjectRepository(HealthSnapshot) private readonly snapshots: Repository<HealthSnapshot>,
+    @InjectRepository(ProjectMember) private readonly members: Repository<ProjectMember>,
   ) {}
 
   /**
@@ -58,5 +65,27 @@ export class HealthService {
       .where('h.project_id = :projectId', { projectId });
 
     return keysetPage(qb, 'measured_at', page, (h) => h.measured_at);
+  }
+
+  /**
+   * `GET /health-snapshots` — 프로젝트를 가로지르는 헬스 스냅샷.
+   *
+   * 대시보드는 프로젝트별 시계열이 아니라 "최근에 어디가 나빠졌나"를 한 화면에서 본다.
+   * 필터가 없는 이유: 스냅샷에는 골라 낼 만한 범주형 컬럼이 없다(점수는 연속값이다).
+   * 임계치 필터가 필요해지면 그때 얹는 편이 싸다.
+   */
+  async listForMember(userId: string, page: PageRequest): Promise<ScopedPage<HealthSnapshot>> {
+    // 범위를 **먼저** 좁힌다. 멤버가 아닌 프로젝트의 스냅샷이 섞이면 남의 프로젝트 이름과
+    // 배포 건전성이 그대로 새어 나간다.
+    const names = await memberProjects(this.members, userId);
+    const ids = [...names.keys()];
+
+    // IN ()은 문법 오류다. 멤버인 프로젝트가 없으면 질의 자체를 하지 않는다.
+    if (ids.length === 0) return { items: [], next_cursor: null, project_names: names };
+
+    const qb = this.snapshots.createQueryBuilder('h').where('h.project_id IN (:...ids)', { ids });
+
+    const result = await keysetPage(qb, 'measured_at', page, (h) => h.measured_at);
+    return { ...result, project_names: names };
   }
 }

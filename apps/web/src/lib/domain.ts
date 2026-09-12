@@ -44,6 +44,14 @@ export type PolicyTool = (typeof POLICY_TOOLS)[number];
 export const POLICY_VERDICTS = ['pass', 'fail'] as const;
 export type PolicyVerdict = (typeof POLICY_VERDICTS)[number];
 
+/** DOCUMENTS.type — 4종 */
+export const DOCUMENT_TYPES = ['prd', 'srs', 'tech_spec', 'other'] as const;
+export type DocumentType = (typeof DOCUMENT_TYPES)[number];
+
+/** DOCUMENTS.upload_status — 2종 */
+export const UPLOAD_STATUSES = ['pending', 'completed'] as const;
+export type UploadStatus = (typeof UPLOAD_STATUSES)[number];
+
 /** LOG_ENTRIES.level */
 export const LOG_LEVELS = ['error', 'warn', 'info'] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
@@ -84,6 +92,48 @@ export type Measurable<T> = T | null;
 
 export function formatMeasurable<T>(value: Measurable<T>, format: (v: T) => string): string {
   return value === null ? EM_DASH : format(value);
+}
+
+/**
+ * 시각 표기 — "09-12 14:03". 초·연도는 버린다.
+ *
+ * 목록에서 시각이 하는 일은 "언제쯤이었나"의 정렬 감각이지 정확한 지목이 아니다.
+ * 연도까지 찍으면 열 폭이 늘고 모든 행이 같은 연도라 읽을 것이 하나 늘 뿐이다.
+ * 정확한 시각이 필요하면 화면이 title 속성으로 원문을 남긴다.
+ *
+ * 24시간제를 고정하는 이유: 오전/오후 표기는 폭이 행마다 달라져 시각 열이 세로로 흔들린다.
+ */
+export function formatDateTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return EM_DASH;
+  return new Intl.DateTimeFormat('ko-KR', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(d);
+}
+
+/**
+ * stack_config에서 사람이 읽을 스택 이름만 주워 담는다.
+ *
+ * stack_config는 사용자가 넣은 자유 형식 객체라 구조를 신뢰할 수 없다. 알아볼 수 있는
+ * 문자열 필드만 취하고 나머지는 조용히 버린다 — 보조 정보 한 줄 때문에 행이 깨지면 안 된다.
+ * 프로젝트 목록과 EnvCatalog가 같은 값을 보여 주므로, 주워 담는 기준이 갈라지지 않게
+ * 화면이 아니라 여기에 둔다.
+ */
+export function readStack(config: Record<string, unknown>): string[] {
+  const out: string[] = [];
+  for (const key of ['language', 'framework', 'database']) {
+    const v = config[key];
+    if (typeof v === 'string' && v.length > 0) out.push(v);
+  }
+  const services = config['services'];
+  if (Array.isArray(services)) {
+    for (const s of services) if (typeof s === 'string' && s.length > 0) out.push(s);
+  }
+  return out;
 }
 
 /**

@@ -74,3 +74,27 @@ export async function keysetPage<T extends ObjectLiteral & { id: string }>(
     id: row.id,
   }));
 }
+
+/**
+ * 여러 프로젝트를 가로지르는 목록의 한 페이지.
+ *
+ * `project_names`를 페이지에 딸려 보내는 이유: 이 조회들은 **요청자가 멤버인 프로젝트**로
+ * 범위를 먼저 좁히는데(id→이름 조인 한 번), 그 결과 맵에 화면이 필요로 하는 프로젝트
+ * 이름이 이미 다 들어 있다. 행마다 프로젝트를 다시 조인하거나 클라이언트가 프로젝트를
+ * 따로 조회하는 것은 같은 데이터를 두 번 읽는 일이다.
+ */
+export interface ScopedPage<T> extends Page<T> {
+  project_names: ReadonlyMap<string, string>;
+}
+
+/**
+ * 스코프 질의가 이미 가져온 프로젝트 이름을 뷰에 붙인다.
+ * 맵에 없을 수가 없다 — 행 자체가 그 맵의 프로젝트로 좁혀 뽑은 것이다. 그래도 단언(!) 대신
+ * 빈 문자열로 떨어뜨린다. 이름 하나 때문에 목록 전체가 500이 되는 편이 더 나쁘다.
+ */
+export function withProjectName<V extends { project_id: string }>(
+  view: V,
+  names: ReadonlyMap<string, string>,
+): V & { project_name: string } {
+  return { ...view, project_name: names.get(view.project_id) ?? '' };
+}

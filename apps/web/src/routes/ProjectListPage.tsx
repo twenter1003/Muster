@@ -8,6 +8,7 @@ import { apiFetch, type Page } from '../lib/api';
 import {
   EM_DASH,
   PROJECT_STAGES,
+  readStack,
   type BuildStatus,
   type Measurable,
   type ProjectStage,
@@ -92,24 +93,6 @@ function detailsReducer(
   if (action.type === 'reset') return {};
   const current = state[action.projectId] ?? EMPTY_DETAIL;
   return { ...state, [action.projectId]: { ...current, ...action.patch } };
-}
-
-/**
- * stack_config는 사용자가 넣은 자유 형식 객체라 구조를 신뢰할 수 없다.
- * 알아볼 수 있는 문자열 필드만 주워 담고 나머지는 조용히 버린다 — 목록의 보조 정보 한 줄 때문에
- * 행이 깨지면 안 된다.
- */
-function readStack(config: Record<string, unknown>): string[] {
-  const out: string[] = [];
-  for (const key of ['language', 'framework', 'database']) {
-    const v = config[key];
-    if (typeof v === 'string' && v.length > 0) out.push(v);
-  }
-  const services = config['services'];
-  if (Array.isArray(services)) {
-    for (const s of services) if (typeof s === 'string' && s.length > 0) out.push(s);
-  }
-  return out;
 }
 
 /** 부속 호출 하나의 실패가 행 전체를 무너뜨리지 않게, 실패는 "측정 불가(—)"로 흡수한다. */

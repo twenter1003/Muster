@@ -29,7 +29,7 @@ import { LogsService } from './logs.service';
 import { HealthService } from './health.service';
 import { TimelineService } from './timeline.service';
 
-interface LogView {
+export interface LogView {
   id: string;
   project_id: string;
   agent_id: string | null;
@@ -48,7 +48,7 @@ interface DeploymentEventView {
   occurred_at: string;
 }
 
-interface HealthSnapshotView {
+export interface HealthSnapshotView {
   id: string;
   project_id: string;
   deploy_freq_score: number | null;
@@ -66,7 +66,7 @@ interface StageHistoryView {
   entered_at: string;
 }
 
-const toLogView = (l: LogEntry): LogView => ({
+export const toLogView = (l: LogEntry): LogView => ({
   id: l.id,
   project_id: l.project_id,
   agent_id: l.agent_id,
@@ -85,7 +85,7 @@ const toDeploymentView = (d: DeploymentEvent): DeploymentEventView => ({
   occurred_at: d.occurred_at.toISOString(),
 });
 
-const toHealthView = (h: HealthSnapshot): HealthSnapshotView => ({
+export const toHealthView = (h: HealthSnapshot): HealthSnapshotView => ({
   id: h.id,
   project_id: h.project_id,
   deploy_freq_score: h.deploy_freq_score,

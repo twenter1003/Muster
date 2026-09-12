@@ -13,12 +13,13 @@ import {
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user';
 import { CursorPaginationQuery } from '../../common/pagination/pagination.dto';
-import { toPageRequest, type Page } from '../../common/pagination/paginate';
+import { toPageRequest, withProjectName, type Page } from '../../common/pagination/paginate';
 import { ProjectMemberGuard } from '../../common/auth/project-member.guard';
 import { EnvTemplatesService } from './env-templates.service';
 import { EnvConfigsService } from './env-configs.service';
 import { CreateEnvTemplateDto } from './dto/create-env-template.dto';
 import { CreateEnvConfigDto } from './dto/create-env-config.dto';
+import { ListAllEnvConfigsQuery } from './dto/list-all-env-configs.query';
 import type {
   EnvConfigTransition,
   EnvTemplate,
@@ -174,6 +175,24 @@ const toTransitionView = (t: EnvConfigTransition): TransitionView => ({
 @Controller('env-configs')
 export class EnvConfigsController {
   constructor(private readonly configs: EnvConfigsService) {}
+
+  /**
+   * 프로젝트를 가로지르는 환경 구성 목록.
+   * 인자 없는 라우트를 `@Get(':id')`보다 먼저 둔다(Nest는 선언 순으로 매칭한다).
+   */
+  @Get()
+  async list(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: ListAllEnvConfigsQuery,
+  ): Promise<Page<ConfigView & { project_name: string }>> {
+    const page = await this.configs.listForMember(user.id, toPageRequest(query), {
+      build_status: query.build_status,
+    });
+    return {
+      items: page.items.map((c) => withProjectName(toConfigView(c), page.project_names)),
+      next_cursor: page.next_cursor,
+    };
+  }
 
   @Get(':id')
   async detail(
