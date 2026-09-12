@@ -1,5 +1,5 @@
 /**
- * 17개 엔티티 배럴.
+ * 18개 엔티티 배럴.
  *
  * 엔티티를 모듈 폴더가 아니라 database/ 아래 모아 둔 이유:
  * LOG_ENTRIES가 PROJECTS를, AUDIT_LOGS가 USERS를 참조하는 식으로 스키마는 모듈 경계를
@@ -26,6 +26,7 @@ export { ProjectStageHistory } from './project-stage-history.entity';
 export { HealthSnapshot } from './health-snapshot.entity';
 export { AuditLog } from './audit-log.entity';
 export { WebhookDelivery } from './webhook-delivery.entity';
+export { DeploymentEvent } from './deployment-event.entity';
 
 import { User } from './user.entity';
 import { Session } from './session.entity';
@@ -45,6 +46,7 @@ import { ProjectStageHistory } from './project-stage-history.entity';
 import { HealthSnapshot } from './health-snapshot.entity';
 import { AuditLog } from './audit-log.entity';
 import { WebhookDelivery } from './webhook-delivery.entity';
+import { DeploymentEvent } from './deployment-event.entity';
 
 /** DataSource에 등록할 엔티티 전체 목록. 새 엔티티를 추가하면 여기에도 넣어야 한다. */
 export const ALL_ENTITIES = [
@@ -66,4 +68,5 @@ export const ALL_ENTITIES = [
   HealthSnapshot,
   AuditLog,
   WebhookDelivery,
+  DeploymentEvent,
 ] as const;

@@ -20,7 +20,9 @@ export class AddDocumentUploadStatus1788850000000 implements MigrationInterface 
     );
     // 새로 만들어지는 문서의 기본값은 pending이다. 위 DEFAULT는 기존 행을 채우기 위한 것이라
     // 채운 뒤 바꾼다 — 그렇지 않으면 INSERT에서 status를 빠뜨렸을 때 조용히 completed가 된다.
-    await queryRunner.query(`ALTER TABLE "documents" ALTER COLUMN "upload_status" SET DEFAULT 'pending'`);
+    await queryRunner.query(
+      `ALTER TABLE "documents" ALTER COLUMN "upload_status" SET DEFAULT 'pending'`,
+    );
     await queryRunner.query(
       `ALTER TABLE "documents" ADD CONSTRAINT "chk_documents_upload_status"
        CHECK ("upload_status" IN ('pending', 'completed'))`,
