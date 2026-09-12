@@ -5,6 +5,7 @@ import { QueryFailedError } from 'typeorm';
 import type { GitIntegration } from '../../database/entities';
 import { DomainEvent } from '../../common/events/domain-events';
 import type { SecretStore } from '../../common/secrets/secret-store';
+import type { HealthService } from './health.service';
 import { WebhookIngestService } from './webhook-ingest.service';
 
 const PROJECT = '11111111-1111-4111-8111-111111111111';
@@ -88,8 +89,11 @@ function harness(
     },
   } as unknown as EventEmitter2;
 
+  // 헬스 재계산은 dora.spec.ts가 따로 검증한다. 여기서는 "배포 이벤트가 있으면 불린다"만 본다.
+  const health = { recompute: async () => null } as unknown as HealthService;
+
   return {
-    service: new WebhookIngestService(integrations, secrets, dataSource, events),
+    service: new WebhookIngestService(integrations, secrets, health, dataSource, events),
     inserted,
     emitted,
     get committed() {

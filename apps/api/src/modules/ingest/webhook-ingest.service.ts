@@ -6,15 +6,21 @@ import type { Repository } from 'typeorm';
 import {
   DeploymentEvent,
   GitIntegration,
+  HealthSnapshot,
   LogEntry,
   WebhookDelivery,
 } from '../../database/entities';
 import { SECRET_STORE, type SecretStore } from '../../common/secrets/secret-store';
 import { ApiException } from '../../common/errors/api.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
-import { DomainEvent, type LogAppendedEvent } from '../../common/events/domain-events';
+import {
+  DomainEvent,
+  type HealthSnapshotCreatedEvent,
+  type LogAppendedEvent,
+} from '../../common/events/domain-events';
 import { isValidSignature } from './github-signature';
 import { interpret } from './github-events';
+import { HealthService } from './health.service';
 
 /** 유니크 위반. 멱등성 판정에 쓴다. */
 const PG_UNIQUE_VIOLATION = '23505';
@@ -35,6 +41,7 @@ export class WebhookIngestService {
   constructor(
     @InjectRepository(GitIntegration) private readonly integrations: Repository<GitIntegration>,
     @Inject(SECRET_STORE) private readonly secrets: SecretStore,
+    private readonly health: HealthService,
     private readonly dataSource: DataSource,
     private readonly events: EventEmitter2,
   ) {}
@@ -86,6 +93,7 @@ export class WebhookIngestService {
     const { log, deployment } = interpret(req.eventType, payload);
 
     let appended: LogEntry | null = null;
+    let snapshot: HealthSnapshot | null = null;
 
     try {
       await this.dataSource.transaction(async (manager) => {
@@ -99,6 +107,9 @@ export class WebhookIngestService {
 
         if (deployment) {
           await manager.insert(DeploymentEvent, { project_id: projectId, ...deployment });
+          // 설계서 Part 4 §7.1의 "필요 시 HEALTH_SNAPSHOTS 재계산 트리거". 같은 트랜잭션에서
+          // 하므로 방금 넣은 이벤트가 반영되고, 이벤트만 남고 스냅샷이 빠지는 상태가 없다.
+          snapshot = await this.health.recompute(manager, projectId);
         }
 
         if (log) {
@@ -117,8 +128,18 @@ export class WebhookIngestService {
 
     // 커밋 뒤에 발행한다. 롤백된 트랜잭션의 로그가 SSE로 나가면 화면에만 존재하는 줄이 생긴다.
     if (appended) this.emitLogAppended(appended);
+    if (snapshot) this.emitHealthSnapshot(snapshot);
 
     return log || deployment ? 'processed' : 'ignored';
+  }
+
+  private emitHealthSnapshot(snapshot: HealthSnapshot): void {
+    this.events.emit(DomainEvent.HEALTH_SNAPSHOT_CREATED, {
+      project_id: snapshot.project_id,
+      snapshot_id: snapshot.id,
+      composite_score: Number(snapshot.composite_score),
+      measured_at: snapshot.measured_at.toISOString(),
+    } satisfies HealthSnapshotCreatedEvent);
   }
 
   private emitLogAppended(entry: LogEntry): void {
