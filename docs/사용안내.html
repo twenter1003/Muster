@@ -394,6 +394,7 @@
     <a href="#modules">모듈 · 설정</a>
 
     <span class="toc__group">규칙</span>
+    <a href="#invite">사람 부르기</a>
     <a href="#rules">읽는 법 네 가지</a>
     <a href="#agents">에이전트 붙이기</a>
 
@@ -752,8 +753,42 @@
         <li><strong>예산</strong> — 토큰·비용 한도와 알림 임계치. 임계치를 넘으면 알림에 뜹니다.</li>
         <li><strong>API 키</strong> — 에이전트가 쓸 키를 발급합니다. 아래 <a href="#agents">에이전트 붙이기</a> 참고.</li>
         <li><strong>Git 연동</strong> — 레포를 연결합니다. 웹훅을 대신 걸어 주고, 그때부터 배포 결과가 자동으로 쌓입니다.</li>
-        <li><strong>멤버</strong> — 현재 멤버와 역할을 봅니다. <span class="muted">지금은 보기만 됩니다.</span></li>
+        <li><strong>멤버</strong> — 현재 멤버를 보고, <strong>초대 링크</strong>를 만듭니다.
+          아래 <a href="#invite">사람 부르기</a> 참고.</li>
       </ul>
+    </section>
+
+    <section id="invite">
+      <h2>사람 부르기</h2>
+      <p>
+        <code>설정 › 멤버</code>에서 <strong>초대 링크</strong>를 만들어 건네면 됩니다. 받은 사람이
+        링크를 열고 GitHub으로 로그인하면 그 프로젝트의 멤버가 됩니다. 계정을 미리 물어볼
+        필요도, 상대가 먼저 가입해 둘 필요도 없습니다.
+      </p>
+
+      <div class="note note--signal">
+        <span class="note__label">링크가 곧 권한입니다</span>
+        <p>
+          링크를 가진 사람은 누구나 들어올 수 있습니다. 그래서 <strong>기한이 반드시 붙고</strong>
+          (기본 7일), 언제든 폐기할 수 있습니다. 발급 직후 한 번만 보이므로 그 자리에서
+          복사해 두세요 — 서버는 해시만 저장합니다.
+        </p>
+        <p>
+          목록의 <strong>사용 횟수</strong>를 보세요. 두 사람에게 보냈는데 다섯이 들어왔다면
+          링크가 샌 것이고, 그걸 알 방법이 그 숫자뿐입니다.
+        </p>
+      </div>
+
+      <h3>들어온 사람이 볼 수 있는 것</h3>
+      <p>
+        초대로 들어온 사람은 <span class="badge">member</span>입니다. 그 프로젝트의 문서·개발환경·
+        에이전트·로그를 볼 수 있고, <strong>다른 프로젝트는 보이지 않습니다.</strong>
+      </p>
+      <p class="muted">
+        <strong>owner는 링크로 줄 수 없습니다.</strong> 링크가 새면 받은 사람이 곧 소유자가 되기
+        때문입니다. 소유자를 늘리는 일은 링크로 할 일이 아니라 사람을 특정해서 할 일이라,
+        그 경로는 만들지 않았습니다.
+      </p>
     </section>
 
     <section id="rules">
@@ -860,10 +895,11 @@ curl -X POST https://&lt;서버&gt;/api/v1/projects/&lt;프로젝트 id&gt;/logs
               </td>
             </tr>
             <tr>
-              <td>멤버 초대</td>
+              <td>역할 변경 · 추방</td>
               <td>
-                멤버 목록은 볼 수 있지만 초대·역할 변경·추방이 없습니다.
-                <strong>지금은 한 사람이 자기 프로젝트를 보는 도구입니다.</strong>
+                초대는 되지만, 들어온 사람의 역할을 바꾸거나 내보내는 기능은 없습니다.
+                잘못 부른 경우 링크를 폐기해 더 들어오는 것은 막을 수 있지만, 이미 들어온
+                사람은 그대로 남습니다.
               </td>
             </tr>
             <tr>

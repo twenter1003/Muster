@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Button } from '../components/Button';
-import { ApiError, apiFetch, type Page as ApiPage } from '../lib/api';
+import { ApiError, apiFetch, apiPost, type Page as ApiPage } from '../lib/api';
 import { EM_DASH } from '../lib/domain';
 import { useApi } from '../lib/useApi';
 import './SettingsPage.css';
@@ -810,9 +810,166 @@ function MembersTab({ projectId }: { projectId: string | null }) {
       )}
 
       <p className="meta">
-        초대·역할 변경은 아직 없다. 서버에 쓰기 API가 없어, 버튼을 그려 두면 눌러도 아무 일이
-        일어나지 않는 화면이 된다.
+        역할 변경과 추방은 아직 없다. 초대로 들어온 사람은 member이고, owner는 링크로 주지
+        않는다 — 링크가 새면 받은 사람이 곧 소유자가 되기 때문이다.
       </p>
+
+      {projectId !== null && <InviteSection projectId={projectId} />}
+    </div>
+  );
+}
+
+/* ───────────────────────── 초대 링크 ─────────────────────────
+ * owner만 보인다. 서버가 멤버에게 404를 주므로, 그 404를 에러로 그리지 않고 섹션을 숨긴다 —
+ * 권한이 없다는 사실 자체를 화면이 떠들 이유가 없다(서버가 프로젝트의 존재조차 숨기는 것과
+ * 같은 판단이다).
+ */
+
+interface InviteView {
+  id: string;
+  created_by: string | null;
+  expires_at: string;
+  revoked_at: string | null;
+  accepted_count: number;
+  created_at: string;
+  active: boolean;
+}
+
+function InviteSection({ projectId }: { projectId: string }) {
+  const { data, error, loading, reload } = useApi<{ items: InviteView[] }>(
+    `/projects/${projectId}/invites`,
+  );
+
+  const [issuing, setIssuing] = useState(false);
+  const [issued, setIssued] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  // owner가 아니면 404다. 그건 오류가 아니라 "이 화면은 네 것이 아니다"라는 답이다.
+  const forbidden = error instanceof ApiError && error.status === 404;
+  if (forbidden) return null;
+
+  const invites = data?.items ?? [];
+
+  const issue = () => {
+    setIssuing(true);
+    setActionError(null);
+    setCopied(false);
+
+    apiPost<{ token: string }>(`/projects/${projectId}/invites`).then(
+      (res) => {
+        setIssuing(false);
+        // 링크를 서버가 아니라 화면이 조립한다. 서버는 자기가 어느 주소로 서비스되는지
+        // 모르고(프록시·포트포워딩), 화면은 지금 열려 있는 주소를 확실히 안다.
+        setIssued(`${window.location.origin}/invite/${res.token}`);
+        reload();
+      },
+      (e: unknown) => {
+        setIssuing(false);
+        setActionError(errorMessage(e));
+      },
+    );
+  };
+
+  const revoke = (id: string) => {
+    setActionError(null);
+    apiFetch(`/invites/${id}`, { method: 'DELETE' }).then(reload, (e: unknown) =>
+      setActionError(errorMessage(e)),
+    );
+  };
+
+  const copy = (link: string) => {
+    if (!navigator.clipboard) {
+      setActionError('이 브라우저에서는 자동 복사가 되지 않는다. 위 값을 직접 선택해 복사하라.');
+      return;
+    }
+    void navigator.clipboard.writeText(link).then(
+      () => setCopied(true),
+      () => setActionError('복사하지 못했다. 위 값을 직접 선택해 복사하라.'),
+    );
+  };
+
+  return (
+    <div className="settings__section">
+      <h2 className="settings__section-title">초대 링크</h2>
+      <p className="meta">
+        링크를 받은 사람은 GitHub으로 로그인하면 이 프로젝트의 member가 된다. 기한이 지나거나
+        폐기하면 더 이상 쓸 수 없다.
+      </p>
+
+      {/* 1회성. 발급 직후에만 보여 주고, 목록에는 다시 나오지 않는다(서버가 해시만 저장한다). */}
+      {issued !== null ? (
+        <div className="settings__once" role="alert">
+          <p className="settings__once-title">
+            링크는 지금 한 번만 보인다 — 이 화면을 벗어나면 다시 볼 수 없다.
+          </p>
+          <code className="settings__once-key">{issued}</code>
+          <div className="settings__actions">
+            <Button onClick={() => copy(issued)}>{copied ? '복사됨' : '복사'}</Button>
+            <Button onClick={() => setIssued(null)}>보냈다 · 닫기</Button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="settings__actions">
+        <Button onClick={issue} disabled={issuing}>
+          {issuing ? '만드는 중…' : '+ 초대 링크 만들기'}
+        </Button>
+      </div>
+
+      {actionError !== null ? (
+        <p className="error-note" role="alert">
+          {actionError}
+        </p>
+      ) : null}
+
+      {loading ? (
+        <p className="meta">불러오는 중…</p>
+      ) : invites.length === 0 ? (
+        <p className="meta">만든 링크가 없다.</p>
+      ) : (
+        <div className="scroll-x">
+          <table className="table settings__table">
+            <thead>
+              <tr>
+                <th scope="col">만든 사람</th>
+                <th scope="col">만료</th>
+                <th scope="col">사용</th>
+                <th scope="col">상태</th>
+                <th scope="col">
+                  <span className="settings__sr">동작</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {invites.map((i) => (
+                <tr key={i.id}>
+                  <td>{i.created_by ?? EM_DASH}</td>
+                  <td>{shortDate(i.expires_at)}</td>
+                  {/* 보낸 사람 수보다 크면 링크가 샌 것이다. 그걸 알 방법이 이 숫자뿐이다. */}
+                  <td>{i.accepted_count}명</td>
+                  <td>
+                    {i.active ? (
+                      <span className="badge">유효</span>
+                    ) : (
+                      <span className="badge">
+                        {i.revoked_at !== null ? '폐기됨' : '만료됨'}
+                      </span>
+                    )}
+                  </td>
+                  <td className="settings__cell-action">
+                    {i.active ? (
+                      <Button onClick={() => revoke(i.id)}>폐기</Button>
+                    ) : (
+                      <span className="settings__dash">{EM_DASH}</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
