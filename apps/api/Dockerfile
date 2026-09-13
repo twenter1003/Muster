@@ -47,15 +47,24 @@ CMD ["pnpm", "start:dev:migrate"]
 
 FROM deps AS build
 COPY apps/api apps/api
-RUN pnpm --filter @muster/api build && pnpm prune --prod
+RUN pnpm --filter @muster/api build
+
+# 배포용 묶음을 여기서 만든다.
+#
+# 전에는 `pnpm prune --prod`를 썼는데 **워크스페이스에서는 듣지 않았다**. 루트
+# node_modules/.pnpm 저장소가 그대로 남아, 프로덕션 이미지에 typescript가 두 벌(44MB)과
+# prettier·webpack까지 들어가 있었다. 빌드에만 쓰는 것들이 돌아가는 서버에 남아 있는 것은
+# 용량 문제이기 이전에 "실행 환경에 뭐가 있는지"를 흐린다.
+#
+# `pnpm deploy`는 워크스페이스 패키지 하나를 심볼릭 링크 없이 평탄하게 모아 준다.
+# --prod로 devDependencies를 뺀다.
+RUN pnpm --filter @muster/api --prod deploy /deploy
 
 # Cloud Run 배포용
 FROM base AS production
 ENV NODE_ENV=production
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/apps/api/node_modules ./apps/api/node_modules
-COPY --from=build /app/apps/api/dist ./apps/api/dist
-COPY --from=build /app/apps/api/package.json ./apps/api/package.json
-WORKDIR /app/apps/api
+COPY --from=build /deploy/node_modules ./node_modules
+COPY --from=build /deploy/dist ./dist
+COPY --from=build /deploy/package.json ./package.json
 EXPOSE 8080
 CMD ["node", "dist/main.js"]
