@@ -312,7 +312,16 @@ export class EnvConfigsService {
    */
   async execute(configId: string, userId: string): Promise<ProjectEnvConfig> {
     const config = await this.findAccessibleOrFail(configId, userId);
-    this.requireStatus(config, ['approved'], '실행');
+    /*
+     * failed도 받는다 — 재실행이다.
+     *
+     * 실패의 상당수는 구성이 아니라 바깥 사정이다(권한 부족, Actions 비활성, 러너 장애).
+     * 그럴 때 같은 설정을 다시 입력하게 하는 것은 사용자에게 아무 의미가 없고, 구성 기록만
+     * 실패 사본으로 불어난다. 승인은 이미 받았고 docker_config도 그대로이니 여기서 다시
+     * 시작하는 것이 맞다. 설정 자체를 고쳐야 하는 실패는 새 구성을 만드는 쪽이 답이다
+     * (화면이 두 길을 다 준다).
+     */
+    this.requireStatus(config, ['approved', 'failed'], '실행');
 
     const saved = await this.transitionTo(config, 'running', userId);
 
