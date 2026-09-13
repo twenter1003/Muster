@@ -404,3 +404,22 @@
   flex-basis: 100%;
   margin: 0;
 }
+
+/* 행 동작. 좁은 폭에서 버튼이 표를 밀지 않도록 줄바꿈을 허용한다. */
+.po-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* 확인 문구는 버튼과 같은 줄에서 시작하되, 길면 스스로 접힌다. */
+.po-actions__confirm {
+  font-size: var(--font-size-meta);
+  color: var(--color-signal);
+  white-space: normal;
+}
+
+.po-actions__note {
+  color: var(--color-ink-mid);
+}

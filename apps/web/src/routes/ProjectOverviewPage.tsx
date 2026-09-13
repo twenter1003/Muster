@@ -5,10 +5,11 @@ import { HealthIndicator } from '../components/HealthIndicator';
 import { LogRow } from '../components/LogRow';
 import { StageBadge } from '../components/StageBadge';
 import { StatusBadge } from '../components/StatusBadge';
-import { ApiError, apiPatch, apiPost, type Page as ApiPage } from '../lib/api';
+import { ApiError, apiFetch, apiPatch, apiPost, type Page as ApiPage } from '../lib/api';
 import { Modal } from '../components/Modal';
 import { useApi } from '../lib/useApi';
 import { browserUploadDeps, uploadDocument } from '../lib/uploadDocument';
+import { DOCUMENT_TITLE_MAX, buildDocumentPatch, canDownload } from '../lib/documentEdit';
 import { useSse } from '../lib/useSse';
 import { actorLabel, type TransitionView } from '../lib/transitions';
 import {
@@ -172,6 +173,16 @@ const asBuildStatus = (value: string): BuildStatus | null =>
 
 const asLogLevel = (value: string): LogLevel | null =>
   (LOG_LEVELS as readonly string[]).includes(value) ? (value as LogLevel) : null;
+
+/** 서버가 값 집합에 없는 종류를 주면 수정 폼의 select가 빈 칸이 된다. 그때는 other로 받는다. */
+const asDocumentType = (value: string): DocumentType =>
+  (DOCUMENT_TYPES as readonly string[]).includes(value) ? (value as DocumentType) : 'other';
+
+/** 실패는 코드까지 보여 준다 — 메시지만으로는 재시도해도 되는 실패인지 구분되지 않는다. */
+const errorMessage = (e: unknown): string => {
+  if (e instanceof ApiError) return `${e.message} (${e.code})`;
+  return e instanceof Error ? e.message : String(e);
+};
 
 const formatDate = (iso: string): string =>
   new Intl.DateTimeFormat('ko-KR', { month: '2-digit', day: '2-digit' }).format(new Date(iso));
@@ -629,28 +640,7 @@ export function ProjectOverviewPage() {
                 page.items.length === 0 ? (
                   <p className="meta po-note">문서가 없다.</p>
                 ) : (
-                  <table className="table po-table">
-                    <thead>
-                      <tr>
-                        <th>제목</th>
-                        <th>타입</th>
-                        <th>업로드</th>
-                        <th>커밋</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {page.items.map((d) => (
-                        <tr key={d.id}>
-                          <td>{d.title}</td>
-                          <td>
-                            <span className="badge">{d.type}</span>
-                          </td>
-                          <td className="po-mono">{d.upload_status}</td>
-                          <td className="po-mono">{d.commit_ref ?? EM_DASH}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <DocumentTable items={page.items} onChanged={docs.reload} />
                 )
               }
             </Async>
@@ -1144,6 +1134,248 @@ function DocumentUpload({ projectId, onUploaded }: { projectId: string; onUpload
         </p>
       )}
     </div>
+  );
+}
+
+/* ───────────────────────── 문서 행 동작 ─────────────────────────
+ * 목록에 다운로드·수정·삭제를 붙인다. 세 동작 모두 성공하면 목록을 다시 부른다 —
+ * 응답으로 화면의 행만 고치면 그 행만 최신이고 나머지는 아니게 되어, 어긋남이
+ * 어디까지인지 화면 안에서 알 수 없다(예산 카드와 같은 판단).
+ *
+ * 판단이 갈린 곳: 수정은 모달, 삭제는 인라인 확인이다. 수정은 칸이 셋이라 행 안에 펼치면
+ * 표가 흔들리고, 삭제는 되돌릴 수 없으니 "무엇이 사라지는지"를 그 행 옆에서 읽히게 해야
+ * 한다(SettingsPage의 API 키 폐기와 같은 방식).
+ */
+
+/** `GET /documents/:id`가 목록 표현에 더해 주는 것. */
+interface DocumentDetail extends DocumentView {
+  download_url: string | null;
+  download_expires_at: string | null;
+}
+
+function DocumentTable({ items, onChanged }: { items: DocumentView[]; onChanged: () => void }) {
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<DocumentView | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const download = async (doc: DocumentView) => {
+    setError(null);
+    setBusyId(doc.id);
+    try {
+      // 누를 때마다 새로 발급받는다. signed URL은 download_expires_at에 만료되므로,
+      // 목록을 그릴 때 미리 받아 두면 오래 열어 둔 화면의 링크가 조용히 죽는다.
+      const detail = await apiFetch<DocumentDetail>(`/documents/${doc.id}`);
+      if (detail.download_url === null) {
+        setError('내려받을 파일이 없다 — 업로드가 끝나지 않은 문서다.');
+        return;
+      }
+      // noopener: 열린 탭이 opener로 이 화면을 조작할 수 있으면 안 된다.
+      window.open(detail.download_url, '_blank', 'noopener,noreferrer');
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const remove = async (id: string) => {
+    setError(null);
+    setBusyId(id);
+    try {
+      await apiFetch<void>(`/documents/${id}`, { method: 'DELETE' });
+      setConfirmId(null);
+      onChanged();
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <>
+      <table className="table po-table">
+        <thead>
+          <tr>
+            <th>제목</th>
+            <th>타입</th>
+            <th>업로드</th>
+            <th>커밋</th>
+            <th>동작</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((d) => (
+            <tr key={d.id}>
+              <td>{d.title}</td>
+              <td>
+                <span className="badge">{d.type}</span>
+              </td>
+              <td className="po-mono">{d.upload_status}</td>
+              <td className="po-mono">{d.commit_ref ?? EM_DASH}</td>
+              <td>
+                {confirmId === d.id ? (
+                  // 삭제는 되돌릴 수 없다. 한 번 더 묻되, 무엇이 사라지는지 문장으로 적는다.
+                  <span className="po-actions">
+                    <span className="po-actions__confirm">
+                      파일과 메타데이터가 함께 사라진다. 되돌릴 수 없다.
+                    </span>
+                    <Button disabled={busyId !== null} onClick={() => void remove(d.id)}>
+                      {busyId === d.id ? '삭제 중…' : '삭제한다'}
+                    </Button>
+                    <Button disabled={busyId !== null} onClick={() => setConfirmId(null)}>
+                      취소
+                    </Button>
+                  </span>
+                ) : (
+                  <span className="po-actions">
+                    {canDownload(d) ? (
+                      <Button disabled={busyId !== null} onClick={() => void download(d)}>
+                        {busyId === d.id ? '여는 중…' : '다운로드'}
+                      </Button>
+                    ) : (
+                      // 업로드가 끝나지 않았으면 서버가 URL을 주지 않는다. 눌러 봐야 빈손인
+                      // 버튼 대신 이유를 적는다 — upload_status 열이 바로 옆에 있다.
+                      <span className="meta po-actions__note">업로드 미완료</span>
+                    )}
+                    <Button disabled={busyId !== null} onClick={() => setEditing(d)}>
+                      수정
+                    </Button>
+                    <Button disabled={busyId !== null} onClick={() => setConfirmId(d.id)}>
+                      삭제
+                    </Button>
+                  </span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {error !== null && (
+        <p className="meta po-note po-note--signal" role="alert">
+          {error}
+        </p>
+      )}
+
+      {/* 열 때마다 새로 마운트한다 — 직전에 고치다 취소한 값이 남아 있으면 다음에 열었을 때
+          화면이 서버와 다른 것을 보여 준다. */}
+      {editing !== null && (
+        <EditDocumentDialog
+          document={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            onChanged();
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function EditDocumentDialog({
+  document: doc,
+  onClose,
+  onSaved,
+}: {
+  document: DocumentView;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [title, setTitle] = useState(doc.title);
+  const [type, setType] = useState<DocumentType>(asDocumentType(doc.type));
+  const [commitRef, setCommitRef] = useState(doc.commit_ref ?? '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const patch = buildDocumentPatch(doc, { title, type, commitRef });
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!patch.ok || saving) return;
+
+    setSaving(true);
+    setError(null);
+    apiPatch<DocumentView>(`/documents/${doc.id}`, patch.body).then(onSaved, (err: unknown) => {
+      setSaving(false);
+      setError(errorMessage(err));
+    });
+  };
+
+  return (
+    <Modal open title="문서 수정" onClose={saving ? () => undefined : onClose}>
+      <form className="modal__form" onSubmit={submit}>
+        <div className="field">
+          <label className="meta" htmlFor="edit-doc-title">
+            제목
+          </label>
+          <input
+            id="edit-doc-title"
+            className="input modal__input"
+            value={title}
+            maxLength={DOCUMENT_TITLE_MAX}
+            autoFocus
+            onChange={(e) => setTitle(e.target.value)}
+          />
+        </div>
+
+        <div className="field">
+          <label className="meta" htmlFor="edit-doc-type">
+            종류
+          </label>
+          <select
+            id="edit-doc-type"
+            className="input modal__input"
+            value={type}
+            onChange={(e) => setType(e.target.value as DocumentType)}
+          >
+            {DOCUMENT_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="field">
+          <label className="meta" htmlFor="edit-doc-commit">
+            커밋
+          </label>
+          <input
+            id="edit-doc-commit"
+            className="input modal__input"
+            value={commitRef}
+            placeholder="7~40자 16진수"
+            onChange={(e) => setCommitRef(e.target.value)}
+          />
+          <span className="meta">비우면 커밋 연결이 끊깁니다.</span>
+        </div>
+
+        {/* 형식 위반은 저장을 누르기 전에 알려 준다. 서버 400을 기다리면 "저장 실패"로만
+            읽혀 어느 칸이 틀렸는지 되짚어야 한다. */}
+        {!patch.ok && patch.reason !== '바뀐 것이 없다.' && (
+          <p className="error-note" role="alert">
+            {patch.reason}
+          </p>
+        )}
+        {error !== null && (
+          <p className="error-note" role="alert">
+            저장하지 못했다: {error}
+          </p>
+        )}
+
+        <div className="modal__actions">
+          <Button type="button" onClick={onClose} disabled={saving}>
+            취소
+          </Button>
+          <Button type="submit" variant="solid" disabled={!patch.ok || saving}>
+            {saving ? '저장 중…' : '저장'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
