@@ -202,6 +202,35 @@ echo "GCP_PROJECT = ${PROJECT}"
 **워크플로가 하지 않는 것**: 마이그레이션(6단계)과 시크릿 주입(4단계). 스키마 변경이
 있는 배포는 워크플로가 끝난 뒤 사람이 6단계를 돌린다.
 
+### 9. 문서 업로드 (사람 — 한 번만, 선택)
+
+문서 원본은 GCS에 두고, 브라우저가 **signed URL로 GCS에 직접** 올린다(파일 바이트가 우리
+서버를 지나지 않으므로 Cloud Run 메모리·타임아웃과 무관하다).
+
+```bash
+DEPLOY_URL=https://<주소> ./scripts/setup-gcs.sh <프로젝트 id> <버킷 이름>
+```
+
+스크립트가 버킷·서비스 계정·권한·CORS를 한 번에 만든다(멱등이라 다시 돌려도 안전하다).
+**`DEPLOY_URL`을 반드시 넘긴다** — 브라우저가 GCS로 직접 PUT하므로, 배포 주소가 CORS 허용
+목록에 없으면 배포된 화면에서만 업로드가 막힌다. 로컬(`localhost:5173`)은 항상 포함된다.
+
+그다음 버킷을 넘겨 다시 배포한다:
+
+```bash
+GCS_BUCKET=<버킷 이름> ./scripts/deploy-cloudrun.sh
+```
+
+자동 배포를 쓰면 저장소 변수에 `GCS_BUCKET`을 넣는다(8단계와 같은 자리).
+
+**`GCS_SIGNER_SERVICE_ACCOUNT`는 배포에 넣지 않는다.** 그 값은 로컬 전용이다 — 로컬 ADC는
+사용자 계정이라 서명 주체가 없어 서비스 계정을 가장해야 하지만, Cloud Run에서는 메타데이터
+서버가 서명 주체를 알려준다.
+
+무료 한도(Always Free)는 Standard 5GB·월, Class A 5천/월, Class B 5만/월이고 **미국 리전
+(us-central1 등)에만 적용된다.** 스크립트의 기본 리전이 그래서 `us-central1`이다. 파일은
+브라우저와 GCS가 직접 주고받으므로 서버 비용은 늘지 않고, 한국에서의 왕복 지연만 붙는다.
+
 ## 확인
 
 ```bash
@@ -240,5 +269,5 @@ gcloud run services update-traffic muster --region asia-northeast3 --to-revision
 - **로컬은 여전히 파일 저장소다.** `SECRETS_BACKEND`를 켜지 않으면 `.secrets/`를 쓴다.
   두 저장소는 참조 접두사(`file://`·`gcp://`)로 갈리므로, 백엔드를 바꾸면 **바꾸기 전에
   만든 연동의 웹훅 시크릿과 GitHub 토큰은 읽히지 않는다**. 연동을 다시 걸어야 한다.
-- **문서 업로드(GCS)는 설정하지 않았다.** `GCS_BUCKET`이 비어 있으면 DocStore가 503을 낸다.
-  나머지 기능은 그대로 돈다.
+- **문서 업로드(GCS)는 선택이다.** `GCS_BUCKET` 없이 배포하면 그 기능만 503을 내고 나머지는
+  그대로 돈다. 켜려면 9단계.

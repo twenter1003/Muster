@@ -85,6 +85,8 @@ jobs:
           # 기본값(localhost)으로 덮여 로그인이 깨진다.
           FRONTEND_URL: ${{ vars.DEPLOY_URL }}
           API_BASE_URL: ${{ vars.DEPLOY_URL }}
+          # 선택. 없으면 문서 업로드만 꺼진 채로 배포된다(나머지 기능은 그대로 돈다).
+          GCS_BUCKET: ${{ vars.GCS_BUCKET }}
         run: ./scripts/deploy-cloudrun.sh
 
       # 배포가 성공해도 컨테이너가 기동에 실패할 수 있다(환경변수 검증, DB 연결).
