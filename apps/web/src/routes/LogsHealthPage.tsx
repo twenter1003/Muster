@@ -167,7 +167,10 @@ export function LogsHealthPage() {
                   return (
                     <tr key={snapshot.id}>
                       <td>
-                        <Link className="loghealth__project" to={`/projects/${snapshot.project_id}`}>
+                        <Link
+                          className="loghealth__project"
+                          to={`/projects/${snapshot.project_id}`}
+                        >
                           {snapshot.project_name}
                         </Link>
                       </td>

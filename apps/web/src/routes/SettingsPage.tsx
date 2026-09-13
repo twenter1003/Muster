@@ -67,7 +67,9 @@ type TabId = (typeof TABS)[number]['id'];
 
 function toTab(value: string | undefined): TabId {
   const head = (value ?? '').split('/')[0];
-  return (TABS as readonly { id: string }[]).some((t) => t.id === head) ? (head as TabId) : 'budget';
+  return (TABS as readonly { id: string }[]).some((t) => t.id === head)
+    ? (head as TabId)
+    : 'budget';
 }
 
 /** 날짜는 목록에서 훑어보는 값이라 연-월-일까지만 남긴다. */
@@ -86,8 +88,11 @@ export function SettingsPage() {
   const navigate = useNavigate();
   const tab = toTab(useParams()['*']);
 
-  const { data: projectPage, error: projectError, loading: projectLoading } =
-    useApi<ApiPage<ProjectView>>('/projects?limit=100');
+  const {
+    data: projectPage,
+    error: projectError,
+    loading: projectLoading,
+  } = useApi<ApiPage<ProjectView>>('/projects?limit=100');
 
   const projects = useMemo(() => projectPage?.items ?? [], [projectPage]);
 
@@ -337,7 +342,11 @@ function BudgetTab({ projectId }: { projectId: string }) {
           저장하지 못했다: {saveError}
         </p>
       ) : null}
-      {saved ? <p className="meta" role="status">예산을 교체했다.</p> : null}
+      {saved ? (
+        <p className="meta" role="status">
+          예산을 교체했다.
+        </p>
+      ) : null}
 
       <div className="settings__actions">
         {/* 화면당 솔리드 1개 — 설정 화면에서 사용자가 값을 바꿔 확정하는 유일한 자리다. */}
@@ -565,7 +574,9 @@ function ApiKeysTab({ projectId }: { projectId: string }) {
                     <td>{shortDate(k.created_at)}</td>
                     <td>
                       {revoked ? (
-                        <span className="badge badge--signal">폐기됨 {shortDate(k.revoked_at ?? '')}</span>
+                        <span className="badge badge--signal">
+                          폐기됨 {shortDate(k.revoked_at ?? '')}
+                        </span>
                       ) : (
                         <span className="badge">활성</span>
                       )}
@@ -579,10 +590,7 @@ function ApiKeysTab({ projectId }: { projectId: string }) {
                           <span className="settings__confirm-text">
                             이 키로 하는 인증이 즉시 끊긴다. 되돌릴 수 없다.
                           </span>
-                          <Button
-                            disabled={revoking !== null}
-                            onClick={() => revoke(k.id)}
-                          >
+                          <Button disabled={revoking !== null} onClick={() => revoke(k.id)}>
                             {revoking === k.id ? '폐기 중…' : '폐기한다'}
                           </Button>
                           <Button disabled={revoking !== null} onClick={() => setConfirmId(null)}>
@@ -845,8 +853,8 @@ function MembersTab({ projectId }: { projectId: string | null }) {
       )}
 
       <p className="meta">
-        역할 변경과 추방은 아직 없다. 초대로 들어온 사람은 member이고, owner는 링크로 주지
-        않는다 — 링크가 새면 받은 사람이 곧 소유자가 되기 때문이다.
+        역할 변경과 추방은 아직 없다. 초대로 들어온 사람은 member이고, owner는 링크로 주지 않는다 —
+        링크가 새면 받은 사람이 곧 소유자가 되기 때문이다.
       </p>
 
       {projectId !== null && <InviteSection projectId={projectId} />}
@@ -987,9 +995,7 @@ function InviteSection({ projectId }: { projectId: string }) {
                     {i.active ? (
                       <span className="badge">유효</span>
                     ) : (
-                      <span className="badge">
-                        {i.revoked_at !== null ? '폐기됨' : '만료됨'}
-                      </span>
+                      <span className="badge">{i.revoked_at !== null ? '폐기됨' : '만료됨'}</span>
                     )}
                   </td>
                   <td className="settings__cell-action">

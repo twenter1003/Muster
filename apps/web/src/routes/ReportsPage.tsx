@@ -163,9 +163,10 @@ function useHealthSeries(
   const [loading, setLoading] = useState(false);
 
   // 배열·객체는 렌더마다 새 참조라 그대로 의존성에 넣으면 무한 루프가 된다. 키로 눌러 둔다.
-  const key = projects === null || window === null
-    ? null
-    : `${window.from}|${window.to}|${projects.map((p) => p.project_id).join(',')}`;
+  const key =
+    projects === null || window === null
+      ? null
+      : `${window.from}|${window.to}|${projects.map((p) => p.project_id).join(',')}`;
 
   useEffect(() => {
     if (projects === null || window === null || key === null) return;
@@ -186,7 +187,10 @@ function useHealthSeries(
             project_id: p.project_id,
             name: p.name,
             points: page.items
-              .map((s) => ({ t: new Date(s.measured_at).getTime(), score: Number(s.composite_score) }))
+              .map((s) => ({
+                t: new Date(s.measured_at).getTime(),
+                score: Number(s.composite_score),
+              }))
               .filter((pt) => Number.isFinite(pt.t) && Number.isFinite(pt.score))
               // 목록은 최신순(keyset desc)으로 온다. 선은 시간순이어야 한다.
               .filter((pt) => pt.t >= from && pt.t <= to)
@@ -223,7 +227,13 @@ function buildCsv(summary: ReportSummaryView): string {
     ...summary.cost_by_project.items.map((i) => ['cost_by_project', i.name, i.cost]),
     ...(summary.cost_by_project.others === null
       ? []
-      : [['cost_by_project', `기타 ${summary.cost_by_project.others.project_count}개`, summary.cost_by_project.others.cost]]),
+      : [
+          [
+            'cost_by_project',
+            `기타 ${summary.cost_by_project.others.project_count}개`,
+            summary.cost_by_project.others.cost,
+          ],
+        ]),
     ['cost_by_project', 'total', summary.cost_by_project.total],
     ['run_outcomes', 'succeeded', String(summary.run_outcomes.succeeded)],
     ['run_outcomes', 'failed', String(summary.run_outcomes.failed)],
@@ -238,7 +248,11 @@ function buildCsv(summary: ReportSummaryView): string {
     ['policy_gate', 'first_pass_rate', summary.policy_gate.first_pass_rate?.toString() ?? ''],
     ['policy_gate', 'trivy_blocked', String(summary.policy_gate.trivy_blocked)],
     ['policy_gate', 'conftest_blocked', String(summary.policy_gate.conftest_blocked)],
-    ...summary.policy_gate.top_block_reasons.map((r) => ['block_reason', r.reason, String(r.count)]),
+    ...summary.policy_gate.top_block_reasons.map((r) => [
+      'block_reason',
+      r.reason,
+      String(r.count),
+    ]),
     ['dora', 'window_days', String(summary.dora.window_days)],
     ['dora', 'deploy_freq_score', summary.dora.deploy_freq_score?.toString() ?? ''],
     ['dora', 'lead_time_score', summary.dora.lead_time_score?.toString() ?? ''],
@@ -248,9 +262,7 @@ function buildCsv(summary: ReportSummaryView): string {
   ];
 
   // 값에 쉼표·따옴표·줄바꿈이 들어올 수 있다(차단 사유는 자유 텍스트다). RFC 4180대로 감싼다.
-  return rows
-    .map((cols) => cols.map((c) => `"${c.replace(/"/g, '""')}"`).join(','))
-    .join('\r\n');
+  return rows.map((cols) => cols.map((c) => `"${c.replace(/"/g, '""')}"`).join(',')).join('\r\n');
 }
 
 function downloadCsv(summary: ReportSummaryView): void {
@@ -321,7 +333,11 @@ export function ReportsPage() {
           </div>
           {/* 이 화면의 솔리드는 이것 하나다. 서버 내보내기 API가 없어 화면이 이미 가진
               집계만 CSV로 만든다. */}
-          <Button variant="solid" disabled={data === null} onClick={() => data && downloadCsv(data)}>
+          <Button
+            variant="solid"
+            disabled={data === null}
+            onClick={() => data && downloadCsv(data)}
+          >
             CSV 내보내기
           </Button>
         </div>
@@ -334,8 +350,16 @@ export function ReportsPage() {
       )}
 
       <div className="rp__row rp__row--top">
-        <HealthTrend series={series} window={data?.window ?? null} loading={summary.loading || seriesLoading} />
-        <DoraWidget dora={data?.dora ?? null} rangeDays={RANGES.find((r) => r.key === range)?.days ?? 30} loading={summary.loading} />
+        <HealthTrend
+          series={series}
+          window={data?.window ?? null}
+          loading={summary.loading || seriesLoading}
+        />
+        <DoraWidget
+          dora={data?.dora ?? null}
+          rangeDays={RANGES.find((r) => r.key === range)?.days ?? 30}
+          loading={summary.loading}
+        />
       </div>
 
       <div className="rp__row rp__row--bottom">
@@ -388,7 +412,8 @@ function HealthTrend({
   const x = (t: number) =>
     span <= 0 ? CHART.left : CHART.left + ((t - from) / span) * (CHART.right - CHART.left);
   const y = (score: number) =>
-    CHART.bottom - (Math.max(0, Math.min(HEALTH_MAX, score)) / HEALTH_MAX) * (CHART.bottom - CHART.top);
+    CHART.bottom -
+    (Math.max(0, Math.min(HEALTH_MAX, score)) / HEALTH_MAX) * (CHART.bottom - CHART.top);
 
   const drawable = series.filter((s) => s.points.length >= 2);
   const thin = series.filter((s) => s.points.length < 2);
@@ -407,8 +432,12 @@ function HealthTrend({
           <p className="rp-empty">{loading ? '불러오는 중' : '집계가 없다.'}</p>
         ) : (
           <>
-            <svg viewBox={`0 0 ${CHART.w} ${CHART.h}`} className="rp-chart" role="img"
-              aria-label={`프로젝트별 헬스 스코어 추이. ${drawable.map((s) => s.name).join(', ') || '그릴 계열 없음'}`}>
+            <svg
+              viewBox={`0 0 ${CHART.w} ${CHART.h}`}
+              className="rp-chart"
+              role="img"
+              aria-label={`프로젝트별 헬스 스코어 추이. ${drawable.map((s) => s.name).join(', ') || '그릴 계열 없음'}`}
+            >
               {/* 격자·축은 장식이라 잉크를 흐리게 쓴다. 색은 전부 토큰에서 온다. */}
               <g stroke="var(--color-rule)" strokeWidth="1">
                 {[1, 2, 3, 4].map((s) => (
@@ -442,7 +471,9 @@ function HealthTrend({
               {drawable.map((s, i) => (
                 <polyline
                   key={s.project_id}
-                  points={s.points.map((p) => `${x(p.t).toFixed(1)},${y(p.score).toFixed(1)}`).join(' ')}
+                  points={s.points
+                    .map((p) => `${x(p.t).toFixed(1)},${y(p.score).toFixed(1)}`)
+                    .join(' ')}
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="1.8"
@@ -460,8 +491,15 @@ function HealthTrend({
                   <li key={s.project_id} className="rp-legend__item">
                     <span className="rp-legend__line" aria-hidden="true">
                       <svg viewBox="0 0 24 4" className="rp-legend__svg">
-                        <line x1="0" y1="2" x2="24" y2="2" stroke="currentColor" strokeWidth="2"
-                          strokeDasharray={patternOf(i).dash} />
+                        <line
+                          x1="0"
+                          y1="2"
+                          x2="24"
+                          y2="2"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeDasharray={patternOf(i).dash}
+                        />
                       </svg>
                     </span>
                     <Link to={`/projects/${s.project_id}`} className="rp-legend__name">
@@ -469,7 +507,11 @@ function HealthTrend({
                     </Link>
                     {/* 선 모양은 스크린 리더가 못 읽는다. 텍스트로 병기한다. */}
                     <span className="rp-legend__style">{patternOf(i).label}</span>
-                    <span className={signal ? 'rp-legend__last rp-legend__last--signal' : 'rp-legend__last'}>
+                    <span
+                      className={
+                        signal ? 'rp-legend__last rp-legend__last--signal' : 'rp-legend__last'
+                      }
+                    >
                       {last === undefined ? EM_DASH : last.score.toFixed(1)}
                     </span>
                   </li>
@@ -483,7 +525,8 @@ function HealthTrend({
             {/* 점이 1개 이하면 선을 그리지 않는다. 한 점을 이어 "추세"처럼 보이게 하면 거짓이다. */}
             {thin.length > 0 && (
               <p className="rp-note">
-                스냅샷이 2개 미만이라 선을 그리지 않은 프로젝트: {thin.map((s) => s.name || s.project_id).join(', ')}
+                스냅샷이 2개 미만이라 선을 그리지 않은 프로젝트:{' '}
+                {thin.map((s) => s.name || s.project_id).join(', ')}
               </p>
             )}
           </>
@@ -537,8 +580,9 @@ function DoraWidget({
              */}
             {dora.window_days !== rangeDays && (
               <p className="rp-callout">
-                선택한 기간은 {rangeDays}일이지만 DORA만 최근 <strong>{dora.window_days}일</strong> 고정
-                창으로 계산한다 — 등급 구간이 {dora.window_days}일을 분모로 정의돼 있기 때문이다.
+                선택한 기간은 {rangeDays}일이지만 DORA만 최근 <strong>{dora.window_days}일</strong>{' '}
+                고정 창으로 계산한다 — 등급 구간이 {dora.window_days}일을 분모로 정의돼 있기
+                때문이다.
               </p>
             )}
             {dora.window_days === rangeDays && (
@@ -555,7 +599,8 @@ function DoraWidget({
 
             <p className="rp-note">
               1인 사이드 프로젝트 특성을 반영해 완화된 등급 구간을 적용했다. 이벤트가 0건인 지표는
-              평균 계산에서 제외된다({EM_DASH}로 표시된 지표가 그것이다). 프로젝트 {dora.projects_counted}개 합산.
+              평균 계산에서 제외된다({EM_DASH}로 표시된 지표가 그것이다). 프로젝트{' '}
+              {dora.projects_counted}개 합산.
             </p>
           </>
         )}
@@ -593,7 +638,10 @@ function CostWidget({ cost, loading }: { cost: CostByProjectView | null; loading
                   <span className="rp-bar__value">{formatCost(item.cost)}</span>
                 </div>
                 <div className="rp-bar__track">
-                  <span className="rp-bar__fill" style={{ width: barWidth(item.cost, cost.total) }} />
+                  <span
+                    className="rp-bar__fill"
+                    style={{ width: barWidth(item.cost, cost.total) }}
+                  />
                 </div>
               </div>
             ))}
@@ -607,8 +655,10 @@ function CostWidget({ cost, loading }: { cost: CostByProjectView | null; loading
                   <span className="rp-bar__value">{formatCost(cost.others.cost)}</span>
                 </div>
                 <div className="rp-bar__track">
-                  <span className="rp-bar__fill rp-bar__fill--muted"
-                    style={{ width: barWidth(cost.others.cost, cost.total) }} />
+                  <span
+                    className="rp-bar__fill rp-bar__fill--muted"
+                    style={{ width: barWidth(cost.others.cost, cost.total) }}
+                  />
                 </div>
               </div>
             )}

@@ -15,6 +15,4 @@ export function Page({ title, note }: { title: string; note?: string }) {
 }
 
 /** 사이드바의 모듈 항목처럼 아직 라우트가 없는 링크가 막다른 길이 되지 않게 받는다. */
-export const NotReadyPage = () => (
-  <Page title="준비 중" note="아직 만들지 않은 화면이다." />
-);
+export const NotReadyPage = () => <Page title="준비 중" note="아직 만들지 않은 화면이다." />;

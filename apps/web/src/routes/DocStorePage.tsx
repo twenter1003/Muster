@@ -117,9 +117,7 @@ export function DocStorePage() {
         <p className="meta">불러오는 중…</p>
       ) : items.length === 0 ? (
         <p className="meta docstore__empty">
-          {type === null
-            ? '등록된 문서가 없다.'
-            : `${TYPE_LABEL[type]} 문서가 한 건도 없다.`}
+          {type === null ? '등록된 문서가 없다.' : `${TYPE_LABEL[type]} 문서가 한 건도 없다.`}
         </p>
       ) : (
         <div className="scroll-x">
@@ -161,7 +159,10 @@ export function DocStorePage() {
                     <span className="badge">{doc.upload_status}</span>
                   </td>
                   <td className="docstore__time">
-                    <time dateTime={doc.created_at} title={new Date(doc.created_at).toLocaleString('ko-KR')}>
+                    <time
+                      dateTime={doc.created_at}
+                      title={new Date(doc.created_at).toLocaleString('ko-KR')}
+                    >
                       {formatDateTime(doc.created_at)}
                     </time>
                   </td>
@@ -183,7 +184,10 @@ export function DocStorePage() {
           <Button disabled={cursor === null} onClick={() => setCursor(null)}>
             처음
           </Button>
-          <Button disabled={!data?.next_cursor} onClick={() => setCursor(data?.next_cursor ?? null)}>
+          <Button
+            disabled={!data?.next_cursor}
+            onClick={() => setCursor(data?.next_cursor ?? null)}
+          >
             다음
           </Button>
         </div>

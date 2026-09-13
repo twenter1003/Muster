@@ -178,13 +178,7 @@ function TransitionHistory({ items }: { items: TransitionView[] }) {
           <li className="ec-transitions__row ec-transitions__row--history" key={t.id}>
             <span className="ec-transitions__what">
               {/* 상태 코드는 번역하지 않는다 — 서버 기록과 화면 표기가 갈리면 대조가 어렵다. */}
-              <span
-                className={
-                  status === 'policy_blocked'
-                    ? 'ec-mono ec-note--signal'
-                    : 'ec-mono'
-                }
-              >
+              <span className={status === 'policy_blocked' ? 'ec-mono ec-note--signal' : 'ec-mono'}>
                 {t.to_status}
               </span>
               <span className="meta">{actorLabel(t.actor)}</span>
@@ -618,9 +612,13 @@ export function EnvConfigCreatePage() {
             ) : checks.loading && checkItems === null ? (
               <p className="meta ec-note">불러오는 중…</p>
             ) : checks.error !== null ? (
-              <p className="meta ec-note ec-note--signal">불러오지 못했다 — {checks.error.message}</p>
+              <p className="meta ec-note ec-note--signal">
+                불러오지 못했다 — {checks.error.message}
+              </p>
             ) : checkItems === null || checkItems.length === 0 ? (
-              <p className="meta ec-note ec-note--signal">검사 결과가 없다 — 승인 단계를 열지 않는다.</p>
+              <p className="meta ec-note ec-note--signal">
+                검사 결과가 없다 — 승인 단계를 열지 않는다.
+              </p>
             ) : (
               <ul className="ec-checks">
                 {checkItems.map((c) => (
@@ -695,7 +693,9 @@ export function EnvConfigCreatePage() {
                 <p className="meta ec-note">승인 시 감사 로그에 env_config.approve 기록</p>
               </div>
             ) : status === 'approved' || status === 'running' || status === 'succeeded' ? (
-              <p className="meta ec-note">이미 실행 단계로 넘어갔다. 현재 상태: {config.build_status}</p>
+              <p className="meta ec-note">
+                이미 실행 단계로 넘어갔다. 현재 상태: {config.build_status}
+              </p>
             ) : status === 'rejected' ? (
               <p className="meta ec-note">반려했다. 새 구성을 만들어야 한다.</p>
             ) : (

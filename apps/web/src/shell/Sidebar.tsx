@@ -47,11 +47,7 @@ export function Sidebar() {
         <div key={group.label} className="nav-group">
           <div className="nav-group__label">{group.label}</div>
           {group.items.map((item) => (
-            <Item
-              key={item.to}
-              item={item}
-              badge={item.to === '/inbox' ? inboxTotal : undefined}
-            />
+            <Item key={item.to} item={item} badge={item.to === '/inbox' ? inboxTotal : undefined} />
           ))}
         </div>
       ))}
