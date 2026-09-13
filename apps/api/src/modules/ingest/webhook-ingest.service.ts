@@ -17,6 +17,7 @@ import {
   DomainEvent,
   type HealthSnapshotCreatedEvent,
   type LogAppendedEvent,
+  type WorkflowRunCompletedEvent,
 } from '../../common/events/domain-events';
 import { isValidSignature } from './github-signature';
 import { interpret } from './github-events';
@@ -90,7 +91,7 @@ export class WebhookIngestService {
     req: WebhookRequest,
     payload: unknown,
   ): Promise<WebhookOutcome> {
-    const { log, deployment } = interpret(req.eventType, payload);
+    const { log, deployment, workflowRun } = interpret(req.eventType, payload);
 
     let appended: LogEntry | null = null;
     let snapshot: HealthSnapshot | null = null;
@@ -129,8 +130,19 @@ export class WebhookIngestService {
     // 커밋 뒤에 발행한다. 롤백된 트랜잭션의 로그가 SSE로 나가면 화면에만 존재하는 줄이 생긴다.
     if (appended) this.emitLogAppended(appended);
     if (snapshot) this.emitHealthSnapshot(snapshot);
+    // 중복 배달은 위에서 빠져나가므로 여기까지 오지 않는다 — 같은 실행 결과로 두 번
+    // 전이시키지 않는다.
+    if (workflowRun) {
+      this.events.emit(DomainEvent.WORKFLOW_RUN_COMPLETED, {
+        project_id: projectId,
+        run_name: workflowRun.run_name,
+        conclusion: workflowRun.conclusion,
+        run_url: workflowRun.run_url,
+        occurred_at: workflowRun.occurred_at.toISOString(),
+      } satisfies WorkflowRunCompletedEvent);
+    }
 
-    return log || deployment ? 'processed' : 'ignored';
+    return log || deployment || workflowRun ? 'processed' : 'ignored';
   }
 
   private emitHealthSnapshot(snapshot: HealthSnapshot): void {

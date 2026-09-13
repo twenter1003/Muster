@@ -10,6 +10,7 @@ import type {
 import type { BuildStatus } from '../../database/entities/enums';
 import type { EnvTemplatesService } from './env-templates.service';
 import { AuditService } from '../audit/audit.service';
+import type { EnvConfigExecutor, StartExecutionParams } from './env-config-executor';
 
 /**
  * Policy Gate 판정과 상태 전이를 고정한다.
@@ -35,6 +36,8 @@ const make = (opts: {
   stored?: ProjectEnvConfig | null;
   checks?: PolicyCheck[];
   isMember?: boolean;
+  /** 실행 어댑터가 시작조차 못 하는 경우 (워크플로 없음·권한 없음). */
+  executorFails?: boolean;
 }) => {
   const savedResults: Partial<PolicyCheckResult>[] = [];
 
@@ -98,6 +101,15 @@ const make = (opts: {
     find: async () => [],
   } as unknown as Repository<EnvConfigTransition>;
 
+  /** 실행 시작 기록. 시작시켰는지, 무엇으로 시작시켰는지를 본다. */
+  const started: StartExecutionParams[] = [];
+  const executor: EnvConfigExecutor = {
+    start: async (params) => {
+      started.push(params);
+      if (opts.executorFails) throw new Error('워크플로가 없습니다');
+    },
+  };
+
   const service = new EnvConfigsService(
     configs,
     results,
@@ -105,11 +117,12 @@ const make = (opts: {
     transitionRepo,
     generator,
     gate,
+    executor,
     templates,
     { record: async () => undefined } as unknown as AuditService,
     dataSource,
   );
-  return { service, savedResults, transitions };
+  return { service, savedResults, transitions, started };
 };
 
 const pass = (tool: 'trivy' | 'conftest'): PolicyCheck => ({
@@ -209,6 +222,94 @@ describe('EnvConfigsService', () => {
       const { service } = make({ stored: configRow('policy_passed') });
 
       await expect(service.execute(CONFIG, USER)).rejects.toMatchObject({ status: 409 });
+    });
+
+    it('실행 어댑터에 구성과 프로젝트를 넘겨 시작시킨다', async () => {
+      const { service, started } = make({ stored: configRow('approved') });
+      await service.execute(CONFIG, USER);
+
+      expect(started).toEqual([{ envConfigId: CONFIG, projectId: PROJECT, userId: USER }]);
+    });
+
+    it('running으로 옮긴 뒤에 시작시킨다', async () => {
+      // 순서를 뒤집으면 실행 측이 우리보다 먼저 끝나 결과 웹훅이 approved 상태의 구성에
+      // 도착하고, 그 결과는 버려진다.
+      const { service, transitions, started } = make({ stored: configRow('approved') });
+      await service.execute(CONFIG, USER);
+
+      expect(transitions.map((t) => t.to_status)).toEqual(['running']);
+      expect(started).toHaveLength(1);
+    });
+
+    it('시작조차 못 하면 failed로 되돌리고 오류를 올린다', async () => {
+      // running에 두면 아무것도 안 도는데 화면에는 도는 것으로 보인다.
+      const { service, transitions } = make({
+        stored: configRow('approved'),
+        executorFails: true,
+      });
+
+      await expect(service.execute(CONFIG, USER)).rejects.toThrow('워크플로가 없습니다');
+      expect(transitions.map((t) => t.to_status)).toEqual(['running', 'failed']);
+      expect(transitions[1].reason).toContain('실행을 시작하지 못했습니다');
+    });
+  });
+
+  describe('실행 결과 수신', () => {
+    const event = (over: Partial<Parameters<EnvConfigsService['onWorkflowRunCompleted']>[0]>) => ({
+      project_id: PROJECT,
+      run_name: `muster-env ${CONFIG}`,
+      conclusion: 'success',
+      run_url: 'https://github.com/o/r/actions/runs/1',
+      occurred_at: '2026-09-13T00:00:00.000Z',
+      ...over,
+    });
+
+    it('성공이면 succeeded로 전이하고 실행 주소를 사유에 남긴다', async () => {
+      const { service, transitions } = make({ stored: configRow('running') });
+      await service.onWorkflowRunCompleted(event({}));
+
+      expect(transitions[0]).toMatchObject({ to_status: 'succeeded', actor_user_id: null });
+      expect(transitions[0].reason).toContain('https://github.com/o/r/actions/runs/1');
+    });
+
+    it('실패는 failed로 전이한다', async () => {
+      const { service, transitions } = make({ stored: configRow('running') });
+      await service.onWorkflowRunCompleted(event({ conclusion: 'failure' }));
+
+      expect(transitions[0]).toMatchObject({ to_status: 'failed' });
+    });
+
+    it('취소·타임아웃도 끝난 것으로 본다 — 아니면 running에 영영 머문다', async () => {
+      for (const conclusion of ['cancelled', 'timed_out', null]) {
+        const { service, transitions } = make({ stored: configRow('running') });
+        await service.onWorkflowRunCompleted(event({ conclusion }));
+
+        expect(transitions[0]).toMatchObject({ to_status: 'failed' });
+      }
+    });
+
+    it('사용자 레포의 다른 워크플로는 무시한다', async () => {
+      const { service, transitions } = make({ stored: configRow('running') });
+      await service.onWorkflowRunCompleted(event({ run_name: 'CI' }));
+
+      expect(transitions).toHaveLength(0);
+    });
+
+    it('다른 프로젝트에서 온 결과로는 전이하지 않는다', async () => {
+      // 같은 레포가 두 프로젝트에 연동돼 있어도 남의 구성을 건드리지 않는다.
+      const { service, transitions } = make({ stored: configRow('running') });
+      await service.onWorkflowRunCompleted(
+        event({ project_id: '44444444-4444-4444-8444-444444444444' }),
+      );
+
+      expect(transitions).toHaveLength(0);
+    });
+
+    it('이미 끝난 구성은 되살리지 않는다 — 웹훅은 재전송된다', async () => {
+      const { service, transitions } = make({ stored: configRow('succeeded') });
+      await service.onWorkflowRunCompleted(event({ conclusion: 'failure' }));
+
+      expect(transitions).toHaveLength(0);
     });
   });
 

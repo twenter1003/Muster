@@ -15,12 +15,25 @@ export interface DeploymentDraft {
   occurred_at: Date;
 }
 
+/**
+ * 끝난 워크플로 실행 하나. DORA 집계와 별개로 **실행 결과를 기다리는 쪽**(EnvCatalog)에
+ * 전달된다. 여기서는 그것이 환경 구성 실행인지 판단하지 않는다 — 판단하려면 EnvCatalog를
+ * import해야 하고, 그것은 Part 2 §8이 금지한 모듈 간 직접 호출이다.
+ */
+export interface WorkflowRunDraft {
+  run_name: string | null;
+  conclusion: string | null;
+  run_url: string | null;
+  occurred_at: Date;
+}
+
 export interface WebhookInterpretation {
   log: LogDraft | null;
   deployment: DeploymentDraft | null;
+  workflowRun: WorkflowRunDraft | null;
 }
 
-const NOTHING: WebhookInterpretation = { log: null, deployment: null };
+const NOTHING: WebhookInterpretation = { log: null, deployment: null, workflowRun: null };
 
 /**
  * 로그 한 줄의 상한. 서명이 유효하면 GitHub에서 온 것이 맞지만, PR 제목·커밋 메시지는
@@ -45,9 +58,9 @@ export function interpret(eventType: string, payload: unknown): WebhookInterpret
 
   switch (eventType) {
     case 'push':
-      return { log: pushLog(body), deployment: null };
+      return { ...NOTHING, log: pushLog(body) };
     case 'pull_request':
-      return { log: pullRequestLog(body), deployment: null };
+      return { ...NOTHING, log: pullRequestLog(body) };
     case 'deployment_status':
       return deploymentStatus(body);
     case 'workflow_run':
@@ -100,6 +113,7 @@ function deploymentStatus(body: Record<string, unknown>): WebhookInterpretation 
   const environment = str(deployment?.environment) ?? 'unknown';
 
   return {
+    workflowRun: null,
     log: {
       level: status === 'success' ? 'info' : 'error',
       message: clip(
@@ -123,6 +137,24 @@ function workflowRun(body: Record<string, unknown>): WebhookInterpretation {
 
   const run = asRecord(body.workflow_run);
   const conclusion = str(run?.conclusion);
+
+  /*
+   * 끝난 실행은 결론과 무관하게 알린다. DORA 집계는 아래에서 success·failure만 세지만,
+   * 실행 결과를 기다리는 쪽에는 cancelled·timed_out도 "끝났다"는 소식이어야 한다 —
+   * 안 알리면 그 구성은 running에 영영 머문다.
+   *
+   * run-name을 설정한 실행은 display_title에 그 이름이 담긴다. 설정하지 않았으면
+   * name(워크플로 이름)이 온다. 둘 다 보는 이유는 GitHub이 두 필드를 다르게 채우기 때문이다.
+   */
+  const completedAt = date(str(run?.updated_at));
+  const completion: WorkflowRunDraft | null = completedAt
+    ? {
+        run_name: str(run?.display_title) ?? str(run?.name) ?? null,
+        conclusion: conclusion ?? null,
+        run_url: str(run?.html_url) ?? null,
+        occurred_at: completedAt,
+      }
+    : null;
   // cancelled·skipped·neutral은 성공도 실패도 아니다. 실패로 세면 변경 실패율이 부풀고,
   // 성공으로 세면 배포 빈도가 부풀어 양쪽 다 지표를 거짓으로 만든다. 빼는 게 맞다.
   const status =
@@ -131,16 +163,17 @@ function workflowRun(body: Record<string, unknown>): WebhookInterpretation {
       : conclusion === 'failure' || conclusion === 'timed_out'
         ? 'failure'
         : null;
-  if (!status) return NOTHING;
+  if (!status) return { ...NOTHING, workflowRun: completion };
 
   const sha = str(run?.head_sha);
-  const occurred = date(str(run?.updated_at));
-  if (!sha || !occurred) return NOTHING;
+  const occurred = completedAt;
+  if (!sha || !occurred) return { ...NOTHING, workflowRun: completion };
 
   const name = str(run?.name) ?? 'workflow';
   const committed = date(str(asRecord(run?.head_commit)?.timestamp));
 
   return {
+    workflowRun: completion,
     log: {
       level: status === 'success' ? 'info' : 'error',
       message: clip(`${name} ${status === 'success' ? '성공' : '실패'} ${short(sha)}`),

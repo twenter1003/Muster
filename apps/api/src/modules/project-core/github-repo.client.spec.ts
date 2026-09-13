@@ -62,7 +62,7 @@ describe('HttpGitHubRepoClient (실제 요청 형태)', () => {
       expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
         name: 'web',
         active: true,
-        events: ['push', 'pull_request'],
+        events: ['push', 'pull_request', 'workflow_run'],
         config: {
           url: 'http://localhost:8080/api/v1/webhooks/github',
           content_type: 'json',
@@ -72,8 +72,10 @@ describe('HttpGitHubRepoClient (실제 요청 형태)', () => {
       });
     });
 
-    it('구독 이벤트는 push와 pull_request뿐이다', () => {
-      expect([...WEBHOOK_EVENTS]).toEqual(['push', 'pull_request']);
+    it('구독 이벤트는 push·pull_request·workflow_run 셋이다', () => {
+      // workflow_run은 환경 구성 실행 결과가 돌아오는 유일한 경로다(Part 4 §5.2).
+      // 빠지면 실행한 구성이 running에 영영 머문다.
+      expect([...WEBHOOK_EVENTS]).toEqual(['push', 'pull_request', 'workflow_run']);
     });
 
     it('insecure_ssl은 문자열 "0"이다 (TLS 검증을 끄지 않는다)', async () => {

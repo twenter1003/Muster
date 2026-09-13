@@ -25,8 +25,17 @@ export interface GitHubRepoClient {
 
 export const GITHUB_REPO_CLIENT = Symbol('GITHUB_REPO_CLIENT');
 
-/** 구독할 이벤트. 설계서 Part 4 §7.1이 "커밋/PR 이벤트"로 한정했다. */
-export const WEBHOOK_EVENTS = ['push', 'pull_request'] as const;
+/**
+ * 구독할 이벤트.
+ *
+ * 설계서 Part 4 §7.1은 "커밋/PR 이벤트"로 한정했지만 `workflow_run`을 더한다. 환경 구성
+ * 실행(Part 4 §5.2)이 그 레포의 Actions에서 돌고, 끝났다는 소식이 이 경로로만 돌아온다.
+ * 없으면 실행한 구성이 running에 영영 머문다.
+ *
+ * **이 목록을 바꿔도 이미 등록된 웹훅은 갱신되지 않는다.** 기존 연동은 해제 후 다시 걸어야
+ * workflow_run을 받는다(docs/EXECUTION.md).
+ */
+export const WEBHOOK_EVENTS = ['push', 'pull_request', 'workflow_run'] as const;
 
 @Injectable()
 export class HttpGitHubRepoClient implements GitHubRepoClient {

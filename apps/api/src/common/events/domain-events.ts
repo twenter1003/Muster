@@ -11,6 +11,8 @@ export const DomainEvent = {
   PROJECT_STAGE_CHANGED: 'ingest.project.stage_changed',
   /** 프로젝트 예산 사용률이 알림 임계치를 넘어선 순간 (설계서 Part 4 §6). */
   BUDGET_THRESHOLD_EXCEEDED: 'agent-registry.budget.threshold_exceeded',
+  /** GitHub Actions 실행 하나가 끝난 순간. 환경 구성 실행 결과가 이 경로로 돌아온다. */
+  WORKFLOW_RUN_COMPLETED: 'ingest.workflow_run.completed',
 } as const;
 
 export interface LogAppendedEvent {
@@ -50,10 +52,28 @@ export interface BudgetThresholdExceededEvent {
   occurred_at: string;
 }
 
+/**
+ * 워크플로 실행 완료.
+ *
+ * Ingest는 이것이 환경 구성 실행인지 모른다 — 알면 EnvCatalog를 import해야 하고, 그것은
+ * Part 2 §8이 금지한 모듈 간 직접 호출이다. 판단은 구독자(EnvCatalog)가 run_name으로 한다.
+ */
+export interface WorkflowRunCompletedEvent {
+  project_id: string;
+  /** 워크플로 실행 이름. 우리 실행이면 `muster-env <구성 id>` 형태다. */
+  run_name: string | null;
+  /** GitHub의 conclusion 원문 (success·failure·cancelled·timed_out 등). */
+  conclusion: string | null;
+  /** 사람이 실행 로그를 열어볼 주소. 전이 사유에 남긴다. */
+  run_url: string | null;
+  occurred_at: string;
+}
+
 /** 이벤트 이름 -> 페이로드 매핑. 구독 측에서 타입을 잃지 않게 한다. */
 export interface DomainEventPayloads {
   [DomainEvent.LOG_APPENDED]: LogAppendedEvent;
   [DomainEvent.HEALTH_SNAPSHOT_CREATED]: HealthSnapshotCreatedEvent;
   [DomainEvent.PROJECT_STAGE_CHANGED]: ProjectStageChangedEvent;
   [DomainEvent.BUDGET_THRESHOLD_EXCEEDED]: BudgetThresholdExceededEvent;
+  [DomainEvent.WORKFLOW_RUN_COMPLETED]: WorkflowRunCompletedEvent;
 }

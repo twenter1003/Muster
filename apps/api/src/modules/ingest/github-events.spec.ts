@@ -4,6 +4,9 @@ const OCCURRED = '2026-09-09T10:00:00.000Z';
 const COMMITTED = '2026-09-09T08:00:00.000Z';
 const SHA = '0123456789abcdef0123456789abcdef01234567';
 
+/** 아무것도 적재하지 않는 해석. 세 필드를 매번 늘어놓지 않기 위해 여기 둔다. */
+const NOTHING = { log: null, deployment: null, workflowRun: null };
+
 /**
  * DORA 지표(Part 2 §6.4)의 입력이 여기서 결정된다. 세면 안 되는 이벤트를 세는 순간
  * 배포 빈도·변경 실패율이 조용히 거짓이 되고, 그건 틀렸다는 표시도 없이 대시보드에 뜬다.
@@ -82,6 +85,7 @@ describe('GitHub 웹훅 페이로드 해석', () => {
         expect(interpret('deployment_status', payload(state))).toEqual({
           log: null,
           deployment: null,
+          workflowRun: null,
         });
       }
     });
@@ -146,14 +150,14 @@ describe('GitHub 웹훅 페이로드 해석', () => {
   describe('그 밖', () => {
     it('구독하지 않는 이벤트는 조용히 넘어간다', () => {
       // 400을 주면 GitHub이 재전송을 반복한다. 우리가 안 보는 이벤트가 온 건 오류가 아니다.
-      expect(interpret('ping', { zen: '...' })).toEqual({ log: null, deployment: null });
-      expect(interpret('issues', { action: 'opened' })).toEqual({ log: null, deployment: null });
+      expect(interpret('ping', { zen: '...' })).toEqual(NOTHING);
+      expect(interpret('issues', { action: 'opened' })).toEqual(NOTHING);
     });
 
     it('페이로드가 깨져 있어도 던지지 않는다', () => {
       for (const bad of [null, undefined, 'string', 42, []]) {
         expect(() => interpret('push', bad)).not.toThrow();
-        expect(interpret('push', bad)).toEqual({ log: null, deployment: null });
+        expect(interpret('push', bad)).toEqual(NOTHING);
       }
     });
 
