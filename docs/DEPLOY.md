@@ -70,6 +70,10 @@ printf '%s' '<GitHub Client Secret>'             | gcloud secrets create muster-
 openssl rand -base64 32                          | gcloud secrets create muster-oauth-state-secret --data-file=-
 ```
 
+이 넷은 **배포가 주입하는** 시크릿이다. 앱이 **실행 중에 만드는** 시크릿(웹훅 시크릿,
+사용자 GitHub 토큰)은 따로 있다 — `SECRETS_BACKEND=gcp`로 켜져 있고, 만들 때마다
+`muster-`가 아닌 자기 이름으로 Secret Manager에 들어간다. 그래서 권한이 두 종류다.
+
 Cloud Run의 서비스 계정에 읽기 권한을 준다:
 
 ```bash
@@ -81,6 +85,21 @@ for s in muster-database-url muster-github-client-id muster-github-client-secret
     --role=roles/secretmanager.secretAccessor
 done
 ```
+
+앱이 스스로 시크릿을 만들고 지우려면 프로젝트 수준 권한이 하나 더 필요하다:
+
+```bash
+gcloud projects add-iam-policy-binding "$PROJECT" \
+  --member="serviceAccount:${NUM}-compute@developer.gserviceaccount.com" \
+  --role=roles/secretmanager.admin
+```
+
+**`admin`인 이유**: 앱이 시크릿을 생성(`create`)·회전(`addVersion`)·폐기(`destroy`)·
+삭제(`delete`)까지 한다. 이보다 좁은 사전 정의 역할이 없다. 범위가 넓으니 이 서비스
+계정을 다른 용도로 재사용하지 말 것 — 전용 서비스 계정을 따로 만들면 더 낫다.
+
+**활성 버전은 시크릿당 1개로 유지된다.** 무료 한도가 활성 버전 6개라, 값을 회전하면
+앱이 이전 활성 버전을 폐기한다(`GcpSecretManagerStore`). 폐기된 버전은 한도에 세지 않는다.
 
 ### 5. 첫 배포
 
@@ -152,5 +171,8 @@ gcloud run services update-traffic muster --region asia-northeast3 --to-revision
 - **에이전트 실행 어댑터가 없다.** 환경 구성을 실행하면 `running`에서 멈춘다.
 - **Policy Gate가 trivy·conftest를 컨테이너 안에서 직접 부른다.** Cloud Run의 요청 타임아웃
   (60초) 안에 끝나야 하고, 파일시스템은 메모리다. 큰 이미지를 스캔하면 메모리를 먹는다.
+- **로컬은 여전히 파일 저장소다.** `SECRETS_BACKEND`를 켜지 않으면 `.secrets/`를 쓴다.
+  두 저장소는 참조 접두사(`file://`·`gcp://`)로 갈리므로, 백엔드를 바꾸면 **바꾸기 전에
+  만든 연동의 웹훅 시크릿과 GitHub 토큰은 읽히지 않는다**. 연동을 다시 걸어야 한다.
 - **문서 업로드(GCS)는 설정하지 않았다.** `GCS_BUCKET`이 비어 있으면 DocStore가 503을 낸다.
   나머지 기능은 그대로 돈다.
