@@ -189,6 +189,15 @@ a {
   cursor: pointer;
 }
 
+/* 로그아웃 실패 문구. 상단바는 좁으니 한 줄로 잘리게 두되 색으로 먼저 눈에 띄게 한다. */
+.topbar__error {
+  color: var(--color-signal);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 22ch;
+}
+
 .page__title {
   margin: 0 0 var(--space-4);
   font-size: var(--font-size-title);
