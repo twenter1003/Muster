@@ -1,10 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Button } from '../components/Button';
+import { Modal } from '../components/Modal';
 import { Panel } from '../components/Panel';
 import { StatusBadge } from '../components/StatusBadge';
-import type { Page } from '../lib/api';
+import { ApiError, apiFetch, apiPost, type Page } from '../lib/api';
 import { BUILD_STATUSES, formatDateTime, readStack, type BuildStatus } from '../lib/domain';
+import {
+  buildEnvTemplateBody,
+  DEFAULT_STACK_PRESET,
+  ENV_TEMPLATE_NAME_MAX,
+} from '../lib/envTemplateForm';
 import { listPath } from '../lib/listQuery';
 import { useApi } from '../lib/useApi';
 import './EnvCatalogPage.css';
@@ -39,6 +45,11 @@ interface EnvTemplateView {
 const PAGE_LIMIT = 50;
 const TEMPLATE_LIMIT = 20;
 
+function errorMessage(e: unknown): string {
+  if (e instanceof ApiError) return `${e.message} (${e.code})`;
+  return e instanceof Error ? e.message : String(e);
+}
+
 function toStatus(value: string | null): BuildStatus | null {
   return value !== null && (BUILD_STATUSES as readonly string[]).includes(value)
     ? (value as BuildStatus)
@@ -72,6 +83,24 @@ export function EnvCatalogPage() {
   );
 
   const items = data?.items ?? [];
+
+  const [creating, setCreating] = useState(false);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
+
+  const remove = (id: string) => {
+    if (removing !== null) return; // 중복 제출 차단
+    setRemoving(id);
+    setRemoveError(null);
+    apiFetch<void>(`/env-templates/${id}`, { method: 'DELETE' })
+      .then(() => {
+        setConfirmId(null);
+        templates.reload();
+      })
+      .catch((e: unknown) => setRemoveError(errorMessage(e)))
+      .finally(() => setRemoving(null));
+  };
 
   const select = (next: BuildStatus | null) => {
     const p = new URLSearchParams(params);
@@ -187,7 +216,17 @@ export function EnvCatalogPage() {
         </div>
       </div>
 
-      <Panel title="내 템플릿" aside={`최근 ${TEMPLATE_LIMIT}개까지`}>
+      <Panel
+        title="내 템플릿"
+        aside={
+          <>
+            최근 {TEMPLATE_LIMIT}개까지
+            <Button className="envcat__new" onClick={() => setCreating(true)}>
+              새 템플릿
+            </Button>
+          </>
+        }
+      >
         <p className="meta">
           템플릿은 프로젝트가 아니라 계정에 달려 있다. 새 환경 구성은 프로젝트 안에서 만들되, 고를
           수 있는 프리셋이 무엇인지는 여기서만 한눈에 보인다.
@@ -213,12 +252,167 @@ export function EnvCatalogPage() {
                   <time className="meta envcat__time" dateTime={t.created_at}>
                     {formatDateTime(t.created_at)}
                   </time>
+                  {confirmId === t.id ? (
+                    // 삭제는 되돌릴 수 없다. 한 번 더 묻되, 무엇이 사라지는지 문장으로 적는다.
+                    <span className="envcat__confirm">
+                      <span className="envcat__confirm-text">
+                        이 템플릿이 사라진다. 되돌릴 수 없다.
+                      </span>
+                      <Button disabled={removing !== null} onClick={() => remove(t.id)}>
+                        {removing === t.id ? '삭제 중…' : '삭제한다'}
+                      </Button>
+                      <Button disabled={removing !== null} onClick={() => setConfirmId(null)}>
+                        취소
+                      </Button>
+                    </span>
+                  ) : (
+                    <Button onClick={() => setConfirmId(t.id)}>삭제</Button>
+                  )}
                 </li>
               );
             })}
           </ul>
         )}
+
+        {removeError !== null && (
+          <p className="error-note" role="alert">
+            {/* 이 템플릿을 참조하는 환경 구성 때문에 서버가 거부할 수 있다. 이유는 서버만
+                알고 있으므로 응답 메시지를 그대로 옮긴다 — 문구를 지어내면 실제 사유와 어긋난다. */}
+            삭제하지 못했다: {removeError}
+          </p>
+        )}
       </Panel>
+
+      <CreateTemplateDialog
+        open={creating}
+        onClose={() => setCreating(false)}
+        onCreated={() => {
+          setCreating(false);
+          templates.reload();
+        }}
+      />
     </section>
+  );
+}
+
+/**
+ * 템플릿 생성 폼.
+ *
+ * 프리셋을 JSON 텍스트로 받는다. 스택 프리셋에 어떤 키가 오는지는 서버가 정하지 않고
+ * (@IsObject 하나뿐이다) 환경 구성 생성 쪽에서 그대로 펼쳐 쓴다 — 그러니 키를 화면이
+ * 고정된 칸으로 강제하면, 서버가 받아 주는 프리셋의 일부만 만들 수 있는 화면이 된다.
+ * 대신 형식 검사(파싱·객체 여부)는 보내기 전에 하고, 빈 화면 대신 기본값을 채워 둔다.
+ */
+function CreateTemplateDialog({
+  open,
+  onClose,
+  onCreated,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const [name, setName] = useState('');
+  const [stackJson, setStackJson] = useState(DEFAULT_STACK_PRESET);
+  const [dockerJson, setDockerJson] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // 열 때마다 빈 폼에서 다시 시작한다. 직전에 쓰다 만 값이 남아 있으면 두 번째 템플릿이
+  // 첫 번째의 잔여물로 만들어진다.
+  useEffect(() => {
+    if (open) {
+      setName('');
+      setStackJson(DEFAULT_STACK_PRESET);
+      setDockerJson('');
+      setError(null);
+    }
+  }, [open]);
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    if (saving) return;
+
+    const built = buildEnvTemplateBody({
+      name,
+      stackPresetJson: stackJson,
+      dockerPresetJson: dockerJson,
+    });
+    if (!built.ok) {
+      setError(built.reason);
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    apiPost<{ id: string }>('/env-templates', built.body).then(onCreated, (err: unknown) => {
+      setSaving(false);
+      setError(errorMessage(err));
+    });
+  };
+
+  return (
+    <Modal open={open} title="새 템플릿" onClose={saving ? () => undefined : onClose}>
+      <form className="modal__form" onSubmit={submit}>
+        <div className="field">
+          <label className="meta" htmlFor="new-template-name">
+            이름
+          </label>
+          <input
+            id="new-template-name"
+            className="input modal__input"
+            value={name}
+            maxLength={ENV_TEMPLATE_NAME_MAX}
+            autoFocus
+            onChange={(e) => setName(e.target.value)}
+          />
+        </div>
+
+        <div className="field">
+          <label className="meta" htmlFor="new-template-stack">
+            스택 프리셋 (JSON 객체, 필수)
+          </label>
+          <textarea
+            id="new-template-stack"
+            className="input modal__input envcat__json"
+            rows={7}
+            value={stackJson}
+            onChange={(e) => setStackJson(e.target.value)}
+          />
+          <span className="meta">
+            language · framework · database · services는 목록의 스택 칸에 그대로 나온다.
+          </span>
+        </div>
+
+        <div className="field">
+          <label className="meta" htmlFor="new-template-docker">
+            도커 프리셋 (JSON 객체, 선택)
+          </label>
+          <textarea
+            id="new-template-docker"
+            className="input modal__input envcat__json"
+            rows={4}
+            value={dockerJson}
+            onChange={(e) => setDockerJson(e.target.value)}
+          />
+          <span className="meta">비워 두면 도커 설정은 환경 구성을 만들 때마다 생성된다.</span>
+        </div>
+
+        {error !== null && (
+          <p className="error-note" role="alert">
+            {error}
+          </p>
+        )}
+
+        <div className="modal__actions">
+          <Button type="button" onClick={onClose} disabled={saving}>
+            취소
+          </Button>
+          <Button type="submit" variant="solid" disabled={saving}>
+            {saving ? '만드는 중…' : '만든다'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }

@@ -388,3 +388,49 @@
   margin-left: auto;
   font-family: inherit;
 }
+
+/* 문서 업로드 줄. 파일 선택 · 종류 · 버튼을 한 줄로 두되, 좁으면 접힌다.
+   목록 위에 놓는 이유는 "여기서 추가한다"가 목록을 보기 전에 읽혀야 하기 때문이다. */
+.po-upload {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+/* 오류 문구는 줄을 통째로 차지한다 — 버튼 옆에 끼면 긴 메시지가 잘린다. */
+.po-upload .po-note {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+/* 행 동작. 좁은 폭에서 버튼이 표를 밀지 않도록 줄바꿈을 허용한다. */
+.po-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* 확인 문구는 버튼과 같은 줄에서 시작하되, 길면 스스로 접힌다. */
+.po-actions__confirm {
+  font-size: var(--font-size-meta);
+  color: var(--color-signal);
+  white-space: normal;
+}
+
+.po-actions__note {
+  color: var(--color-ink-mid);
+}
+
+/* 삭제 확인 줄. 입력과 버튼을 나란히 두되 좁으면 접힌다.
+   버튼을 입력 옆에 붙여 두는 이유는, 이름을 다 적기 전에는 눌러도 아무 일이 없다는 것을
+   손으로 확인하게 하기 위해서다. */
+.po-danger {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}

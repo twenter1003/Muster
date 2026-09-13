@@ -1,23 +1,30 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { HealthIndicator } from '../components/HealthIndicator';
 import { LogRow } from '../components/LogRow';
 import { StageBadge } from '../components/StageBadge';
 import { StatusBadge } from '../components/StatusBadge';
-import { ApiError, apiPatch, apiPost, type Page as ApiPage } from '../lib/api';
+import { ApiError, apiFetch, apiPatch, apiPost, type Page as ApiPage } from '../lib/api';
 import { Modal } from '../components/Modal';
 import { useApi } from '../lib/useApi';
+import { browserUploadDeps, uploadDocument } from '../lib/uploadDocument';
+import { buildRunPatch } from '../lib/runCorrection';
+import { DOCUMENT_TITLE_MAX, buildDocumentPatch, canDownload } from '../lib/documentEdit';
 import { useSse } from '../lib/useSse';
 import { actorLabel, type TransitionView } from '../lib/transitions';
 import {
+  AGENT_RUN_STATUSES,
   BUILD_STATUSES,
+  DOCUMENT_TYPES,
   EM_DASH,
   HEALTH_MAX,
   LOG_LEVELS,
   PROJECT_STAGES,
   isHealthSignal,
+  type AgentRunStatus,
   type BuildStatus,
+  type DocumentType,
   type LogLevel,
   type Measurable,
   type ProjectStage,
@@ -169,6 +176,16 @@ const asBuildStatus = (value: string): BuildStatus | null =>
 
 const asLogLevel = (value: string): LogLevel | null =>
   (LOG_LEVELS as readonly string[]).includes(value) ? (value as LogLevel) : null;
+
+/** 서버가 값 집합에 없는 종류를 주면 수정 폼의 select가 빈 칸이 된다. 그때는 other로 받는다. */
+const asDocumentType = (value: string): DocumentType =>
+  (DOCUMENT_TYPES as readonly string[]).includes(value) ? (value as DocumentType) : 'other';
+
+/** 실패는 코드까지 보여 준다 — 메시지만으로는 재시도해도 되는 실패인지 구분되지 않는다. */
+const errorMessage = (e: unknown): string => {
+  if (e instanceof ApiError) return `${e.message} (${e.code})`;
+  return e instanceof Error ? e.message : String(e);
+};
 
 const formatDate = (iso: string): string =>
   new Intl.DateTimeFormat('ko-KR', { month: '2-digit', day: '2-digit' }).format(new Date(iso));
@@ -614,39 +631,21 @@ export function ProjectOverviewPage() {
               <Card title="예산">
                 <Async state={budget}>{(b) => <BudgetPanel budget={b} />}</Async>
               </Card>
+
+              {project.data !== null && <DeleteProjectCard project={project.data} />}
             </div>
           </div>
         )}
 
         {tab === 'docs' && (
           <Card title="문서" aside="DocStore">
+            {id !== undefined && <DocumentUpload projectId={id} onUploaded={docs.reload} />}
             <Async state={docs}>
               {(page) =>
                 page.items.length === 0 ? (
                   <p className="meta po-note">문서가 없다.</p>
                 ) : (
-                  <table className="table po-table">
-                    <thead>
-                      <tr>
-                        <th>제목</th>
-                        <th>타입</th>
-                        <th>업로드</th>
-                        <th>커밋</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {page.items.map((d) => (
-                        <tr key={d.id}>
-                          <td>{d.title}</td>
-                          <td>
-                            <span className="badge">{d.type}</span>
-                          </td>
-                          <td className="po-mono">{d.upload_status}</td>
-                          <td className="po-mono">{d.commit_ref ?? EM_DASH}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <DocumentTable items={page.items} onChanged={docs.reload} />
                 )
               }
             </Async>
@@ -942,6 +941,7 @@ function EnvConfigCard({
 function AgentRow({ agent }: { agent: AgentView }) {
   const runs = useApi<ApiPage<RunView>>(`/agents/${agent.id}/runs?limit=5`);
   const [busy, setBusy] = useState(false);
+  const [correcting, setCorrecting] = useState<RunView | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
 
   const start = async () => {
@@ -963,6 +963,18 @@ function AgentRow({ agent }: { agent: AgentView }) {
 
   return (
     <div className="po-agent">
+      {correcting !== null && (
+        <CorrectRunDialog
+          run={correcting}
+          onClose={() => setCorrecting(null)}
+          onSaved={() => {
+            setCorrecting(null);
+            // 서버가 ended_at 같은 파생 값을 함께 바꾼다. 응답으로 한 줄만 갈아 끼우면
+            // 화면이 반쯤 낡는다.
+            runs.reload();
+          }}
+        />
+      )}
       <div className="po-list__row">
         <span className="po-mono">{agent.name}</span>
         <span>최근 변경 {formatDateTime(agent.updated_at)}</span>
@@ -991,6 +1003,10 @@ function AgentRow({ agent }: { agent: AgentView }) {
               <span className="meta">
                 종료 {r.ended_at === null ? EM_DASH : formatDateTime(r.ended_at)}
               </span>
+              <span className="meta">
+                {r.tokens_used} 토큰 · ${r.cost}
+              </span>
+              <Button onClick={() => setCorrecting(r)}>정정</Button>
             </li>
           ))}
         </ul>
@@ -1002,9 +1018,174 @@ function AgentRow({ agent }: { agent: AgentView }) {
         화면 문구가 이 사실을 감추지 않도록, 시작을 "실행 완료"라고 쓰지 않는다.
       */}
       <p className="meta po-note">
-        시작 기록만 남는다. 실행을 끝내는 어댑터가 아직 없어 상태는 running에 머문다.
+        시작 기록만 남는다. 실행을 끝내는 어댑터가 아직 없어, 결과는 줄마다 정정해 넣는다.
       </p>
     </div>
+  );
+}
+
+/* ───────────────────────── 프로젝트 삭제 ─────────────────────────
+ * 수정 상자에 넣지 않는다. 이름을 고치러 들어왔다가 지우는 사고를 막으려고 애초에 그렇게
+ * 갈라 두었고(EditProjectDialog 주석), 그 판단은 지금도 유효하다.
+ *
+ * 확인을 이름 입력으로 받는 이유: 이 삭제는 문서·에이전트·실행 기록·로그·감사까지 전부
+ * 함께 지운다(FK가 CASCADE다). 버튼 두 번으로 끝나면 무엇이 사라지는지 읽지 않고 누른다.
+ */
+function DeleteProjectCard({ project }: { project: ProjectView }) {
+  const navigate = useNavigate();
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const matches = typed.trim() === project.name;
+
+  const remove = () => {
+    if (!matches || busy) return;
+    setBusy(true);
+    setError(null);
+
+    apiFetch<void>(`/projects/${project.id}`, { method: 'DELETE' }).then(
+      // 지운 프로젝트의 상세에 머물면 다음 조회가 전부 404다. 목록으로 돌려보낸다.
+      () => navigate('/projects', { replace: true }),
+      (err: unknown) => {
+        setBusy(false);
+        setError(err instanceof ApiError ? `${err.message} (${err.code})` : String(err));
+      },
+    );
+  };
+
+  return (
+    <Card title="프로젝트 삭제">
+      <p className="meta po-note po-note--signal">
+        이 프로젝트의 문서·에이전트·실행 기록·로그·감사 기록이 함께 사라진다. 되돌릴 수 없다.
+      </p>
+      <p className="meta po-note">
+        지우려면 프로젝트 이름 <strong>{project.name}</strong>을(를) 그대로 입력한다.
+      </p>
+      <div className="po-danger">
+        <input
+          aria-label="확인을 위한 프로젝트 이름"
+          value={typed}
+          disabled={busy}
+          placeholder={project.name}
+          onChange={(e) => setTyped(e.target.value)}
+        />
+        <Button onClick={remove} disabled={!matches || busy}>
+          {busy ? '지우는 중…' : '삭제'}
+        </Button>
+      </div>
+      {error !== null && (
+        <p className="meta po-note po-note--signal" role="alert">
+          {error}
+        </p>
+      )}
+    </Card>
+  );
+}
+
+/* ───────────────────────── 실행 결과 정정 ─────────────────────────
+ * 실행을 끝내는 어댑터가 없어(기술 사양서 9장 미해결) 시작한 실행은 running에 머문다.
+ * 사람이 결과를 적어 넣는 것이 유일한 종료 경로다 — 그 값이 그대로 예산 사용량과
+ * DORA 입력이 되므로, 형식 검사는 lib/runCorrection.ts에서 요청 전에 한다.
+ */
+function CorrectRunDialog({
+  run,
+  onClose,
+  onSaved,
+}: {
+  run: RunView;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [status, setStatus] = useState<AgentRunStatus>(
+    AGENT_RUN_STATUSES.includes(run.status as AgentRunStatus)
+      ? (run.status as AgentRunStatus)
+      : 'running',
+  );
+  // 토큰·비용은 빈 칸으로 시작한다. 현재 값을 채워 두면 "안 고침"과 "같은 값으로 고침"이
+  // 구분되지 않고, 실수로 저장만 눌러도 바뀐 것 없는 요청이 나간다.
+  const [tokensUsed, setTokensUsed] = useState('');
+  const [cost, setCost] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const patch = buildRunPatch(run, { status, tokensUsed, cost });
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!patch.ok || saving) return;
+
+    setSaving(true);
+    setError(null);
+    apiPatch<RunView>(`/agent-runs/${run.id}`, patch.body).then(onSaved, (err: unknown) => {
+      setSaving(false);
+      setError(err instanceof ApiError ? `${err.message} (${err.code})` : String(err));
+    });
+  };
+
+  return (
+    <Modal open title="실행 결과 정정" onClose={saving ? () => undefined : onClose}>
+      <form className="modal__form" onSubmit={submit}>
+        <p className="meta">
+          시작 {formatDateTime(run.started_at)} · 현재 {run.tokens_used} 토큰 · ${run.cost}
+        </p>
+
+        <label className="modal__label" htmlFor="run-status">
+          상태
+        </label>
+        <select
+          id="run-status"
+          value={status}
+          disabled={saving}
+          onChange={(e) => setStatus(e.target.value as AgentRunStatus)}
+        >
+          {AGENT_RUN_STATUSES.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+
+        <label className="modal__label" htmlFor="run-tokens">
+          토큰 (비우면 그대로)
+        </label>
+        <input
+          id="run-tokens"
+          inputMode="numeric"
+          value={tokensUsed}
+          disabled={saving}
+          onChange={(e) => setTokensUsed(e.target.value)}
+        />
+
+        <label className="modal__label" htmlFor="run-cost">
+          비용 USD (비우면 그대로)
+        </label>
+        <input
+          id="run-cost"
+          inputMode="decimal"
+          value={cost}
+          disabled={saving}
+          onChange={(e) => setCost(e.target.value)}
+        />
+
+        {/* 무엇이 막고 있는지 저장을 눌러 보기 전에 알려 준다. */}
+        {!patch.ok && <p className="meta">{patch.reason}</p>}
+        {error !== null && (
+          <p className="meta po-note po-note--signal" role="alert">
+            {error}
+          </p>
+        )}
+
+        <div className="modal__actions">
+          <Button onClick={onClose} disabled={saving}>
+            취소
+          </Button>
+          <Button type="submit" variant="solid" disabled={!patch.ok || saving}>
+            {saving ? '저장 중…' : '저장'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -1070,6 +1251,318 @@ function HealthPanel({ snapshot }: { snapshot: HealthSnapshotView }) {
         ))}
       </div>
     </div>
+  );
+}
+
+/* ───────────────────────── 문서 업로드 ─────────────────────────
+ * 절차(발급 → GCS 직접 PUT → 완료 통보)와 그 판단은 lib/uploadDocument.ts에 있다.
+ * 여기 남는 것은 화면 상태뿐이다 — 파일 선택, 진행 문구, 실패 표시.
+ *
+ * 중간에 끊기면 문서는 pending으로 남고 목록에 그대로 보인다(DESIGN_DRIFT.md 5번).
+ * 사용자가 지우거나 다시 올릴 수 있으므로, 화면이 실패를 감추지 않는 것이 중요하다.
+ */
+function DocumentUpload({ projectId, onUploaded }: { projectId: string; onUploaded: () => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [type, setType] = useState<DocumentType>('other');
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const upload = async () => {
+    if (!file) return;
+    setError(null);
+
+    try {
+      setBusy('올리는 중');
+      await uploadDocument(file, type, browserUploadDeps(projectId, file));
+
+      setFile(null);
+      if (inputRef.current) inputRef.current.value = '';
+      onUploaded();
+    } catch (e) {
+      // 실패는 반드시 화면에 남긴다. 콘솔에만 남기면 사용자는 "왜 목록에 없지"만 본다.
+      setError(e instanceof ApiError || e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="po-upload">
+      <input
+        ref={inputRef}
+        type="file"
+        aria-label="업로드할 파일"
+        disabled={busy !== null}
+        onChange={(e) => {
+          setFile(e.target.files?.[0] ?? null);
+          setError(null);
+        }}
+      />
+      <select
+        aria-label="문서 종류"
+        value={type}
+        disabled={busy !== null}
+        onChange={(e) => setType(e.target.value as DocumentType)}
+      >
+        {DOCUMENT_TYPES.map((t) => (
+          <option key={t} value={t}>
+            {t}
+          </option>
+        ))}
+      </select>
+      <Button variant="solid" onClick={upload} disabled={!file || busy !== null}>
+        {busy ?? '업로드'}
+      </Button>
+      {/* 실패는 반드시 화면에 남긴다. 콘솔에만 남기면 사용자는 "왜 목록에 없지"만 본다. */}
+      {error && (
+        <p className="meta po-note po-note--signal" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ───────────────────────── 문서 행 동작 ─────────────────────────
+ * 목록에 다운로드·수정·삭제를 붙인다. 세 동작 모두 성공하면 목록을 다시 부른다 —
+ * 응답으로 화면의 행만 고치면 그 행만 최신이고 나머지는 아니게 되어, 어긋남이
+ * 어디까지인지 화면 안에서 알 수 없다(예산 카드와 같은 판단).
+ *
+ * 판단이 갈린 곳: 수정은 모달, 삭제는 인라인 확인이다. 수정은 칸이 셋이라 행 안에 펼치면
+ * 표가 흔들리고, 삭제는 되돌릴 수 없으니 "무엇이 사라지는지"를 그 행 옆에서 읽히게 해야
+ * 한다(SettingsPage의 API 키 폐기와 같은 방식).
+ */
+
+/** `GET /documents/:id`가 목록 표현에 더해 주는 것. */
+interface DocumentDetail extends DocumentView {
+  download_url: string | null;
+  download_expires_at: string | null;
+}
+
+function DocumentTable({ items, onChanged }: { items: DocumentView[]; onChanged: () => void }) {
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<DocumentView | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const download = async (doc: DocumentView) => {
+    setError(null);
+    setBusyId(doc.id);
+    try {
+      // 누를 때마다 새로 발급받는다. signed URL은 download_expires_at에 만료되므로,
+      // 목록을 그릴 때 미리 받아 두면 오래 열어 둔 화면의 링크가 조용히 죽는다.
+      const detail = await apiFetch<DocumentDetail>(`/documents/${doc.id}`);
+      if (detail.download_url === null) {
+        setError('내려받을 파일이 없다 — 업로드가 끝나지 않은 문서다.');
+        return;
+      }
+      // noopener: 열린 탭이 opener로 이 화면을 조작할 수 있으면 안 된다.
+      window.open(detail.download_url, '_blank', 'noopener,noreferrer');
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const remove = async (id: string) => {
+    setError(null);
+    setBusyId(id);
+    try {
+      await apiFetch<void>(`/documents/${id}`, { method: 'DELETE' });
+      setConfirmId(null);
+      onChanged();
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <>
+      <table className="table po-table">
+        <thead>
+          <tr>
+            <th>제목</th>
+            <th>타입</th>
+            <th>업로드</th>
+            <th>커밋</th>
+            <th>동작</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((d) => (
+            <tr key={d.id}>
+              <td>{d.title}</td>
+              <td>
+                <span className="badge">{d.type}</span>
+              </td>
+              <td className="po-mono">{d.upload_status}</td>
+              <td className="po-mono">{d.commit_ref ?? EM_DASH}</td>
+              <td>
+                {confirmId === d.id ? (
+                  // 삭제는 되돌릴 수 없다. 한 번 더 묻되, 무엇이 사라지는지 문장으로 적는다.
+                  <span className="po-actions">
+                    <span className="po-actions__confirm">
+                      파일과 메타데이터가 함께 사라진다. 되돌릴 수 없다.
+                    </span>
+                    <Button disabled={busyId !== null} onClick={() => void remove(d.id)}>
+                      {busyId === d.id ? '삭제 중…' : '삭제한다'}
+                    </Button>
+                    <Button disabled={busyId !== null} onClick={() => setConfirmId(null)}>
+                      취소
+                    </Button>
+                  </span>
+                ) : (
+                  <span className="po-actions">
+                    {canDownload(d) ? (
+                      <Button disabled={busyId !== null} onClick={() => void download(d)}>
+                        {busyId === d.id ? '여는 중…' : '다운로드'}
+                      </Button>
+                    ) : (
+                      // 업로드가 끝나지 않았으면 서버가 URL을 주지 않는다. 눌러 봐야 빈손인
+                      // 버튼 대신 이유를 적는다 — upload_status 열이 바로 옆에 있다.
+                      <span className="meta po-actions__note">업로드 미완료</span>
+                    )}
+                    <Button disabled={busyId !== null} onClick={() => setEditing(d)}>
+                      수정
+                    </Button>
+                    <Button disabled={busyId !== null} onClick={() => setConfirmId(d.id)}>
+                      삭제
+                    </Button>
+                  </span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {error !== null && (
+        <p className="meta po-note po-note--signal" role="alert">
+          {error}
+        </p>
+      )}
+
+      {/* 열 때마다 새로 마운트한다 — 직전에 고치다 취소한 값이 남아 있으면 다음에 열었을 때
+          화면이 서버와 다른 것을 보여 준다. */}
+      {editing !== null && (
+        <EditDocumentDialog
+          document={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            onChanged();
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function EditDocumentDialog({
+  document: doc,
+  onClose,
+  onSaved,
+}: {
+  document: DocumentView;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [title, setTitle] = useState(doc.title);
+  const [type, setType] = useState<DocumentType>(asDocumentType(doc.type));
+  const [commitRef, setCommitRef] = useState(doc.commit_ref ?? '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const patch = buildDocumentPatch(doc, { title, type, commitRef });
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!patch.ok || saving) return;
+
+    setSaving(true);
+    setError(null);
+    apiPatch<DocumentView>(`/documents/${doc.id}`, patch.body).then(onSaved, (err: unknown) => {
+      setSaving(false);
+      setError(errorMessage(err));
+    });
+  };
+
+  return (
+    <Modal open title="문서 수정" onClose={saving ? () => undefined : onClose}>
+      <form className="modal__form" onSubmit={submit}>
+        <div className="field">
+          <label className="meta" htmlFor="edit-doc-title">
+            제목
+          </label>
+          <input
+            id="edit-doc-title"
+            className="input modal__input"
+            value={title}
+            maxLength={DOCUMENT_TITLE_MAX}
+            autoFocus
+            onChange={(e) => setTitle(e.target.value)}
+          />
+        </div>
+
+        <div className="field">
+          <label className="meta" htmlFor="edit-doc-type">
+            종류
+          </label>
+          <select
+            id="edit-doc-type"
+            className="input modal__input"
+            value={type}
+            onChange={(e) => setType(e.target.value as DocumentType)}
+          >
+            {DOCUMENT_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="field">
+          <label className="meta" htmlFor="edit-doc-commit">
+            커밋
+          </label>
+          <input
+            id="edit-doc-commit"
+            className="input modal__input"
+            value={commitRef}
+            placeholder="7~40자 16진수"
+            onChange={(e) => setCommitRef(e.target.value)}
+          />
+          <span className="meta">비우면 커밋 연결이 끊깁니다.</span>
+        </div>
+
+        {/* 형식 위반은 저장을 누르기 전에 알려 준다. 서버 400을 기다리면 "저장 실패"로만
+            읽혀 어느 칸이 틀렸는지 되짚어야 한다. */}
+        {!patch.ok && patch.reason !== '바뀐 것이 없다.' && (
+          <p className="error-note" role="alert">
+            {patch.reason}
+          </p>
+        )}
+        {error !== null && (
+          <p className="error-note" role="alert">
+            저장하지 못했다: {error}
+          </p>
+        )}
+
+        <div className="modal__actions">
+          <Button type="button" onClick={onClose} disabled={saving}>
+            취소
+          </Button>
+          <Button type="submit" variant="solid" disabled={!patch.ok || saving}>
+            {saving ? '저장 중…' : '저장'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
