@@ -86,9 +86,7 @@ const EMPTY_DETAIL: RowDetail = {
 
 type DetailPatch = Partial<RowDetail>;
 
-type DetailAction =
-  | { type: 'patch'; projectId: string; patch: DetailPatch }
-  | { type: 'reset' };
+type DetailAction = { type: 'patch'; projectId: string; patch: DetailPatch } | { type: 'reset' };
 
 function detailsReducer(
   state: Record<string, RowDetail>,
@@ -100,10 +98,7 @@ function detailsReducer(
 }
 
 /** 부속 호출 하나의 실패가 행 전체를 무너뜨리지 않게, 실패는 "측정 불가(—)"로 흡수한다. */
-async function slotFrom<R, T>(
-  path: string,
-  pick: (res: R) => Measurable<T>,
-): Promise<Slot<T>> {
+async function slotFrom<R, T>(path: string, pick: (res: R) => Measurable<T>): Promise<Slot<T>> {
   try {
     return ready(pick(await apiFetch<R>(path)));
   } catch {
@@ -151,12 +146,14 @@ export function ProjectListPage() {
     for (const p of projects) {
       dispatch({ type: 'patch', projectId: p.id, patch: EMPTY_DETAIL });
 
-      void slotFrom<Page<unknown>, number>(`/projects/${p.id}/documents?limit=100`, (r) =>
-        r.items.length,
+      void slotFrom<Page<unknown>, number>(
+        `/projects/${p.id}/documents?limit=100`,
+        (r) => r.items.length,
       ).then((docCount) => apply(p.id, { docCount }));
 
-      void slotFrom<Page<unknown>, number>(`/projects/${p.id}/agents?limit=100`, (r) =>
-        r.items.length,
+      void slotFrom<Page<unknown>, number>(
+        `/projects/${p.id}/agents?limit=100`,
+        (r) => r.items.length,
       ).then((agentCount) => apply(p.id, { agentCount }));
 
       void slotFrom<Page<EnvConfigView>, { status: BuildStatus; stack: string[] }>(
@@ -192,10 +189,7 @@ export function ProjectListPage() {
     };
   }, [projects]);
 
-  const detailOf = useCallback(
-    (id: string): RowDetail => details[id] ?? EMPTY_DETAIL,
-    [details],
-  );
+  const detailOf = useCallback((id: string): RowDetail => details[id] ?? EMPTY_DETAIL, [details]);
 
   // 스택 필터의 선택지는 이미 도착한 env-config에서만 나온다. 아직 안 온 프로젝트는
   // 값이 도착하면 선택지에 추가된다.
@@ -372,7 +366,13 @@ export function ProjectListPage() {
 }
 
 /** 아직 안 온 값과 없는 값을 한 곳에서 갈라, 화면 어디서도 둘이 섞이지 않게 한다. */
-function SlotCell<T>({ slot, render }: { slot: Slot<T>; render: (value: T) => JSX.Element | string }) {
+function SlotCell<T>({
+  slot,
+  render,
+}: {
+  slot: Slot<T>;
+  render: (value: T) => JSX.Element | string;
+}) {
   if (slot.status === 'loading') {
     return (
       <span className="plist__loading" aria-label="불러오는 중">
@@ -426,7 +426,13 @@ function TableView({ projects, detailOf }: ViewProps) {
                     />
                   </div>
                 </td>
-                <td>{stage === null ? <span className="plist__dash">{EM_DASH}</span> : <StageBadge stage={stage} />}</td>
+                <td>
+                  {stage === null ? (
+                    <span className="plist__dash">{EM_DASH}</span>
+                  ) : (
+                    <StageBadge stage={stage} />
+                  )}
+                </td>
                 <td className="plist__col-docs plist__num">
                   <SlotCell slot={d.docCount} render={(n) => String(n)} />
                 </td>
@@ -482,8 +488,14 @@ function BoardView({ projects, detailOf }: ViewProps) {
                       />
                     </span>
                     <span className="plist__card-foot">
-                      <SlotCell slot={d.env} render={(env) => <StatusBadge status={env.status} />} />
-                      <SlotCell slot={d.health} render={(score) => <HealthIndicator score={score} />} />
+                      <SlotCell
+                        slot={d.env}
+                        render={(env) => <StatusBadge status={env.status} />}
+                      />
+                      <SlotCell
+                        slot={d.health}
+                        render={(score) => <HealthIndicator score={score} />}
+                      />
                     </span>
                   </Link>
                 );

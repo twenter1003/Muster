@@ -111,7 +111,10 @@ export function AgentRegistryPage() {
           <Button disabled={cursor === null} onClick={() => setCursor(null)}>
             처음
           </Button>
-          <Button disabled={!data?.next_cursor} onClick={() => setCursor(data?.next_cursor ?? null)}>
+          <Button
+            disabled={!data?.next_cursor}
+            onClick={() => setCursor(data?.next_cursor ?? null)}
+          >
             다음
           </Button>
         </div>

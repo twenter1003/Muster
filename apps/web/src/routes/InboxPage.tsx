@@ -135,9 +135,7 @@ export function InboxPage() {
             onClick={() => select(category)}
           >
             {CATEGORY_LABEL[category]}{' '}
-            <span className="inbox__tab-count">
-              {counts === null ? EM_DASH : counts[category]}
-            </span>
+            <span className="inbox__tab-count">{counts === null ? EM_DASH : counts[category]}</span>
           </button>
         ))}
       </div>
@@ -162,7 +160,11 @@ export function InboxPage() {
       ) : (
         <ul className="inbox__list">
           {items.map((item) => (
-            <li key={item.id} className="inbox__item" data-signal={item.severity === 'critical' || undefined}>
+            <li
+              key={item.id}
+              className="inbox__item"
+              data-signal={item.severity === 'critical' || undefined}
+            >
               {/* 행 전체가 아니라 제목만 링크다. 행을 통째로 링크로 만들면 안에 있는
                   프로젝트 링크가 중첩돼 마크업이 깨진다. */}
               <div className="inbox__item-head">
@@ -170,7 +172,11 @@ export function InboxPage() {
                 <Link className="inbox__title" to={item.href}>
                   {item.title}
                 </Link>
-                <time className="inbox__time" dateTime={item.occurred_at} title={fullTime(item.occurred_at)}>
+                <time
+                  className="inbox__time"
+                  dateTime={item.occurred_at}
+                  title={fullTime(item.occurred_at)}
+                >
                   {relativeTime(item.occurred_at)}
                 </time>
               </div>

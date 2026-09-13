@@ -64,6 +64,12 @@ jobs:
         working-directory: apps/api
         run: npx eslint src test --max-warnings 0
 
+      # api의 eslint는 prettier를 플러그인으로 물고 있어 린트에 포함되지만, web은 충돌 규칙만
+      # 끄고(eslint-config-prettier) 포맷은 검사하지 않는다. 그래서 포맷은 따로 본다 —
+      # 검사하지 않는 동안 web 라우트 14개가 조용히 갈라져 있었다.
+      - name: 포맷
+        run: npx prettier --check "apps/api/src/**/*.ts" "apps/api/test/**/*.ts"
+
       - name: 단위 테스트
         working-directory: apps/api
         run: npx jest --ci
@@ -97,6 +103,9 @@ jobs:
       - name: 린트
         working-directory: apps/web
         run: npx eslint src --max-warnings 0
+
+      - name: 포맷
+        run: npx prettier --check "apps/web/src/**/*.{ts,tsx,css}"
 
       - name: 테스트
         working-directory: apps/web

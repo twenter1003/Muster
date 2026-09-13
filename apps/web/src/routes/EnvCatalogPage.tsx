@@ -4,12 +4,7 @@ import { Button } from '../components/Button';
 import { Panel } from '../components/Panel';
 import { StatusBadge } from '../components/StatusBadge';
 import type { Page } from '../lib/api';
-import {
-  BUILD_STATUSES,
-  formatDateTime,
-  readStack,
-  type BuildStatus,
-} from '../lib/domain';
+import { BUILD_STATUSES, formatDateTime, readStack, type BuildStatus } from '../lib/domain';
 import { listPath } from '../lib/listQuery';
 import { useApi } from '../lib/useApi';
 import './EnvCatalogPage.css';
@@ -129,9 +124,7 @@ export function EnvCatalogPage() {
         <p className="meta">불러오는 중…</p>
       ) : items.length === 0 ? (
         <p className="meta envcat__empty">
-          {status === null
-            ? '생성된 환경 구성이 없다.'
-            : `${status} 상태인 환경 구성이 없다.`}
+          {status === null ? '생성된 환경 구성이 없다.' : `${status} 상태인 환경 구성이 없다.`}
         </p>
       ) : (
         <div className="scroll-x">
@@ -185,7 +178,10 @@ export function EnvCatalogPage() {
           <Button disabled={cursor === null} onClick={() => setCursor(null)}>
             처음
           </Button>
-          <Button disabled={!data?.next_cursor} onClick={() => setCursor(data?.next_cursor ?? null)}>
+          <Button
+            disabled={!data?.next_cursor}
+            onClick={() => setCursor(data?.next_cursor ?? null)}
+          >
             다음
           </Button>
         </div>
@@ -193,8 +189,8 @@ export function EnvCatalogPage() {
 
       <Panel title="내 템플릿" aside={`최근 ${TEMPLATE_LIMIT}개까지`}>
         <p className="meta">
-          템플릿은 프로젝트가 아니라 계정에 달려 있다. 새 환경 구성은 프로젝트 안에서 만들되,
-          고를 수 있는 프리셋이 무엇인지는 여기서만 한눈에 보인다.
+          템플릿은 프로젝트가 아니라 계정에 달려 있다. 새 환경 구성은 프로젝트 안에서 만들되, 고를
+          수 있는 프리셋이 무엇인지는 여기서만 한눈에 보인다.
         </p>
         {templates.error !== null ? (
           <p className="error-note" role="alert">
