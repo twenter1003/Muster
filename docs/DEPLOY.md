@@ -90,7 +90,12 @@ for s in muster-database-url muster-github-client-id muster-github-client-secret
 done
 ```
 
-앱이 스스로 시크릿을 만들고 지우려면 프로젝트 수준 권한이 하나 더 필요하다:
+**다음 것은 선택이 아니다.** 위의 `secretAccessor` 부여는 이름을 적어 준 시크릿 넷에만
+걸린다. 그런데 앱은 로그인·레포 연동 과정에서 시크릿을 **스스로 만든다**
+(`github-token-<사용자id>`, `webhook-secret-<프로젝트id>`) — 그것들에는 아무 바인딩도
+없으므로, 프로젝트 수준 권한 없이는 앱이 방금 저장한 값조차 다시 읽지 못한다.
+빼먹으면 로그인까지는 되는데 레포 연동이 `secretmanager.versions.access denied`로 죽는다
+(실제로 겪은 일이다):
 
 ```bash
 gcloud projects add-iam-policy-binding "$PROJECT" \

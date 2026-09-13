@@ -43,11 +43,18 @@ export const GITHUB_OAUTH_CLIENT = Symbol('GITHUB_OAUTH_CLIENT');
  * 요청할 스코프.
  * - read:user  — 로그인 시 프로필 조회
  * - admin:repo_hook — 웹훅 자동 등록 (설계서 Part 4 §3)
+ * - repo — 환경 구성 빌드를 사용자 레포의 Actions에서 돌린다(workflow_dispatch)
  *
- * repo(코드 읽기)는 요청하지 않는다. 공개 레포 웹훅에는 불필요하고,
- * 필요 이상의 권한을 받아 두면 토큰 유출 시 피해가 커진다.
+ * repo가 넓은 것은 알고 있다. 예전에는 "공개 레포 웹훅에 불필요하다"며 빼 두었는데,
+ * 실행기(GitHubActionsExecutor)가 들어오면서 그 전제가 깨졌다: GitHub은
+ * workflow_dispatch에 repo를 요구하고, 없으면 레포 권한이 아무리 충분해도 403이 난다.
+ * 실제로 연동까지 마친 사용자가 실행에서만 403을 받고 원인을 찾지 못했다.
+ *
+ * 더 좁은 대안이 없다 — public_repo는 비공개 레포에서 못 쓰고, workflow는 워크플로
+ * **파일 수정** 권한이지 실행 권한이 아니다. GitHub App으로 옮기면 actions:write만
+ * 따로 받을 수 있지만, 그것은 인증 방식 자체를 바꾸는 일이라 여기서 할 수 없다.
  */
-export const GITHUB_OAUTH_SCOPES = ['read:user', 'admin:repo_hook'] as const;
+export const GITHUB_OAUTH_SCOPES = ['read:user', 'admin:repo_hook', 'repo'] as const;
 
 /**
  * GitHub REST API 버전. 헤더를 생략하면 GitHub이 2022-11-28로 처리하는데,

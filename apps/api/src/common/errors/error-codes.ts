@@ -20,6 +20,13 @@ export const ErrorCode = {
    * 행동을 안내해야 하고, 그 둘은 사용자가 할 일이 완전히 다르다.
    */
   GITHUB_REAUTH_REQUIRED: 'GITHUB_REAUTH_REQUIRED',
+  /**
+   * 시크릿 저장소가 인증·권한 문제로 답하지 않는다.
+   * INTERNAL과 구분하는 이유: 이것은 코드 결함이 아니라 배포 설정 누락이고, 고칠 사람이
+   * 사용자가 아니라 운영자다. "서버 내부 오류"로 뭉개면 아무도 원인을 알 수 없다 —
+   * 실제로 Cloud Run 서비스 계정에 프로젝트 수준 권한이 없어 레포 연동이 500으로 죽었다.
+   */
+  SECRET_STORE_UNAVAILABLE: 'SECRET_STORE_UNAVAILABLE',
   INTERNAL: 'INTERNAL',
 } as const;
 
