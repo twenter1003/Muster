@@ -8,3 +8,7 @@ coverage/
 .DS_Store
 .secrets/
 .secrets-test/
+
+# tsc --build가 남기는 증분 빌드 캐시. 빌드할 때마다 바뀌는 산출물이라 추적하면
+# 관계없는 PR마다 diff에 끼어들고, 커밋 사이에 충돌까지 낸다.
+*.tsbuildinfo
