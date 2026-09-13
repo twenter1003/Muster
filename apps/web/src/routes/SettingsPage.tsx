@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Button } from '../components/Button';
-import { ApiError, apiFetch, apiPost, type Page as ApiPage } from '../lib/api';
+import { API_BASE, ApiError, apiFetch, apiPost, type Page as ApiPage } from '../lib/api';
 import { EM_DASH } from '../lib/domain';
 import { useApi } from '../lib/useApi';
 import './SettingsPage.css';
@@ -619,18 +619,35 @@ function GitTab({ projectId }: { projectId: string }) {
   const [repoUrl, setRepoUrl] = useState('');
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  /**
+   * 토큰이 죽어 재인증이 필요한 상태. 일반 오류와 따로 두는 이유: 사용자가 할 일이
+   * "다시 시도"가 아니라 "GitHub에 다시 로그인"이라서, 메시지만으로는 부족하고
+   * 그 자리에 로그인 링크를 줘야 한다.
+   */
+  const [reauth, setReauth] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
     setConfirming(false);
     setActionError(null);
+    setReauth(null);
     setRepoUrl('');
   }, [projectId]);
+
+  /** GITHUB_REAUTH_REQUIRED만 재인증 안내로 가르고, 나머지는 평소대로 메시지를 띄운다. */
+  const showFailure = (e: unknown) => {
+    if (e instanceof ApiError && e.code === 'GITHUB_REAUTH_REQUIRED') {
+      setReauth(e.message);
+      return;
+    }
+    setActionError(errorMessage(e));
+  };
 
   const connect = () => {
     if (busy || repoUrl.trim().length === 0) return; // 중복 제출 차단
     setBusy(true);
     setActionError(null);
+    setReauth(null);
     apiFetch<GitIntegrationView>(`/projects/${projectId}/git-integration`, {
       method: 'POST',
       body: JSON.stringify({ repo_url: repoUrl.trim() }),
@@ -639,7 +656,7 @@ function GitTab({ projectId }: { projectId: string }) {
         setRepoUrl('');
         reload();
       })
-      .catch((e: unknown) => setActionError(errorMessage(e)))
+      .catch(showFailure)
       .finally(() => setBusy(false));
   };
 
@@ -647,12 +664,13 @@ function GitTab({ projectId }: { projectId: string }) {
     if (busy) return;
     setBusy(true);
     setActionError(null);
+    setReauth(null);
     apiFetch<void>(`/projects/${projectId}/git-integration`, { method: 'DELETE' })
       .then(() => {
         setConfirming(false);
         reload();
       })
-      .catch((e: unknown) => setActionError(errorMessage(e)))
+      .catch(showFailure)
       .finally(() => setBusy(false));
   };
 
@@ -670,6 +688,23 @@ function GitTab({ projectId }: { projectId: string }) {
   return (
     <div className="settings__section">
       <h2 className="settings__section-title">Git 연동</h2>
+
+      {reauth !== null ? (
+        // 저장된 GitHub 토큰이 만료됐고 갱신도 실패했다. 다시 시도해 봐야 같은 실패라,
+        // 재시도 대신 로그인으로 가는 길을 바로 준다.
+        <div className="settings__once" role="alert">
+          <p className="settings__once-title">{reauth}</p>
+          <p className="meta">
+            저장된 GitHub 토큰이 만료되어 갱신할 수 없다. GitHub으로 다시 로그인하면 연동을 이어서
+            진행할 수 있다.
+          </p>
+          <div className="settings__actions">
+            <a className="btn btn--solid" href={`${API_BASE}/auth/github/login`}>
+              GitHub으로 다시 로그인
+            </a>
+          </div>
+        </div>
+      ) : null}
 
       {actionError !== null ? (
         <p className="settings__error" role="alert">

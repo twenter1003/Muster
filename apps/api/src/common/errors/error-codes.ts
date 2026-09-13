@@ -14,6 +14,12 @@ export const ErrorCode = {
   INVALID_STATE_TRANSITION: 'INVALID_STATE_TRANSITION',
   INVALID_CURSOR: 'INVALID_CURSOR',
   WEBHOOK_SIGNATURE_INVALID: 'WEBHOOK_SIGNATURE_INVALID',
+  /**
+   * 보관된 GitHub 토큰을 더는 쓸 수 없고 갱신도 불가능하다.
+   * FORBIDDEN과 구분하는 이유: 화면이 "권한이 없다"가 아니라 "GitHub에 다시 로그인하라"는
+   * 행동을 안내해야 하고, 그 둘은 사용자가 할 일이 완전히 다르다.
+   */
+  GITHUB_REAUTH_REQUIRED: 'GITHUB_REAUTH_REQUIRED',
   INTERNAL: 'INTERNAL',
 } as const;
 

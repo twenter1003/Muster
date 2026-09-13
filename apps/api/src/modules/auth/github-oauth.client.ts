@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiException } from '../../common/errors/api.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
+import { expiresAtFrom, type GitHubTokenSet } from './github-token-set';
 
 export interface GitHubProfile {
   login: string;
@@ -22,7 +23,15 @@ export interface GitHubOAuthClient {
    * 교환 때 보낸 값이 일치하는지 검증한다. 두 곳에서 각자 계산하면 어긋날 수 있어
    * 호출자가 같은 값을 넘기도록 계약에 박아 둔다.
    */
-  exchangeCode(code: string, redirectUri: string): Promise<string>;
+  exchangeCode(code: string, redirectUri: string): Promise<GitHubTokenSet>;
+
+  /**
+   * refresh_token으로 새 토큰 한 벌을 받는다.
+   *
+   * 실패(폐기·만료된 refresh_token)는 되돌릴 수 없다 — 사용자가 GitHub에 다시
+   * 로그인하는 것 외에는 방법이 없으므로 ApiException.githubReauthRequired를 던진다.
+   */
+  refresh(refreshToken: string): Promise<GitHubTokenSet>;
 
   /** 액세스 토큰으로 사용자 프로필을 읽는다. */
   fetchProfile(accessToken: string): Promise<GitHubProfile>;
@@ -53,16 +62,38 @@ export class HttpGitHubOAuthClient implements GitHubOAuthClient {
 
   private readonly logger = new Logger(HttpGitHubOAuthClient.name);
 
-  async exchangeCode(code: string, redirectUri: string): Promise<string> {
+  async exchangeCode(code: string, redirectUri: string): Promise<GitHubTokenSet> {
+    return this.requestToken(
+      {
+        code,
+        // authorize 때와 같은 값이어야 GitHub이 교환을 허용한다.
+        redirect_uri: redirectUri,
+      },
+      () => ApiException.unauthenticated('GitHub 인가 코드가 유효하지 않습니다.'),
+    );
+  }
+
+  async refresh(refreshToken: string): Promise<GitHubTokenSet> {
+    return this.requestToken({ grant_type: 'refresh_token', refresh_token: refreshToken }, () =>
+      ApiException.githubReauthRequired(),
+    );
+  }
+
+  /**
+   * 토큰 엔드포인트 호출. 인가 코드 교환과 갱신이 같은 엔드포인트·같은 응답 형태를 쓰고,
+   * 다른 것은 보내는 파라미터와 실패했을 때의 뜻뿐이다.
+   */
+  private async requestToken(
+    params: Record<string, string>,
+    onInvalid: () => ApiException,
+  ): Promise<GitHubTokenSet> {
     const res = await fetch('https://github.com/login/oauth/access_token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({
         client_id: this.config.get<string>('GITHUB_OAUTH_CLIENT_ID'),
         client_secret: this.config.get<string>('GITHUB_OAUTH_CLIENT_SECRET'),
-        code,
-        // authorize 때와 같은 값이어야 GitHub이 교환을 허용한다.
-        redirect_uri: redirectUri,
+        ...params,
       }),
     });
 
@@ -73,6 +104,8 @@ export class HttpGitHubOAuthClient implements GitHubOAuthClient {
     // GitHub은 잘못된 code에도 HTTP 200을 주고 본문에 error를 담는다.
     const body = (await res.json()) as {
       access_token?: string;
+      refresh_token?: string;
+      expires_in?: number | string;
       error?: string;
       error_description?: string;
     };
@@ -82,10 +115,15 @@ export class HttpGitHubOAuthClient implements GitHubOAuthClient {
       this.logger.warn(
         `토큰 교환 실패: ${body.error ?? 'unknown'} — ${body.error_description ?? ''}`,
       );
-      throw ApiException.unauthenticated('GitHub 인가 코드가 유효하지 않습니다.');
+      throw onInvalid();
     }
 
-    return body.access_token;
+    // 만료가 꺼진 앱은 refresh_token·expires_in을 아예 보내지 않는다. 없는 것이 정상이다.
+    return {
+      accessToken: body.access_token,
+      refreshToken: body.refresh_token ?? null,
+      expiresAt: expiresAtFrom(body.expires_in),
+    };
   }
 
   async fetchProfile(accessToken: string): Promise<GitHubProfile> {

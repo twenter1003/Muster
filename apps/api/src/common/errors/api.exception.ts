@@ -35,6 +35,11 @@ export class ApiException extends HttpException {
     return new ApiException(ErrorCode.VALIDATION_FAILED, message, HttpStatus.BAD_REQUEST);
   }
 
+  /** GitHub 토큰이 죽었고 갱신도 실패했다 — 사용자가 다시 인증하는 것 외에 방법이 없다. */
+  static githubReauthRequired(message = 'GitHub 재인증이 필요합니다.') {
+    return new ApiException(ErrorCode.GITHUB_REAUTH_REQUIRED, message, HttpStatus.FORBIDDEN);
+  }
+
   static conflict(code: ErrorCodeValue, message: string) {
     return new ApiException(code, message, HttpStatus.CONFLICT);
   }

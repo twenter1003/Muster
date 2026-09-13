@@ -3,10 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'node:crypto';
 import { DataSource, Repository } from 'typeorm';
 import { InjectRepository } from '../../database/inject-repository.decorator';
-import { GitIntegration, User } from '../../database/entities';
+import { GitIntegration } from '../../database/entities';
 import { SECRET_STORE, type SecretStore } from '../../common/secrets/secret-store';
 import { ApiException } from '../../common/errors/api.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
+import { GitHubTokenService } from '../auth/github-token.service';
 import { GITHUB_REPO_CLIENT, type GitHubRepoClient } from './github-repo.client';
 import { parseRepoUrl } from './repo-url';
 
@@ -16,8 +17,8 @@ export class GitIntegrationService {
 
   constructor(
     @InjectRepository(GitIntegration) private readonly integrations: Repository<GitIntegration>,
-    @InjectRepository(User) private readonly users: Repository<User>,
     @Inject(GITHUB_REPO_CLIENT) private readonly github: GitHubRepoClient,
+    private readonly githubTokens: GitHubTokenService,
     @Inject(SECRET_STORE) private readonly secrets: SecretStore,
     private readonly config: ConfigService,
     private readonly dataSource: DataSource,
@@ -105,21 +106,15 @@ export class GitIntegrationService {
     return this.integrations.findOneBy({ project_id: projectId });
   }
 
-  /** 사용자의 GitHub 액세스 토큰을 시크릿 저장소에서 꺼낸다. */
+  /**
+   * 사용자의 GitHub 액세스 토큰. 만료됐으면 GitHubTokenService가 먼저 갱신한다.
+   *
+   * 갱신도 불가능하면 GITHUB_REAUTH_REQUIRED가 올라오고, 화면은 그 코드를 보고
+   * "GitHub 재인증이 필요합니다"를 띄운다 — 예전처럼 서버 로그에만 경고를 남기면
+   * 사용자는 연동이 왜 안 되는지 영영 알 수 없다.
+   */
   private async githubTokenOf(userId: string): Promise<string> {
-    const user = await this.users.findOneBy({ id: userId });
-    if (!user?.github_token_ref) {
-      throw ApiException.forbidden('GitHub 연동 권한이 없습니다. 다시 로그인해 주세요.');
-    }
-
-    const token = await this.secrets.get(user.github_token_ref);
-    if (!token) {
-      // 참조는 있는데 시크릿이 없다 — 저장소가 비워졌거나 다른 환경의 참조다.
-      this.logger.warn(`시크릿을 찾을 수 없습니다: ${user.github_token_ref}`);
-      throw ApiException.forbidden('GitHub 토큰이 만료되었습니다. 다시 로그인해 주세요.');
-    }
-
-    return token;
+    return this.githubTokens.accessTokenFor(userId);
   }
 
   /** GitHub이 이벤트를 배달할 우리 엔드포인트 (설계서 Part 4 §7.1). */
