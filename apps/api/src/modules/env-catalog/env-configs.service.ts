@@ -343,6 +343,8 @@ export class EnvConfigsService {
         envConfigId: saved.id,
         projectId: saved.project_id,
         userId,
+        // 실행 측이 검증할 것은 레포에 커밋된 파일이 아니라 **이 구성이 생성한 내용**이다.
+        dockerfile: String((saved.docker_config as { dockerfile?: unknown }).dockerfile ?? ''),
       });
     } catch (error) {
       await this.transitionTo(

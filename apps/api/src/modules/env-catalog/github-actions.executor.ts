@@ -48,6 +48,19 @@ export class GitHubActionsExecutor implements EnvConfigExecutor {
       );
     }
 
+    /*
+     * 입력 크기 상한. GitHub은 workflow_dispatch inputs 전체를 65,535자로 제한하고,
+     * 넘으면 무엇이 문제인지 알기 어려운 422를 낸다. 여기서 먼저 막아 이유를 남긴다.
+     * 생성되는 Dockerfile은 보통 1~2KB라 실제로 걸릴 일은 거의 없다.
+     */
+    if (params.dockerfile.length > 60_000) {
+      throw new ApiException(
+        ErrorCode.VALIDATION_FAILED,
+        'Dockerfile이 너무 큽니다(60,000자 초과). 실행 측에 실어 보낼 수 없습니다.',
+        400,
+      );
+    }
+
     const { owner, repo } = parseRepoUrl(integration.repo_url);
     const accessToken = await this.tokens.accessTokenFor(params.userId);
     const ref = await this.defaultBranch(owner, repo, accessToken);
@@ -65,7 +78,10 @@ export class GitHubActionsExecutor implements EnvConfigExecutor {
         // dispatches는 ref가 필수다. 연동이 레포 단위라 브랜치를 따로 받지 않으므로
         // 레포에 물어본 기본 브랜치를 쓴다. 'main'으로 넘겨짚지 않는 이유는, 기본이
         // master나 develop인 레포에서 조용히 422가 나기 때문이다.
-        body: JSON.stringify({ ref, inputs: { env_config_id: params.envConfigId } }),
+        body: JSON.stringify({
+          ref,
+          inputs: { env_config_id: params.envConfigId, dockerfile: params.dockerfile },
+        }),
       },
     );
 
@@ -139,7 +155,9 @@ export class GitHubActionsExecutor implements EnvConfigExecutor {
       // 브랜치가 없거나 워크플로가 workflow_dispatch를 선언하지 않은 경우다.
       return new ApiException(
         ErrorCode.VALIDATION_FAILED,
-        `${owner}/${repo}의 워크플로를 실행할 수 없습니다. 기본 브랜치에 workflow_dispatch 트리거가 있는지 확인해 주세요.`,
+        // 이제 가장 흔한 422는 "옛 워크플로라 dockerfile 입력을 모른다"다. GitHub은 선언되지
+        // 않은 입력을 받으면 422로 거절한다. 설치 버튼이 그 파일을 갱신해 준다.
+        `${owner}/${repo}의 워크플로를 실행할 수 없습니다. 「워크플로 설치」를 다시 눌러 최신본으로 갱신한 뒤 시도해 주세요(기본 브랜치에 workflow_dispatch 트리거가 있어야 합니다).`,
         400,
       );
     }

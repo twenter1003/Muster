@@ -172,8 +172,15 @@ describe('Phase 7 — ENV_CONFIG_TRANSITIONS (e2e)', () => {
     const times = items.map((i) => Date.parse(i.created_at));
     expect([...times].sort((a, b) => a - b)).toEqual(times);
 
-    // 전이만 하고 끝나지 않는다 — 실행을 실제로 시작시킨다.
-    expect(started).toEqual([{ envConfigId: configId, projectId, userId: alice.id }]);
+    // 전이만 하고 끝나지 않는다 — 실행을 실제로 시작시킨다. 생성된 Dockerfile도 함께 간다.
+    expect(started).toEqual([
+      {
+        envConfigId: configId,
+        projectId,
+        userId: alice.id,
+        dockerfile: 'FROM node:22-alpine',
+      },
+    ]);
   });
 
   it('실행을 시작하지 못하면 running 다음에 failed가 쌓인다', async () => {
@@ -201,7 +208,14 @@ describe('Phase 7 — ENV_CONFIG_TRANSITIONS (e2e)', () => {
     const items = await transitionsOf(configId);
     expect(items.map((i) => i.to_status)).toEqual(['running']);
     expect(items[0].from_status).toBe('failed');
-    expect(started).toEqual([{ envConfigId: configId, projectId, userId: alice.id }]);
+    expect(started).toEqual([
+      {
+        envConfigId: configId,
+        projectId,
+        userId: alice.id,
+        dockerfile: 'FROM node:22-alpine',
+      },
+    ]);
   });
 
   it('반려도 누가 했는지를 남긴다', async () => {

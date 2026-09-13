@@ -23,6 +23,15 @@ export interface StartExecutionParams {
   projectId: string;
   /** 실행을 누른 사람. 실행 측 자격증명(GitHub 토큰)의 주인이다. */
   userId: string;
+  /**
+   * 이번에 검증할 Dockerfile 본문. 실행 측에 실어 보낸다.
+   *
+   * 레포에 커밋된 Dockerfile을 빌드하지 않는 이유: 이 실행이 답해야 하는 물음은
+   * "**Muster가 만든 이 구성**이 실제로 빌드되는가"다. 레포의 파일을 빌드하면 사용자가
+   * 생성된 내용을 손으로 옮겨 적었을 때만 그 물음에 답이 되고, 옮기지 않으면 엉뚱한
+   * 것을 검사하거나(다른 Dockerfile) 아예 실패한다(파일 없음).
+   */
+  dockerfile: string;
 }
 
 export const ENV_CONFIG_EXECUTOR = Symbol('ENV_CONFIG_EXECUTOR');

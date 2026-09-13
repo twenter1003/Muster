@@ -54,8 +54,15 @@ export class EnvWorkflowInstaller {
 
     const base = await this.defaultBranch(owner, repo, token);
 
-    // 기본 브랜치에 이미 있으면 끝이다. 여기서 멈추지 않으면 아무것도 바꾸지 않는 PR이 열린다.
-    if (await this.fileExists(owner, repo, token, base)) {
+    /*
+     * 기본 브랜치의 내용을 우리 것과 비교한다.
+     *
+     * "있으면 건너뛴다"로는 부족하다 — 템플릿은 바뀐다(실제로 Dockerfile을 입력으로 받도록
+     * 한 번 바뀌었고, 그 순간 옛 파일을 가진 레포는 실행이 422로 죽는다). 있다는 이유로
+     * 넘기면 사용자에게는 갱신할 방법이 없다. 같을 때만 아무것도 하지 않는다.
+     */
+    const current = await this.currentContent(owner, repo, token, base);
+    if (current === ENV_WORKFLOW_CONTENT) {
       return { already_installed: true, pull_request_url: null };
     }
 
@@ -78,20 +85,26 @@ export class EnvWorkflowInstaller {
     return branch;
   }
 
-  private async fileExists(
+  /** 그 ref의 워크플로 파일 내용. 없으면 null. */
+  private async currentContent(
     owner: string,
     repo: string,
     token: string,
     ref: string,
-  ): Promise<boolean> {
+  ): Promise<string | null> {
     const res = await this.call(
       'GET',
       `/repos/${owner}/${repo}/contents/${ENV_WORKFLOW_PATH}?ref=${encodeURIComponent(ref)}`,
       token,
     );
-    if (res.status === 404) return false;
+    if (res.status === 404) return null;
     if (!res.ok) throw await this.failure(res, owner, repo);
-    return true;
+
+    const body = (await res.json()) as { content?: string; encoding?: string };
+    // 큰 파일에는 content가 비어 오지만(GitHub이 blob API로 미룬다) 이 파일은 몇 KB다.
+    // 그래도 읽지 못하면 "다르다"로 본다 — 갱신 PR을 여는 쪽이 조용히 넘기는 것보다 낫다.
+    if (typeof body.content !== 'string' || body.encoding !== 'base64') return null;
+    return Buffer.from(body.content, 'base64').toString('utf8');
   }
 
   /** 브랜치를 기본 브랜치 끝에서 만든다. 이미 있으면(422) 그대로 쓴다. */
@@ -147,16 +160,17 @@ export class EnvWorkflowInstaller {
   /** PR을 연다. 같은 브랜치의 PR이 이미 있으면(422) 그것을 찾아 돌려준다. */
   private async openPr(owner: string, repo: string, token: string, base: string): Promise<string> {
     const res = await this.call('POST', `/repos/${owner}/${repo}/pulls`, token, {
-      title: 'Muster 환경 구성 빌드 워크플로 추가',
+      title: 'Muster 환경 구성 빌드 워크플로 추가·갱신',
       head: INSTALL_BRANCH,
       base,
       body:
-        'Muster가 환경 구성을 이 레포의 Actions에서 빌드하려면 이 워크플로가 필요합니다.\n\n' +
+        'Muster가 환경 구성을 이 레포의 Actions에서 빌드하려면 이 워크플로가 필요합니다.\n' +
+        '이미 있는데 이 PR이 열렸다면 내용이 달라진 것입니다 — 낡은 채로 두면 실행이 422로 실패합니다.\n\n' +
         '- `workflow_dispatch`로만 돌고, Muster가 실행할 때만 트리거됩니다.\n' +
         '- 레포 내용을 읽기만 합니다(`permissions: contents: read`).\n' +
         '- 이미지를 어디에도 올리지 않습니다(`push: false`) — 빌드가 되는지만 확인합니다.\n\n' +
         '`run-name`의 형식은 Muster가 결과를 대조하는 단서이므로 바꾸지 마세요.\n' +
-        '빌드에는 레포 루트에 `Dockerfile`이 있어야 합니다.',
+        '빌드할 Dockerfile은 Muster가 실행할 때 함께 보냅니다 — 레포에 따로 둘 필요가 없습니다.',
     });
 
     if (res.ok) {

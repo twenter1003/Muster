@@ -100,13 +100,44 @@ describe('EnvWorkflowInstaller', () => {
     expect(pr?.body).toMatchObject({ base: 'trunk', head: INSTALL_BRANCH });
   });
 
-  it('이미 기본 브랜치에 있으면 아무것도 하지 않는다 — 빈 PR을 열지 않는다', async () => {
-    const calls = stubFetch([{ status: 200, body: { default_branch: 'main' } }, { status: 200 }]);
+  const asContents = (text: string) => ({
+    content: Buffer.from(text, 'utf8').toString('base64'),
+    encoding: 'base64',
+  });
+
+  it('같은 내용이 이미 있으면 아무것도 하지 않는다 — 빈 PR을 열지 않는다', async () => {
+    const calls = stubFetch([
+      { status: 200, body: { default_branch: 'main' } },
+      { status: 200, body: asContents(ENV_WORKFLOW_CONTENT) },
+    ]);
 
     const r = await make(LINKED).install(PROJECT, USER);
 
     expect(r).toEqual({ already_installed: true, pull_request_url: null });
     expect(calls.filter((c) => c.method !== 'GET')).toEqual([]);
+  });
+
+  /**
+   * 템플릿은 바뀐다. 실제로 Dockerfile을 입력으로 받도록 한 번 바뀌었고, 그 순간 옛 파일을
+   * 가진 레포는 실행이 422로 죽었다. "있으면 건너뛴다"였다면 갱신할 방법이 없었을 것이다.
+   */
+  it('내용이 다르면 갱신 PR을 연다', async () => {
+    stubFetch([
+      { status: 200, body: { default_branch: 'trunk' } },
+      { status: 200, body: asContents('name: 옛날 워크플로\n') },
+      { status: 200, body: { object: { sha: 'base-sha' } } },
+      { status: 201 },
+      { status: 404 },
+      { status: 201 },
+      { status: 201, body: { html_url: 'https://github.com/octo/app/pull/9' } },
+    ]);
+
+    const r = await make(LINKED).install(PROJECT, USER);
+
+    expect(r).toEqual({
+      already_installed: false,
+      pull_request_url: 'https://github.com/octo/app/pull/9',
+    });
   });
 
   it('브랜치가 이미 있으면(422) 그 위에 덮어쓴다 — 두 번 눌러도 안전하다', async () => {
