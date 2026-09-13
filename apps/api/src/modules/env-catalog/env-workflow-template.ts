@@ -16,7 +16,7 @@ export const ENV_WORKFLOW_CONTENT = `# Muster 환경 구성 실행기 — **사�
 # 이 저장소가 아니라, Muster 프로젝트에 연동한 레포의 \`.github/workflows/\`에 그대로 복사한다.
 # Muster의 「워크플로 설치」 버튼을 쓰면 이 파일을 담은 PR이 열린다.
 #
-# 하는 일: Muster가 생성한 Dockerfile을 실제로 빌드해 보고, 그 결과(성공/실패)를 돌려준다.
+# 하는 일: Muster가 보낸 Dockerfile을 실제로 빌드해 보고, 그 결과(성공/실패)를 돌려준다.
 # 돌려주는 경로는 따로 없다 — Muster가 이미 이 레포의 workflow_run 웹훅을 구독하고 있고,
 # 아래 run-name에 박힌 환경 구성 id로 어느 실행인지 대조한다.
 name: Muster 환경 구성 빌드
@@ -32,6 +32,10 @@ on:
         description: Muster 환경 구성 id (Muster가 채운다)
         required: true
         type: string
+      dockerfile:
+        description: 검증할 Dockerfile 본문 (Muster가 채운다)
+        required: true
+        type: string
 
 jobs:
   build:
@@ -44,14 +48,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Muster가 생성한 설정은 레포에 커밋돼 있어야 한다. 어디에 두는지는 프로젝트마다
-      # 다르므로, 기본값(레포 루트의 Dockerfile)을 쓰되 다르면 이 경로만 고친다.
-      - name: Dockerfile 확인
-        run: |
-          if [ ! -f Dockerfile ]; then
-            echo "레포 루트에 Dockerfile이 없다. Muster가 생성한 설정을 커밋한 뒤 다시 실행할 것." >&2
-            exit 1
-          fi
+      # Muster가 보낸 내용을 그대로 쓴다. 레포에 커밋된 Dockerfile이 있어도 덮어쓴다 —
+      # 이 실행이 답해야 하는 물음은 "**이 구성**이 빌드되는가"이지 "레포가 빌드되는가"가
+      # 아니다. 작업 공간은 실행마다 새로 만들어지므로 레포의 파일은 손상되지 않는다.
+      - name: Muster가 보낸 Dockerfile 쓰기
+        env:
+          DOCKERFILE: \${{ inputs.dockerfile }}
+        # 셸 확장을 타지 않도록 환경변수로 받아 쓴다. 본문에 따옴표·백틱·$가 있어도 안전하다.
+        run: printf '%s' "$DOCKERFILE" > Dockerfile.muster
 
       # 이미지를 올리지 않는다(push: false). 이 실행의 목적은 "이 설정이 실제로 빌드되는가"를
       # 확인하는 것이고, 레지스트리 자격증명을 이 워크플로에 두지 않는 편이 안전하다.
@@ -59,6 +63,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
+          file: Dockerfile.muster
           push: false
           # 캐시가 없으면 매번 베이스 이미지부터 받는다. Actions 캐시는 무료 한도 안이다.
           cache-from: type=gha

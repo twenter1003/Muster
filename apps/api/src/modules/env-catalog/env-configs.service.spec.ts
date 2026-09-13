@@ -228,7 +228,16 @@ describe('EnvConfigsService', () => {
       const { service, started } = make({ stored: configRow('approved') });
       await service.execute(CONFIG, USER);
 
-      expect(started).toEqual([{ envConfigId: CONFIG, projectId: PROJECT, userId: USER }]);
+      // 생성된 Dockerfile을 함께 넘긴다 — 실행 측이 검증할 것은 레포의 파일이 아니라
+      // 이 구성의 내용이다. 빠지면 사용자가 손으로 옮겨 적어야만 실행이 성립한다.
+      expect(started).toEqual([
+        {
+          envConfigId: CONFIG,
+          projectId: PROJECT,
+          userId: USER,
+          dockerfile: 'FROM node:22-alpine',
+        },
+      ]);
     });
 
     it('running으로 옮긴 뒤에 시작시킨다', async () => {

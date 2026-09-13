@@ -43,7 +43,12 @@ const make = (integration: Partial<GitIntegration> | null) => {
   return new GitHubActionsExecutor(integrations, tokens);
 };
 
-const params = { envConfigId: CONFIG, projectId: PROJECT, userId: USER };
+const params = {
+  envConfigId: CONFIG,
+  projectId: PROJECT,
+  userId: USER,
+  dockerfile: 'FROM node:22-alpine\n',
+};
 
 /** 사용자에게 보이는 메시지는 응답 본문 안에 있다 (`.message`는 "Api Exception"이다). */
 const userMessage = (error: unknown): string =>
@@ -69,7 +74,11 @@ describe('GitHubActionsExecutor', () => {
     );
     expect(calls[1].method).toBe('POST');
     // 기본 브랜치를 main으로 넘겨짚으면 master·develop 레포에서 조용히 422가 난다.
-    expect(calls[1].body).toEqual({ ref: 'develop', inputs: { env_config_id: CONFIG } });
+    expect(calls[1].body).toEqual({
+      ref: 'develop',
+      // Dockerfile을 함께 실어 보낸다 — 레포에 커밋된 파일이 아니라 이 구성의 내용을 검증한다.
+      inputs: { env_config_id: CONFIG, dockerfile: 'FROM node:22-alpine\n' },
+    });
     expect(calls[1].headers.Authorization).toBe('Bearer gho_token');
   });
 
@@ -147,6 +156,20 @@ describe('GitHubActionsExecutor', () => {
     stubFetch([{ status: 200, body: { default_branch: 'main' } }, { status: 201 }]);
 
     await expect(make(LINKED).start(params)).resolves.toBeUndefined();
+  });
+
+  /** 65,535자를 넘는 inputs는 GitHub이 이유 없는 422로 거절한다. 먼저 막아 이유를 남긴다. */
+  it('Dockerfile이 상한을 넘으면 보내기 전에 막는다', async () => {
+    const calls = stubFetch([{ status: 200, body: { default_branch: 'main' } }]);
+
+    const error = await make(LINKED)
+      .start({ ...params, dockerfile: 'x'.repeat(60_001) })
+      .catch((e: unknown) => e);
+
+    expect(error).toMatchObject({ status: 400 });
+    expect(userMessage(error)).toContain('너무 큽니다');
+    // 보내기 전에 막아야 의미가 있다. GitHub에 요청이 나가면 안 된다.
+    expect(calls).toEqual([]);
   });
 
   it('401은 재인증이다 — 토큰을 GitHub이 거부한 것이라 재시도로는 안 된다', async () => {
