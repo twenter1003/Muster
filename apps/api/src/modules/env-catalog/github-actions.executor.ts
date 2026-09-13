@@ -69,7 +69,14 @@ export class GitHubActionsExecutor implements EnvConfigExecutor {
       },
     );
 
-    if (res.status === 204) return;
+    /*
+     * 2xx면 성공이다. 204만 보다가 크게 데였다 — GitHub이 200에 workflow_run_id를 담아
+     * 돌려주기 시작했는데, 그것을 실패로 읽어 **이미 돌고 있는 실행을 failed로 뒤집었다.**
+     * 화면에는 실패로 남고 워크플로는 계속 도는, 최악의 어긋남이었다.
+     *
+     * 특정 코드 하나에 성공을 거는 것 자체가 잘못이었다. 성공의 정의는 2xx다.
+     */
+    if (res.ok) return;
 
     // 무엇을 고쳐야 하는지가 상태 코드마다 다르다. 하나로 뭉치면 사용자가 워크플로 파일이
     // 없는 것인지 권한이 없는 것인지 알 수 없다.
@@ -136,6 +143,20 @@ export class GitHubActionsExecutor implements EnvConfigExecutor {
         400,
       );
     }
-    return new ApiException(ErrorCode.INTERNAL, 'GitHub Actions 실행 요청이 실패했습니다.', 502);
+    if (res.status === 401) {
+      // GitHub이 토큰 자체를 거부했다. 갱신으로 될 일이 아니라 다시 받아야 한다.
+      return new ApiException(
+        ErrorCode.GITHUB_REAUTH_REQUIRED,
+        'GitHub 재인증이 필요합니다. 로그아웃 후 다시 로그인해 주세요 — GitHub이 저장된 토큰을 거부했습니다.',
+        403,
+      );
+    }
+    return new ApiException(
+      ErrorCode.INTERNAL,
+      // 상태 코드를 메시지에 남긴다. 이게 없으면 예상 밖 실패마다 사용자가 서버 로그를
+      // 떠다 주어야만 원인을 좁힐 수 있다 — 실제로 그렇게 한 번 막혔다.
+      `GitHub Actions 실행 요청이 실패했습니다 (GitHub 응답 ${res.status}).`,
+      502,
+    );
   }
 }

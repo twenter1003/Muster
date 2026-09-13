@@ -129,6 +129,47 @@ describe('GitHubActionsExecutor', () => {
     expect(userMessage(error)).toContain('Actions 활성화');
   });
 
+  /**
+   * 204만 성공으로 보다가 프로덕션에서 크게 데였다. GitHub이 200에 workflow_run_id를 담아
+   * 돌려주기 시작했는데 그것을 실패로 읽어, 이미 돌고 있는 실행을 failed로 뒤집었다.
+   * 화면에는 실패로 남고 워크플로는 계속 도는 어긋남이었다.
+   */
+  it('200에 실행 정보를 담아 줘도 성공이다 — 성공의 정의는 2xx다', async () => {
+    stubFetch([
+      { status: 200, body: { default_branch: 'main' } },
+      { status: 200, body: { workflow_run_id: 34758292446 } },
+    ]);
+
+    await expect(make(LINKED).start(params)).resolves.toBeUndefined();
+  });
+
+  it('201도 성공이다', async () => {
+    stubFetch([{ status: 200, body: { default_branch: 'main' } }, { status: 201 }]);
+
+    await expect(make(LINKED).start(params)).resolves.toBeUndefined();
+  });
+
+  it('401은 재인증이다 — 토큰을 GitHub이 거부한 것이라 재시도로는 안 된다', async () => {
+    stubFetch([{ status: 200, body: { default_branch: 'main' } }, { status: 401 }]);
+
+    const error = await make(LINKED)
+      .start(params)
+      .catch((e: unknown) => e);
+
+    expect(error).toMatchObject({ code: 'GITHUB_REAUTH_REQUIRED' });
+  });
+
+  /** 예상 밖 실패에서 상태 코드가 사라지면, 원인을 좁히려고 서버 로그를 떠 와야 한다. */
+  it('그 밖의 실패는 GitHub이 준 상태 코드를 메시지에 남긴다', async () => {
+    stubFetch([{ status: 200, body: { default_branch: 'main' } }, { status: 500 }]);
+
+    const error = await make(LINKED)
+      .start(params)
+      .catch((e: unknown) => e);
+
+    expect(userMessage(error)).toContain('500');
+  });
+
   it('422는 트리거 선언을 확인하라고 안내한다', async () => {
     stubFetch([{ status: 200, body: { default_branch: 'main' } }, { status: 422 }]);
 

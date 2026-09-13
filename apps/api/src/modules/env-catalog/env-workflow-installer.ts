@@ -223,6 +223,26 @@ export class EnvWorkflowInstaller {
           );
     }
 
-    return new ApiException(ErrorCode.INTERNAL, '워크플로 설치 요청이 실패했습니다.', 502);
+    if (res.status === 401) {
+      return new ApiException(
+        ErrorCode.GITHUB_REAUTH_REQUIRED,
+        'GitHub 재인증이 필요합니다. 로그아웃 후 다시 로그인해 주세요 — GitHub이 저장된 토큰을 거부했습니다.',
+        403,
+      );
+    }
+    if (res.status === 409) {
+      // 커밋이 하나도 없는 레포다. 기본 브랜치가 없으니 브랜치를 딸 곳도 없다.
+      return new ApiException(
+        ErrorCode.VALIDATION_FAILED,
+        `${owner}/${repo}가 비어 있습니다. 파일을 하나라도 커밋한 뒤 다시 시도해 주세요.`,
+        400,
+      );
+    }
+    return new ApiException(
+      ErrorCode.INTERNAL,
+      // 상태 코드를 남기는 이유는 executor 쪽 주석과 같다.
+      `워크플로 설치 요청이 실패했습니다 (GitHub 응답 ${res.status}).`,
+      502,
+    );
   }
 }
