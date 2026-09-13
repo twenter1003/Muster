@@ -63,3 +63,10 @@ export async function apiPost<T>(path: string, body?: unknown, init?: RequestIni
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 }
+
+/**
+ * PATCH 호출. POST와 달리 body가 필수다 — 무엇을 바꿀지 없는 부분 수정은 뜻이 없다.
+ */
+export async function apiPatch<T>(path: string, body: unknown, init?: RequestInit): Promise<T> {
+  return apiFetch<T>(path, { ...init, method: 'PATCH', body: JSON.stringify(body) });
+}

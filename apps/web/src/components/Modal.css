@@ -1,0 +1,73 @@
+/*
+ * 모달. 색·간격은 토큰만 쓴다.
+ *
+ * dialog의 기본 스타일(테두리·패딩·가운데 정렬)은 브라우저마다 달라서 전부 지우고 다시 쌓는다.
+ */
+.modal {
+  padding: 0;
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+  color: var(--color-ink);
+  max-width: min(440px, calc(100vw - var(--space-6)));
+  width: 100%;
+}
+
+/* 배경. 뒤쪽 화면이 완전히 가려지면 어디서 열렸는지를 잃어버린다 — 비치게 둔다. */
+.modal::backdrop {
+  background: rgb(0 0 0 / 0.45);
+}
+
+.modal__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.modal__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.modal__title {
+  margin: 0;
+  font-size: var(--font-size-section);
+  font-weight: 600;
+}
+
+.modal__close {
+  margin-left: auto;
+  border: none;
+  background: none;
+  color: var(--color-ink-mid);
+  font: inherit;
+  font-size: var(--font-size-meta);
+  cursor: pointer;
+  padding: var(--space-1);
+  line-height: 1;
+}
+
+.modal__close:hover {
+  color: var(--color-ink);
+}
+
+/* 폼 본문 — 두 화면이 같은 모양을 쓴다. */
+.modal__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.modal__input {
+  padding: var(--space-2);
+  font-size: var(--font-size-body);
+  width: 100%;
+}
+
+.modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

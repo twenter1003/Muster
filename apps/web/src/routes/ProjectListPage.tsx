@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { HealthIndicator } from '../components/HealthIndicator';
 import { StageBadge } from '../components/StageBadge';
 import { StatusBadge } from '../components/StatusBadge';
-import { apiFetch, type Page } from '../lib/api';
+import { ApiError, apiFetch, apiPost, type Page } from '../lib/api';
+import { Modal } from '../components/Modal';
 import {
   EM_DASH,
   PROJECT_STAGES,
@@ -46,6 +47,9 @@ interface BudgetView {
 }
 
 const PAGE_LIMIT = 20;
+
+/** 서버의 CreateProjectDto가 정한 상한. 넘으면 400이 오므로 입력에서 먼저 막는다. */
+const NAME_MAX = 200;
 
 /** 서버가 문자열로 준 stage를 화면 타입으로 좁힌다. 모르는 값이면 배지를 그리지 않는다. */
 function toStage(value: string): ProjectStage | null {
@@ -120,7 +124,9 @@ interface Filters {
 const NO_FILTERS: Filters = { stages: new Set(), stack: null };
 
 export function ProjectListPage() {
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
+  const [creating, setCreating] = useState(false);
   const board = params.get('view') === 'board';
 
   const [cursor, setCursor] = useState<string | null>(null);
@@ -238,6 +244,13 @@ export function ProjectListPage() {
 
   return (
     <section className="page plist">
+      <CreateProjectDialog
+        open={creating}
+        onClose={() => setCreating(false)}
+        // 만들자마자 그 프로젝트로 보낸다. 방금 만든 것에 문서와 환경 구성을 붙이는 것이
+        // 다음 할 일이지, 목록으로 돌아와 방금 만든 이름을 다시 찾는 것이 아니다.
+        onCreated={(id) => navigate(`/projects/${id}`)}
+      />
       <header className="page__head">
         <h1 className="page__title">
           프로젝트{' '}
@@ -255,7 +268,9 @@ export function ProjectListPage() {
             </Button>
           </div>
           {/* 화면당 솔리드는 하나. 이 화면에서 할 일은 프로젝트 생성이다. */}
-          <Button variant="solid">+ 프로젝트 생성</Button>
+          <Button variant="solid" onClick={() => setCreating(true)}>
+            + 프로젝트 생성
+          </Button>
         </div>
       </header>
 
@@ -478,5 +493,92 @@ function BoardView({ projects, detailOf }: ViewProps) {
         })}
       </div>
     </div>
+  );
+}
+
+/* ───────────────────────── 프로젝트 생성 ─────────────────────────
+ * 서버가 요구하는 것은 이름 하나뿐이다(CreateProjectDto). 단계나 스택을 여기서 더 묻지 않는
+ * 이유는, 만들기 전에 정해야 하는 것이 아니라 만든 뒤에 바꿔 나가는 값이기 때문이다.
+ * 폼이 길어질수록 "일단 만들어 보는" 일이 어려워진다.
+ */
+
+function CreateProjectDialog({
+  open,
+  onClose,
+  onCreated,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onCreated: (id: string) => void;
+}) {
+  const [name, setName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // 닫혔다 다시 열 때 지난번에 쓰다 만 이름이 남아 있으면, 그게 새 프로젝트의 이름이 된다.
+  useEffect(() => {
+    if (open) {
+      setName('');
+      setError(null);
+    }
+  }, [open]);
+
+  const trimmed = name.trim();
+  const tooLong = trimmed.length > NAME_MAX;
+  const canSave = trimmed.length > 0 && !tooLong && !saving;
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canSave) return;
+
+    setSaving(true);
+    setError(null);
+
+    apiPost<ProjectView>('/projects', { name: trimmed }).then(
+      (created) => onCreated(created.id),
+      (err: unknown) => {
+        setSaving(false);
+        setError(err instanceof ApiError ? `${err.message} (${err.code})` : String(err));
+      },
+    );
+  };
+
+  return (
+    <Modal open={open} title="프로젝트 생성" onClose={saving ? () => undefined : onClose}>
+      <form className="modal__form" onSubmit={submit}>
+        <div className="field">
+          <label className="meta" htmlFor="new-project-name">
+            이름
+          </label>
+          <input
+            id="new-project-name"
+            className="input modal__input"
+            value={name}
+            maxLength={NAME_MAX}
+            placeholder="kiosk-pos"
+            autoFocus
+            onChange={(e) => setName(e.target.value)}
+          />
+          <span className="meta">
+            {trimmed.length}/{NAME_MAX}자 · 나중에 바꿀 수 있습니다
+          </span>
+        </div>
+
+        {error !== null && (
+          <p className="error-note" role="alert">
+            만들지 못했다: {error}
+          </p>
+        )}
+
+        <div className="modal__actions">
+          <Button type="button" onClick={onClose} disabled={saving}>
+            취소
+          </Button>
+          <Button type="submit" variant="solid" disabled={!canSave}>
+            {saving ? '만드는 중…' : '만들기'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
