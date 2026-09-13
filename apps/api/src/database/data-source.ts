@@ -5,7 +5,32 @@ import { ALL_ENTITIES } from './entities';
 
 loadDotenv({ quiet: true });
 
-const DATABASE_URL = process.env.DATABASE_URL ?? 'postgresql://muster:muster@localhost:5432/muster';
+const RAW_DATABASE_URL =
+  process.env.DATABASE_URL ?? 'postgresql://muster:muster@localhost:5432/muster';
+
+/**
+ * 연결 문자열에서 `sslmode`를 떼어낸다.
+ *
+ * pg는 문자열의 `sslmode`를 코드가 넘긴 `ssl` 옵션보다 **우선한다**. 그래서 아래에서
+ * 아무리 CA를 지정하거나 검증을 끄더라도, 문자열에 `sslmode=require`가 남아 있으면
+ * 그 설정이 무시되고 기본 검증으로 되돌아간다(자체 서명 인증서에서 그대로 죽는다).
+ *
+ * TLS를 어떻게 할지는 **코드가 정한다**. 제공자가 복사해 주는 문자열에 무엇이 붙어 있든
+ * 그것이 보안 설정을 조용히 바꾸지 못하게 한다.
+ */
+function stripSslMode(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.searchParams.delete('sslmode');
+    return parsed.toString();
+  } catch {
+    // 파싱할 수 없는 문자열은 그대로 넘긴다 — 여기서 던지면 원인이 TLS가 아니라
+    // "설정 파일이 터졌다"로 보인다. 연결 단계에서 제대로 된 에러가 난다.
+    return url;
+  }
+}
+
+const DATABASE_URL = stripSslMode(RAW_DATABASE_URL);
 
 /**
  * 관리형 Postgres의 TLS.
