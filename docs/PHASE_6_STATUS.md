@@ -94,10 +94,10 @@ NOT NULL이면 없는 값을 지어내야 하고 그 순간 리드타임 중앙�
   웹훅 URL을 갱신해야 한다.
 
 ### 남은 것
-- `BUDGET_THRESHOLD_EXCEEDED`는 여전히 구독자가 없다. §7.3이 SSE 이벤트 타입을
-  셋으로 못박아서 스트림에 넣지 않았다. 알림 경로 설계가 필요하다.
-- lint 14건 (전부 Phase 6 이전부터 있던 prettier 포맷). 포맷 전용 커밋으로 한 번에
-  정리하면 되지만 diff를 흐리지 않으려고 두었다.
+- ~~`BUDGET_THRESHOLD_EXCEEDED`는 여전히 구독자가 없다.~~ Phase 7에서 SSE 넷째 타입
+  `budget_alert`로 실었다(DESIGN_DRIFT.md 10번). 프로세스 밖 채널(메일·슬랙)은 여전히 없다.
+- ~~lint 14건 (전부 Phase 6 이전부터 있던 prettier 포맷).~~ Phase 7에서 정리했고,
+  CI가 `prettier --check`으로 두 앱을 본다.
 - 개발 DB에 검증용 시드가 남아 있다: `git_integrations`의
   `kimtaewoo/muster-demo`(실재하지 않는 레포, `webhook_id=999`)와 세션·API 키 각 1건.
   연동 해제를 시도하면 GitHub 호출이 실패한다. Phase 7에서 DB를 새로 만들면 사라진다.

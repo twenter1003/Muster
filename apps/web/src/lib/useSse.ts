@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { API_BASE } from './api';
 
-/** 설계서 Part 4 §7.3의 이벤트 타입. ping은 하트비트라 화면에 보이지 않는다. */
-export type StreamEventType = 'log' | 'health_update' | 'stage_change';
+/**
+ * 스트림 이벤트 타입. ping은 하트비트라 화면에 보이지 않는다.
+ * 앞의 셋은 설계서 Part 4 §7.3, budget_alert는 그 뒤에 더한 넷째다(DESIGN_DRIFT.md 10번).
+ */
+export type StreamEventType = 'log' | 'health_update' | 'stage_change' | 'budget_alert';
 
 export type ConnectionState = 'connecting' | 'open' | 'closed';
 
@@ -46,6 +49,7 @@ export function useSse(projectId: string | null, limit = 50) {
       ['log', push('log')],
       ['health_update', push('health_update')],
       ['stage_change', push('stage_change')],
+      ['budget_alert', push('budget_alert')],
     ];
     for (const [type, handler] of handlers) source.addEventListener(type, handler);
 
