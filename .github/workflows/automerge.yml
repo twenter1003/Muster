@@ -94,10 +94,18 @@ jobs:
           # 4. 지금 head에 달린 검사가 전부 끝났고 전부 성공인지 확인한다.
           #    ready로 들어온 경로에는 이 조회가 유일한 CI 판단 근거다. workflow_run 경로에도
           #    같은 검사를 거는 이유는, 그 사이 다른 검사가 추가되거나 재실행될 수 있어서다.
-          checks="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${head}/check-runs" --paginate)"
-          total="$(jq -r '.total_count' <<<"$checks" | head -1)"
-          pending="$(jq -r '[.check_runs[] | select(.status != "completed")] | length' <<<"$checks")"
-          bad="$(jq -r '[.check_runs[] | select(.status == "completed" and
+          #
+          #    **자기 자신은 뺀다.** pull_request로 트리거되면 이 워크플로도 PR head의 체크 런이
+          #    되는데, 그 체크는 지금 이 스크립트가 도는 동안 당연히 in_progress다. 빼지 않으면
+          #    "아직 도는 검사가 있다"며 스스로를 영원히 막는다(#26에서 실제로 그랬다).
+          #    이름이 아니라 실행 id로 가른다 — 잡 이름은 바뀔 수 있고, 바뀌는 순간 조용히
+          #    교착으로 돌아간다.
+          checks="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${head}/check-runs" --paginate \
+            | jq -s --arg mine "/actions/runs/${GITHUB_RUN_ID}/" \
+                '[.[].check_runs[]] | map(select((.details_url // "") | contains($mine) | not))')"
+          total="$(jq -r 'length' <<<"$checks")"
+          pending="$(jq -r '[.[] | select(.status != "completed")] | length' <<<"$checks")"
+          bad="$(jq -r '[.[] | select(.status == "completed" and
                           (.conclusion | IN("success", "neutral", "skipped") | not))] | length' <<<"$checks")"
 
           [ "$total" != "0" ] || skip "PR #${number}의 head에 검사가 하나도 없다. 머지하지 않는다."
