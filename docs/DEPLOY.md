@@ -215,6 +215,18 @@ DEPLOY_URL=https://<주소> ./scripts/setup-gcs.sh <프로젝트 id> <버킷 이
 **`DEPLOY_URL`을 반드시 넘긴다** — 브라우저가 GCS로 직접 PUT하므로, 배포 주소가 CORS 허용
 목록에 없으면 배포된 화면에서만 업로드가 막힌다. 로컬(`localhost:5173`)은 항상 포함된다.
 
+**Cloud Run은 한 서비스에 주소를 둘 준다** — `<서비스>-<프로젝트번호>.<리전>.run.app`과
+`<서비스>-<해시>-<코드>.a.run.app`. 둘 다 살아 있고 브라우저가 보내는 Origin은 사용자가
+실제로 연 쪽이라, 쓰는 주소를 쉼표로 모두 넘기는 편이 안전하다:
+
+```bash
+DEPLOY_URL=https://muster-<번호>.asia-northeast3.run.app,https://muster-<해시>-du.a.run.app \
+  ./scripts/setup-gcs.sh <프로젝트 id> <버킷 이름>
+```
+
+두 주소는 `gcloud run services describe muster --region <리전> --format='value(status.url)'`과
+배포 출력의 `Service URL` 줄에서 각각 확인할 수 있다(서로 다를 수 있다).
+
 그다음 버킷을 넘겨 다시 배포한다:
 
 ```bash

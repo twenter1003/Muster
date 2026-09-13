@@ -9,8 +9,11 @@
 # 사용법:
 #   ./scripts/setup-gcs.sh <project-id> <bucket-name> [region]
 #
-#   DEPLOY_URL=https://<Cloud Run 주소>  — 배포된 화면에서도 업로드하려면 함께 넘긴다.
-#                                          CORS 허용 목록에 그 오리진이 들어간다.
+#   DEPLOY_URL=https://<주소>[,https://<주소2>]  — 배포된 화면에서도 업로드하려면 넘긴다.
+#                                          CORS 허용 목록에 그 오리진들이 들어간다.
+#                                          Cloud Run은 한 서비스에 주소를 둘 주므로
+#                                          (…-<번호>.<리전>.run.app 과 …-<해시>.a.run.app)
+#                                          쓰는 쪽을 다 넣는 편이 안전하다.
 #
 # 여러 번 실행해도 안전하다(멱등). 이미 있는 리소스는 건너뛴다.
 
@@ -120,11 +123,24 @@ echo "==> CORS 설정"
 # 오리진은 화면이 떠 있는 주소다 — 로컬 개발 서버와, 있다면 배포 주소. 와일드카드를 쓰지
 # 않는 이유는 signed URL이 유효한 동안 아무 사이트나 그 URL로 업로드를 시도할 수 있게
 # 되기 때문이다. 목록에 없는 주소에서 열면 업로드만 CORS로 막힌다(조회는 서버가 한다).
+# Cloud Run은 한 서비스에 주소를 **둘** 준다:
+#   https://<서비스>-<프로젝트번호>.<리전>.run.app
+#   https://<서비스>-<해시>-<코드>.a.run.app
+# 둘 다 살아 있고, 브라우저가 보내는 Origin은 사용자가 실제로 연 쪽이다. 하나만 넣으면
+# 다른 주소로 들어온 사람에게만 업로드가 막힌다 — 그래서 DEPLOY_URL은 쉼표로 여러 개를 받는다.
 ORIGINS='"http://localhost:5173"'
+LISTED="http://localhost:5173"
 if [[ -n "${DEPLOY_URL:-}" ]]; then
-  # 끝의 슬래시는 오리진이 아니다. 붙여 두면 브라우저가 보내는 Origin과 달라 조용히 막힌다.
-  ORIGINS="${ORIGINS}, \"${DEPLOY_URL%/}\""
-  echo "    허용 오리진: http://localhost:5173, ${DEPLOY_URL%/}"
+  IFS=',' read -ra URLS <<< "$DEPLOY_URL"
+  for raw in "${URLS[@]}"; do
+    # 공백과 끝의 슬래시를 떼어낸다. 슬래시가 붙으면 오리진이 아니게 되어 조용히 막힌다.
+    url="$(echo "$raw" | tr -d '[:space:]')"
+    url="${url%/}"
+    [[ -n "$url" ]] || continue
+    ORIGINS="${ORIGINS}, \"${url}\""
+    LISTED="${LISTED}, ${url}"
+  done
+  echo "    허용 오리진: ${LISTED}"
 else
   echo "    허용 오리진: http://localhost:5173 (배포 주소는 DEPLOY_URL=... 로 함께 넘긴다)"
 fi
