@@ -12,6 +12,7 @@ import {
   type GitHubOAuthClient,
   type GitHubProfile,
 } from '../src/modules/auth/github-oauth.client';
+import { parseTokenSet, type GitHubTokenSet } from '../src/modules/auth/github-token-set';
 
 /**
  * OAuth 플로우를 GitHub 자격증명 없이 검증한다.
@@ -23,12 +24,23 @@ class FakeGitHubClient implements GitHubOAuthClient {
   lastCode: string | null = null;
   lastRedirectUri: string | null = null;
   issuedToken = 'gho_fake_access_token';
+  /** 만료가 켜진 OAuth 앱을 흉내 낼 때 채운다. */
+  issuedRefreshToken: string | null = null;
+  issuedExpiresAt: number | null = null;
 
-  async exchangeCode(code: string, redirectUri: string): Promise<string> {
+  async exchangeCode(code: string, redirectUri: string): Promise<GitHubTokenSet> {
     this.lastCode = code;
     this.lastRedirectUri = redirectUri;
     if (code === 'bad-code') throw new Error('invalid code');
-    return this.issuedToken;
+    return {
+      accessToken: this.issuedToken,
+      refreshToken: this.issuedRefreshToken,
+      expiresAt: this.issuedExpiresAt,
+    };
+  }
+
+  async refresh(): Promise<GitHubTokenSet> {
+    throw new Error('이 테스트는 갱신 경로를 타지 않는다');
   }
 
   async fetchProfile(): Promise<GitHubProfile> {
@@ -191,7 +203,8 @@ describe('Phase 3 — GitHub OAuth 플로우 (e2e)', () => {
 
     it('토큰 원문은 시크릿 저장소에서만 꺼낼 수 있다', async () => {
       const user = await ds.getRepository(User).findOneBy({ github_login: login });
-      expect(await secrets.get(user!.github_token_ref!)).toBe(github.issuedToken);
+      const stored = parseTokenSet((await secrets.get(user!.github_token_ref!))!);
+      expect(stored.accessToken).toBe(github.issuedToken);
     });
 
     it('같은 사용자가 다시 로그인해도 USERS가 중복 생성되지 않는다', async () => {

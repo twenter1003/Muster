@@ -3,13 +3,13 @@ import { ConfigService } from '@nestjs/config';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '../../database/inject-repository.decorator';
 import { User } from '../../database/entities';
-import { SECRET_STORE, type SecretStore } from '../../common/secrets/secret-store';
 import { ApiException } from '../../common/errors/api.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { clearedSessionCookie, sessionCookie } from '../../common/auth/session-cookie';
 import { AuditService } from '../audit/audit.service';
 import { SessionService } from './session.service';
 import { OAuthStateService } from './oauth-state.service';
+import { GitHubTokenService } from './github-token.service';
 import {
   GITHUB_OAUTH_CLIENT,
   GITHUB_OAUTH_SCOPES,
@@ -21,9 +21,9 @@ export class AuthService {
   constructor(
     @InjectRepository(User) private readonly users: Repository<User>,
     @Inject(GITHUB_OAUTH_CLIENT) private readonly github: GitHubOAuthClient,
-    @Inject(SECRET_STORE) private readonly secrets: SecretStore,
     private readonly sessions: SessionService,
     private readonly state: OAuthStateService,
+    private readonly githubTokens: GitHubTokenService,
     private readonly config: ConfigService,
     private readonly audit: AuditService,
   ) {}
@@ -65,12 +65,14 @@ export class AuthService {
     }
 
     // authorize 때 보낸 redirect_uri와 반드시 같은 값을 넘겨야 한다.
-    const accessToken = await this.github.exchangeCode(code, this.callbackUrl());
-    const profile = await this.github.fetchProfile(accessToken);
+    const tokens = await this.github.exchangeCode(code, this.callbackUrl());
+    const profile = await this.github.fetchProfile(tokens.accessToken);
     const user = await this.upsertUser(profile.login, profile.email);
 
     // 토큰 원문은 DB가 아니라 시크릿 저장소에 두고 참조만 남긴다 (설계서 Part 2 §6.2).
-    const ref = await this.secrets.put(`github-token-${user.id}`, accessToken);
+    // access_token만이 아니라 refresh_token·만료 시각까지 함께 보관한다. 액세스 토큰만
+    // 저장하면 만료가 켜진 앱에서 8시간 뒤 레포 연동이 살아날 방법이 없다.
+    const ref = await this.githubTokens.store(user.id, tokens);
     if (user.github_token_ref !== ref) {
       await this.users.update({ id: user.id }, { github_token_ref: ref });
     }

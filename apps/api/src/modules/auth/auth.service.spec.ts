@@ -16,8 +16,8 @@ const make = (values: Record<string, string | undefined>) =>
     {} as never,
     {} as never,
     {} as never,
-    {} as never,
     new OAuthStateService(configWith({ OAUTH_STATE_SECRET: 'unit-test-secret-0123456789' })),
+    {} as never,
     configWith(values),
     { record: async () => undefined } as unknown as AuditService,
   );

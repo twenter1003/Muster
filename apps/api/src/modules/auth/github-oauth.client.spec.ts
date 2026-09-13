@@ -65,7 +65,28 @@ describe('HttpGitHubOAuthClient (실제 요청 형태)', () => {
 
     it('응답의 access_token을 그대로 돌려준다', async () => {
       fetchMock.mockResolvedValue(respond({ access_token: 'gho_real', token_type: 'bearer' }));
-      expect(await client.exchangeCode('c', REDIRECT)).toBe('gho_real');
+      expect(await client.exchangeCode('c', REDIRECT)).toMatchObject({ accessToken: 'gho_real' });
+    });
+
+    it('만료가 꺼진 앱 응답은 만료 없는 토큰이 된다', async () => {
+      fetchMock.mockResolvedValue(respond({ access_token: 'gho_real', token_type: 'bearer' }));
+      expect(await client.exchangeCode('c', REDIRECT)).toEqual({
+        accessToken: 'gho_real',
+        refreshToken: null,
+        expiresAt: null,
+      });
+    });
+
+    it('만료가 켜진 앱의 refresh_token과 expires_in을 함께 보관한다', async () => {
+      const before = Date.now();
+      fetchMock.mockResolvedValue(
+        respond({ access_token: 'gho_real', refresh_token: 'ghr_1', expires_in: 28800 }),
+      );
+
+      const tokens = await client.exchangeCode('c', REDIRECT);
+      expect(tokens.refreshToken).toBe('ghr_1');
+      // expires_in은 상대값(초)이다. 절대 시각으로 바꿔 두지 않으면 저장한 뒤 뜻이 없어진다.
+      expect(tokens.expiresAt).toBeGreaterThanOrEqual(before + 28800 * 1000);
     });
 
     it('GitHub이 HTTP 200에 error를 담아 보내도 실패로 처리한다', async () => {
@@ -93,6 +114,47 @@ describe('HttpGitHubOAuthClient (실제 요청 형태)', () => {
     it('5xx면 502로 변환한다', async () => {
       fetchMock.mockResolvedValue(respond({}, { status: 500 }));
       await expect(client.exchangeCode('c', REDIRECT)).rejects.toMatchObject({ status: 502 });
+    });
+  });
+
+  describe('refresh', () => {
+    it('grant_type=refresh_token으로 같은 토큰 엔드포인트에 POST한다', async () => {
+      fetchMock.mockResolvedValue(respond({ access_token: 'gho_new' }));
+      await client.refresh('ghr_1');
+
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toBe('https://github.com/login/oauth/access_token');
+      expect(init.method).toBe('POST');
+      expect(JSON.parse(init.body)).toEqual({
+        client_id: 'cid',
+        client_secret: 'csecret',
+        grant_type: 'refresh_token',
+        refresh_token: 'ghr_1',
+      });
+    });
+
+    it('새 토큰 한 벌을 돌려준다', async () => {
+      fetchMock.mockResolvedValue(
+        respond({ access_token: 'gho_new', refresh_token: 'ghr_new', expires_in: 28800 }),
+      );
+
+      const tokens = await client.refresh('ghr_1');
+      expect(tokens.accessToken).toBe('gho_new');
+      // GitHub은 갱신 때 refresh_token도 새로 준다. 흘리면 다음 갱신이 반드시 실패한다.
+      expect(tokens.refreshToken).toBe('ghr_new');
+      expect(tokens.expiresAt).not.toBeNull();
+    });
+
+    it('폐기된 refresh_token이면 재인증 오류를 낸다', async () => {
+      // GitHub은 여기서도 HTTP 200에 error를 담아 보낸다.
+      fetchMock.mockResolvedValue(
+        respond({ error: 'bad_refresh_token', error_description: 'The refresh token is invalid.' }),
+      );
+
+      await expect(client.refresh('ghr_dead')).rejects.toMatchObject({
+        status: 403,
+        response: { error: { code: 'GITHUB_REAUTH_REQUIRED' } },
+      });
     });
   });
 

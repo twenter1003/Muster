@@ -111,9 +111,27 @@ generateContent와 다른 점 — 옮길 때 걸린 것들:
 
 ---
 
-## 10. SSE 이벤트 타입에 `budget_alert` 추가 (개선 채택) — Phase 7
+## 9. GitHub 토큰 갱신 (문서 누락) — Phase 6
 
-<!-- 9번은 심사 중인 PR #18(GitHub 토큰 만료)이 쓴다. 번호가 겹치면 병합에서 충돌한다. -->
+설계서는 GitHub 액세스 토큰의 **수명**을 다루지 않는다. 그런데 GitHub OAuth 앱은
+"Expire user access tokens"가 기본으로 켜져 있고, 그러면 액세스 토큰이 8시간 뒤 죽는다.
+기존 구현은 access_token만 보관해서, 로그인 몇 시간 뒤 레포 연동이 서버 로그의
+경고 한 줄만 남기고 조용히 실패했다. 배포는 그 설정을 꺼 두는 것으로 우회하고 있었는데,
+누가 앱을 새로 만들면(기본값 = 켜짐) 같은 증상이 그대로 돌아온다.
+
+그래서 `refresh_token`·만료 시각까지 한 벌로 묶어 시크릿 저장소에 JSON으로 보관하고
+(DB에는 여전히 참조만 남는다 — Part 2 §6.2), 토큰을 꺼내는 문을 `GitHubTokenService`
+하나로 모아 만료됐으면 쓰기 직전에 갱신한다. 갱신도 불가능하면 `GITHUB_REAUTH_REQUIRED`를
+던지고, 설정 화면의 Git 연동 탭이 "GitHub 재인증이 필요합니다"와 재로그인 링크를 띄운다.
+
+- 새 에러 코드 `GITHUB_REAUTH_REQUIRED` (403). `FORBIDDEN`과 가른 이유: 사용자가 할 일이
+  "권한을 받아라"가 아니라 "다시 로그인하라"라서, 화면이 줄 수 있는 행동이 다르다.
+- 이전에 저장된 평문 토큰 형식도 계속 읽는다. 만료가 꺼진 앱에서 로그인한 사용자를
+  이 변경만으로 강제 로그아웃시킬 이유가 없다.
+
+---
+
+## 10. SSE 이벤트 타입에 `budget_alert` 추가 (개선 채택) — Phase 7
 
 설계서 Part 4 §7.3은 `GET /projects/:id/stream`의 이벤트 타입을 `log`·`health_update`·
 `stage_change` 셋으로 못박았다. 그런데 Part 4 §6이 정의한 예산 임계치 알림

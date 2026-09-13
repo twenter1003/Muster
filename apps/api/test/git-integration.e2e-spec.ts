@@ -8,6 +8,12 @@ import { Session, User } from '../src/database/entities';
 import { SECRET_STORE, type SecretStore } from '../src/common/secrets/secret-store';
 import { SessionService } from '../src/modules/auth/session.service';
 import {
+  GITHUB_OAUTH_CLIENT,
+  type GitHubOAuthClient,
+  type GitHubProfile,
+} from '../src/modules/auth/github-oauth.client';
+import { serializeTokenSet, type GitHubTokenSet } from '../src/modules/auth/github-token-set';
+import {
   GITHUB_REPO_CLIENT,
   type CreateWebhookParams,
   type DeleteWebhookParams,
@@ -35,11 +41,39 @@ class FakeRepoClient implements GitHubRepoClient {
   }
 }
 
+/**
+ * 토큰 갱신만 담당하는 fake. 만료가 켜진 OAuth 앱(GitHub 기본값)을 흉내 낸다.
+ */
+class FakeOAuthClient implements GitHubOAuthClient {
+  refreshed: string[] = [];
+  failRefresh = false;
+  nextAccessToken = 'gho_refreshed_token';
+
+  async exchangeCode(): Promise<GitHubTokenSet> {
+    throw new Error('이 테스트는 로그인 콜백을 타지 않는다');
+  }
+
+  async refresh(refreshToken: string): Promise<GitHubTokenSet> {
+    this.refreshed.push(refreshToken);
+    if (this.failRefresh) throw new Error('bad_refresh_token');
+    return {
+      accessToken: this.nextAccessToken,
+      refreshToken: 'ghr_rotated',
+      expiresAt: Date.now() + 8 * 3600_000,
+    };
+  }
+
+  async fetchProfile(): Promise<GitHubProfile> {
+    throw new Error('이 테스트는 프로필 조회를 타지 않는다');
+  }
+}
+
 describe('Phase 3 — GitHub 레포 연동 (e2e)', () => {
   let app: INestApplication;
   let ds: DataSource;
   let secrets: SecretStore;
   let github: FakeRepoClient;
+  let oauth: FakeOAuthClient;
   let user: User;
   let token: string;
   let projectId: string;
@@ -54,10 +88,13 @@ describe('Phase 3 — GitHub 레포 연동 (e2e)', () => {
 
   beforeAll(async () => {
     github = new FakeRepoClient();
+    oauth = new FakeOAuthClient();
 
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(GITHUB_REPO_CLIENT)
       .useValue(github)
+      .overrideProvider(GITHUB_OAUTH_CLIENT)
+      .useValue(oauth)
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -202,6 +239,129 @@ describe('Phase 3 — GitHub 레포 연동 (e2e)', () => {
       ])) as unknown[];
       // 웹훅이 없는데 연동만 남으면 이벤트가 영영 오지 않는 상태가 된다.
       expect(rows).toHaveLength(0);
+    });
+  });
+
+  /**
+   * GitHub OAuth 앱의 "Expire user access tokens"가 켜져 있으면 액세스 토큰은 8시간 뒤 죽는다.
+   * 예전에는 그 설정을 꺼 두는 운영 우회에 기대고 있었고, 만료된 토큰을 그대로 써서
+   * 연동이 서버 로그의 경고 한 줄만 남기고 조용히 실패했다.
+   */
+  describe('토큰 만료', () => {
+    /** 사용자의 보관 토큰을 원하는 상태로 갈아끼운다. */
+    const storeTokens = async (tokens: GitHubTokenSet) => {
+      const ref = await secrets.put(`github-token-${user.id}`, serializeTokenSet(tokens));
+      await ds.getRepository(User).update({ id: user.id }, { github_token_ref: ref });
+      user = (await ds.getRepository(User).findOneBy({ id: user.id }))!;
+    };
+
+    afterEach(async () => {
+      oauth.failRefresh = false;
+      oauth.refreshed = [];
+      await storeTokens({ accessToken: 'gho_user_token', refreshToken: null, expiresAt: null });
+    });
+
+    it('만료된 토큰은 갱신한 뒤 새 토큰으로 GitHub을 호출한다', async () => {
+      await storeTokens({
+        accessToken: 'gho_expired',
+        refreshToken: 'ghr_valid',
+        expiresAt: Date.now() - 1000,
+      });
+
+      const p = await newProject('expired-token');
+      await http()
+        .post(`/api/v1/projects/${p}/git-integration`)
+        .set(auth())
+        .send({ repo_url: 'https://github.com/octocat/refreshed' })
+        .expect(201);
+
+      expect(oauth.refreshed).toEqual(['ghr_valid']);
+      // 만료된 토큰을 그대로 보냈다면 GitHub이 401을 줬을 것이다.
+      expect(github.created.at(-1)?.accessToken).toBe('gho_refreshed_token');
+    });
+
+    it('갱신된 토큰은 다시 보관되어 다음 요청에서 또 갱신하지 않는다', async () => {
+      await storeTokens({
+        accessToken: 'gho_expired',
+        refreshToken: 'ghr_valid',
+        expiresAt: Date.now() - 1000,
+      });
+
+      const first = await newProject('refresh-once');
+      await http()
+        .post(`/api/v1/projects/${first}/git-integration`)
+        .set(auth())
+        .send({ repo_url: 'https://github.com/octocat/first' })
+        .expect(201);
+
+      const second = await newProject('refresh-not-twice');
+      await http()
+        .post(`/api/v1/projects/${second}/git-integration`)
+        .set(auth())
+        .send({ repo_url: 'https://github.com/octocat/second-repo' })
+        .expect(201);
+
+      expect(oauth.refreshed).toHaveLength(1);
+      expect(github.created.at(-1)?.accessToken).toBe('gho_refreshed_token');
+    });
+
+    it('유효한 토큰이면 갱신을 시도하지 않는다', async () => {
+      await storeTokens({
+        accessToken: 'gho_still_valid',
+        refreshToken: 'ghr_valid',
+        expiresAt: Date.now() + 3600_000,
+      });
+
+      const p = await newProject('valid-token');
+      await http()
+        .post(`/api/v1/projects/${p}/git-integration`)
+        .set(auth())
+        .send({ repo_url: 'https://github.com/octocat/valid' })
+        .expect(201);
+
+      // 멀쩡한 토큰으로 갱신을 부르면 GitHub이 지금 쓰는 토큰을 무효화한다.
+      expect(oauth.refreshed).toEqual([]);
+      expect(github.created.at(-1)?.accessToken).toBe('gho_still_valid');
+    });
+
+    it('갱신이 실패하면 화면이 띄울 수 있는 재인증 오류를 준다', async () => {
+      await storeTokens({
+        accessToken: 'gho_expired',
+        refreshToken: 'ghr_revoked',
+        expiresAt: Date.now() - 1000,
+      });
+      oauth.failRefresh = true;
+
+      const p = await newProject('reauth-needed');
+      const createdBefore = github.created.length;
+      const res = await http()
+        .post(`/api/v1/projects/${p}/git-integration`)
+        .set(auth())
+        .send({ repo_url: 'https://github.com/octocat/nope' })
+        .expect(403);
+
+      expect(res.body.error.code).toBe('GITHUB_REAUTH_REQUIRED');
+      expect(res.body.error.message).toContain('GitHub 재인증이 필요합니다');
+      // 토큰을 못 얻었으면 GitHub에 아무것도 만들지 않아야 한다.
+      expect(github.created).toHaveLength(createdBefore);
+    });
+
+    it('만료됐는데 refresh_token이 없으면 재인증을 요구한다', async () => {
+      await storeTokens({
+        accessToken: 'gho_expired',
+        refreshToken: null,
+        expiresAt: Date.now() - 1000,
+      });
+
+      const p = await newProject('no-refresh-token');
+      const res = await http()
+        .post(`/api/v1/projects/${p}/git-integration`)
+        .set(auth())
+        .send({ repo_url: 'https://github.com/octocat/nope2' })
+        .expect(403);
+
+      expect(res.body.error.code).toBe('GITHUB_REAUTH_REQUIRED');
+      expect(oauth.refreshed).toEqual([]);
     });
   });
 

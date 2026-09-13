@@ -6,6 +6,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { OAuthStateService } from './oauth-state.service';
 import { GITHUB_OAUTH_CLIENT, HttpGitHubOAuthClient } from './github-oauth.client';
+import { GitHubTokenService } from './github-token.service';
 
 /**
  * Auth — 인증, 세션/토큰 관리.
@@ -21,9 +22,10 @@ import { GITHUB_OAUTH_CLIENT, HttpGitHubOAuthClient } from './github-oauth.clien
     SessionService,
     AuthService,
     OAuthStateService,
+    GitHubTokenService,
     { provide: SESSION_RESOLVER, useClass: DbSessionResolver },
     { provide: GITHUB_OAUTH_CLIENT, useClass: HttpGitHubOAuthClient },
   ],
-  exports: [SESSION_RESOLVER, SessionService],
+  exports: [SESSION_RESOLVER, SessionService, GitHubTokenService],
 })
 export class AuthModule {}
