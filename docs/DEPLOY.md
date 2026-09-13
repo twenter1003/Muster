@@ -136,6 +136,59 @@ DATABASE_URL='postgresql://...세션 풀러 문자열...' pnpm --filter @muster/
 `DEPLOY_URL = https://<주소>`를 추가한다. `.github/workflows/keepalive.yml`이 주 1회
 헬스체크를 때려 DB를 깨운다(헬스체크가 실제로 `SELECT 1`을 돌린다).
 
+### 8. 자동 배포 (사람 — 한 번만, 선택)
+
+`.github/workflows/deploy.yml`이 main 푸시마다 배포한다. 안 걸어 두면 지금처럼
+`./scripts/deploy-cloudrun.sh`를 사람이 돌리면 된다 — 워크플로도 같은 스크립트를 부른다.
+
+**서비스 계정 키(JSON)를 저장소 시크릿에 넣지 않는다.** 만료가 없어 유출되면 회수 전까지
+계속 유효하다. GitHub Actions의 OIDC 토큰을 GCP가 직접 신뢰하게 한다(Workload Identity).
+
+```bash
+PROJECT=$(gcloud config get-value project)
+NUM=$(gcloud projects describe "$PROJECT" --format='value(projectNumber)')
+REPO=twenter1003/Muster    # 이 저장소
+
+gcloud services enable iamcredentials.googleapis.com sts.googleapis.com
+
+gcloud iam workload-identity-pools create github --location=global --display-name=GitHub
+
+# attribute-condition이 핵심이다. 없으면 GitHub의 어느 저장소에서 온 토큰이든 받아들인다.
+gcloud iam workload-identity-pools providers create-oidc github \
+  --location=global --workload-identity-pool=github \
+  --issuer-uri=https://token.actions.githubusercontent.com \
+  --attribute-mapping='google.subject=assertion.sub,attribute.repository=assertion.repository' \
+  --attribute-condition="assertion.repository=='${REPO}'"
+
+# 배포에 쓸 계정. 런타임 계정(...-compute@)을 그대로 쓰지 않는다 — 그쪽은
+# secretmanager.admin을 갖고 있고, 빌드가 그 권한까지 가질 이유가 없다.
+gcloud iam service-accounts create muster-deployer --display-name='Muster 배포'
+DEPLOYER="muster-deployer@${PROJECT}.iam.gserviceaccount.com"
+
+for r in roles/run.admin roles/artifactregistry.writer; do
+  gcloud projects add-iam-policy-binding "$PROJECT" --member="serviceAccount:${DEPLOYER}" --role="$r"
+done
+
+# Cloud Run 서비스가 쓰는 런타임 계정을 배포자가 '지정'할 수 있어야 한다.
+gcloud iam service-accounts add-iam-policy-binding "${NUM}-compute@developer.gserviceaccount.com" \
+  --member="serviceAccount:${DEPLOYER}" --role=roles/iam.serviceAccountUser
+
+# 이 저장소의 Actions만 위 계정을 가장할 수 있게 묶는다.
+gcloud iam service-accounts add-iam-policy-binding "${DEPLOYER}" \
+  --role=roles/iam.workloadIdentityUser \
+  --member="principalSet://iam.googleapis.com/projects/${NUM}/locations/global/workloadIdentityPools/github/attribute.repository/${REPO}"
+
+echo "GCP_WIF_PROVIDER = projects/${NUM}/locations/global/workloadIdentityPools/github/providers/github"
+echo "GCP_SERVICE_ACCOUNT = ${DEPLOYER}"
+echo "GCP_PROJECT = ${PROJECT}"
+```
+
+마지막 세 줄과 `DEPLOY_URL`을 저장소 Settings → Secrets and variables → Actions →
+**Variables**에 넣는다(비밀이 아니라 식별자다). 리전이 서울이 아니면 `GCP_REGION`도 넣는다.
+
+**워크플로가 하지 않는 것**: 마이그레이션(6단계)과 시크릿 주입(4단계). 스키마 변경이
+있는 배포는 워크플로가 끝난 뒤 사람이 6단계를 돌린다.
+
 ## 확인
 
 ```bash
