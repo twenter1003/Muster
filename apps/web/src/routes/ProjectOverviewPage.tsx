@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { HealthIndicator } from '../components/HealthIndicator';
 import { LogRow } from '../components/LogRow';
@@ -9,10 +9,12 @@ import { ApiError, apiFetch, apiPatch, apiPost, type Page as ApiPage } from '../
 import { Modal } from '../components/Modal';
 import { useApi } from '../lib/useApi';
 import { browserUploadDeps, uploadDocument } from '../lib/uploadDocument';
+import { buildRunPatch } from '../lib/runCorrection';
 import { DOCUMENT_TITLE_MAX, buildDocumentPatch, canDownload } from '../lib/documentEdit';
 import { useSse } from '../lib/useSse';
 import { actorLabel, type TransitionView } from '../lib/transitions';
 import {
+  AGENT_RUN_STATUSES,
   BUILD_STATUSES,
   DOCUMENT_TYPES,
   EM_DASH,
@@ -20,6 +22,7 @@ import {
   LOG_LEVELS,
   PROJECT_STAGES,
   isHealthSignal,
+  type AgentRunStatus,
   type BuildStatus,
   type DocumentType,
   type LogLevel,
@@ -628,6 +631,8 @@ export function ProjectOverviewPage() {
               <Card title="예산">
                 <Async state={budget}>{(b) => <BudgetPanel budget={b} />}</Async>
               </Card>
+
+              {project.data !== null && <DeleteProjectCard project={project.data} />}
             </div>
           </div>
         )}
@@ -936,6 +941,7 @@ function EnvConfigCard({
 function AgentRow({ agent }: { agent: AgentView }) {
   const runs = useApi<ApiPage<RunView>>(`/agents/${agent.id}/runs?limit=5`);
   const [busy, setBusy] = useState(false);
+  const [correcting, setCorrecting] = useState<RunView | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
 
   const start = async () => {
@@ -957,6 +963,18 @@ function AgentRow({ agent }: { agent: AgentView }) {
 
   return (
     <div className="po-agent">
+      {correcting !== null && (
+        <CorrectRunDialog
+          run={correcting}
+          onClose={() => setCorrecting(null)}
+          onSaved={() => {
+            setCorrecting(null);
+            // 서버가 ended_at 같은 파생 값을 함께 바꾼다. 응답으로 한 줄만 갈아 끼우면
+            // 화면이 반쯤 낡는다.
+            runs.reload();
+          }}
+        />
+      )}
       <div className="po-list__row">
         <span className="po-mono">{agent.name}</span>
         <span>최근 변경 {formatDateTime(agent.updated_at)}</span>
@@ -985,6 +1003,10 @@ function AgentRow({ agent }: { agent: AgentView }) {
               <span className="meta">
                 종료 {r.ended_at === null ? EM_DASH : formatDateTime(r.ended_at)}
               </span>
+              <span className="meta">
+                {r.tokens_used} 토큰 · ${r.cost}
+              </span>
+              <Button onClick={() => setCorrecting(r)}>정정</Button>
             </li>
           ))}
         </ul>
@@ -996,9 +1018,174 @@ function AgentRow({ agent }: { agent: AgentView }) {
         화면 문구가 이 사실을 감추지 않도록, 시작을 "실행 완료"라고 쓰지 않는다.
       */}
       <p className="meta po-note">
-        시작 기록만 남는다. 실행을 끝내는 어댑터가 아직 없어 상태는 running에 머문다.
+        시작 기록만 남는다. 실행을 끝내는 어댑터가 아직 없어, 결과는 줄마다 정정해 넣는다.
       </p>
     </div>
+  );
+}
+
+/* ───────────────────────── 프로젝트 삭제 ─────────────────────────
+ * 수정 상자에 넣지 않는다. 이름을 고치러 들어왔다가 지우는 사고를 막으려고 애초에 그렇게
+ * 갈라 두었고(EditProjectDialog 주석), 그 판단은 지금도 유효하다.
+ *
+ * 확인을 이름 입력으로 받는 이유: 이 삭제는 문서·에이전트·실행 기록·로그·감사까지 전부
+ * 함께 지운다(FK가 CASCADE다). 버튼 두 번으로 끝나면 무엇이 사라지는지 읽지 않고 누른다.
+ */
+function DeleteProjectCard({ project }: { project: ProjectView }) {
+  const navigate = useNavigate();
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const matches = typed.trim() === project.name;
+
+  const remove = () => {
+    if (!matches || busy) return;
+    setBusy(true);
+    setError(null);
+
+    apiFetch<void>(`/projects/${project.id}`, { method: 'DELETE' }).then(
+      // 지운 프로젝트의 상세에 머물면 다음 조회가 전부 404다. 목록으로 돌려보낸다.
+      () => navigate('/projects', { replace: true }),
+      (err: unknown) => {
+        setBusy(false);
+        setError(err instanceof ApiError ? `${err.message} (${err.code})` : String(err));
+      },
+    );
+  };
+
+  return (
+    <Card title="프로젝트 삭제">
+      <p className="meta po-note po-note--signal">
+        이 프로젝트의 문서·에이전트·실행 기록·로그·감사 기록이 함께 사라진다. 되돌릴 수 없다.
+      </p>
+      <p className="meta po-note">
+        지우려면 프로젝트 이름 <strong>{project.name}</strong>을(를) 그대로 입력한다.
+      </p>
+      <div className="po-danger">
+        <input
+          aria-label="확인을 위한 프로젝트 이름"
+          value={typed}
+          disabled={busy}
+          placeholder={project.name}
+          onChange={(e) => setTyped(e.target.value)}
+        />
+        <Button onClick={remove} disabled={!matches || busy}>
+          {busy ? '지우는 중…' : '삭제'}
+        </Button>
+      </div>
+      {error !== null && (
+        <p className="meta po-note po-note--signal" role="alert">
+          {error}
+        </p>
+      )}
+    </Card>
+  );
+}
+
+/* ───────────────────────── 실행 결과 정정 ─────────────────────────
+ * 실행을 끝내는 어댑터가 없어(기술 사양서 9장 미해결) 시작한 실행은 running에 머문다.
+ * 사람이 결과를 적어 넣는 것이 유일한 종료 경로다 — 그 값이 그대로 예산 사용량과
+ * DORA 입력이 되므로, 형식 검사는 lib/runCorrection.ts에서 요청 전에 한다.
+ */
+function CorrectRunDialog({
+  run,
+  onClose,
+  onSaved,
+}: {
+  run: RunView;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [status, setStatus] = useState<AgentRunStatus>(
+    AGENT_RUN_STATUSES.includes(run.status as AgentRunStatus)
+      ? (run.status as AgentRunStatus)
+      : 'running',
+  );
+  // 토큰·비용은 빈 칸으로 시작한다. 현재 값을 채워 두면 "안 고침"과 "같은 값으로 고침"이
+  // 구분되지 않고, 실수로 저장만 눌러도 바뀐 것 없는 요청이 나간다.
+  const [tokensUsed, setTokensUsed] = useState('');
+  const [cost, setCost] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const patch = buildRunPatch(run, { status, tokensUsed, cost });
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!patch.ok || saving) return;
+
+    setSaving(true);
+    setError(null);
+    apiPatch<RunView>(`/agent-runs/${run.id}`, patch.body).then(onSaved, (err: unknown) => {
+      setSaving(false);
+      setError(err instanceof ApiError ? `${err.message} (${err.code})` : String(err));
+    });
+  };
+
+  return (
+    <Modal open title="실행 결과 정정" onClose={saving ? () => undefined : onClose}>
+      <form className="modal__form" onSubmit={submit}>
+        <p className="meta">
+          시작 {formatDateTime(run.started_at)} · 현재 {run.tokens_used} 토큰 · ${run.cost}
+        </p>
+
+        <label className="modal__label" htmlFor="run-status">
+          상태
+        </label>
+        <select
+          id="run-status"
+          value={status}
+          disabled={saving}
+          onChange={(e) => setStatus(e.target.value as AgentRunStatus)}
+        >
+          {AGENT_RUN_STATUSES.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+
+        <label className="modal__label" htmlFor="run-tokens">
+          토큰 (비우면 그대로)
+        </label>
+        <input
+          id="run-tokens"
+          inputMode="numeric"
+          value={tokensUsed}
+          disabled={saving}
+          onChange={(e) => setTokensUsed(e.target.value)}
+        />
+
+        <label className="modal__label" htmlFor="run-cost">
+          비용 USD (비우면 그대로)
+        </label>
+        <input
+          id="run-cost"
+          inputMode="decimal"
+          value={cost}
+          disabled={saving}
+          onChange={(e) => setCost(e.target.value)}
+        />
+
+        {/* 무엇이 막고 있는지 저장을 눌러 보기 전에 알려 준다. */}
+        {!patch.ok && <p className="meta">{patch.reason}</p>}
+        {error !== null && (
+          <p className="meta po-note po-note--signal" role="alert">
+            {error}
+          </p>
+        )}
+
+        <div className="modal__actions">
+          <Button onClick={onClose} disabled={saving}>
+            취소
+          </Button>
+          <Button type="submit" variant="solid" disabled={!patch.ok || saving}>
+            {saving ? '저장 중…' : '저장'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

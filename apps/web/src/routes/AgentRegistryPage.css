@@ -1,6 +1,6 @@
 /*
- * AgentRegistry — 공용 클래스 위에 이 표만의 밀도·폭만 얹는다. 신호색은 쓰지 않는다
- * (등록 현황에는 사용자가 지금 할 처리가 없다). hex는 하나도 없다.
+ * AgentRegistry — 공용 클래스 위에 이 표만의 밀도·폭만 얹는다. 신호색은 삭제 확인 문장에만
+ * 쓴다 — 그 한 줄만이 되돌릴 수 없는 처리를 예고한다. hex는 하나도 없다.
  */
 
 .aregistry__empty {
@@ -10,9 +10,9 @@
   text-align: center;
 }
 
-/* 네 열이 겹치지 않는 최소 폭. */
+/* 다섯 열이 겹치지 않는 최소 폭 — 동작 열이 붙으면서 늘었다. */
 .aregistry__table {
-  min-width: 520px;
+  min-width: 680px;
 }
 
 .aregistry__table th {
@@ -53,4 +53,31 @@
   margin-left: auto;
   display: flex;
   gap: var(--space-1);
+}
+
+/* 확인 문장이 펼쳐질 때 행 높이만 늘고 버튼이 줄바꿈되지 않게 한다. */
+.aregistry__cell-action {
+  white-space: nowrap;
+}
+
+.aregistry__actions,
+.aregistry__confirm {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.aregistry__confirm-text {
+  font-size: var(--font-size-meta);
+  color: var(--color-signal);
+  white-space: normal;
+}
+
+/* 마크다운 전문을 고치는 칸이라 한 줄 입력보다 크게 잡는다. */
+.aregistry__config {
+  min-height: 14rem;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--font-size-meta);
 }

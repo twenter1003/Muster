@@ -423,3 +423,14 @@
 .po-actions__note {
   color: var(--color-ink-mid);
 }
+
+/* 삭제 확인 줄. 입력과 버튼을 나란히 두되 좁으면 접힌다.
+   버튼을 입력 옆에 붙여 두는 이유는, 이름을 다 적기 전에는 눌러도 아무 일이 없다는 것을
+   손으로 확인하게 하기 위해서다. */
+.po-danger {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
