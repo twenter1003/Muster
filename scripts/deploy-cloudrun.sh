@@ -33,6 +33,10 @@ SERVICE_URL="${FRONTEND_URL:-${EXISTING_URL:-https://${SERVICE}-${PROJECT_NUMBER
 
 echo "프로젝트 ${PROJECT} · 리전 ${REGION} · 이미지 ${IMAGE}:${TAG}"
 echo "서비스 주소 ${SERVICE_URL}"
+if [[ -z "${GCS_BUCKET:-}" ]]; then
+  # 비워 두면 앱은 뜨지만 문서 업로드만 503을 낸다. 나머지 기능은 그대로 돈다.
+  echo "주의: GCS_BUCKET이 없어 문서 업로드가 꺼진 채로 배포된다 (scripts/setup-gcs.sh 참조)."
+fi
 
 # 커밋 해시를 태그로 쓴다. latest만 쓰면 "지금 도는 것이 어느 커밋인가"에 답할 수 없고,
 # 롤백할 때 되돌릴 대상이 없다.
@@ -81,7 +85,7 @@ gcloud run deploy "${SERVICE}" \
   --concurrency 80 \
   --timeout 60 \
   --port 8080 \
-  --set-env-vars "NODE_ENV=production,SECRETS_BACKEND=gcp,GCP_PROJECT_ID=${PROJECT},FRONTEND_URL=${SERVICE_URL},API_BASE_URL=${API_BASE_URL:-${SERVICE_URL}}" \
+  --set-env-vars "NODE_ENV=production,SECRETS_BACKEND=gcp,GCP_PROJECT_ID=${PROJECT},FRONTEND_URL=${SERVICE_URL},API_BASE_URL=${API_BASE_URL:-${SERVICE_URL}},GCS_BUCKET=${GCS_BUCKET:-}" \
   --set-secrets "DATABASE_URL=muster-database-url:latest,GITHUB_OAUTH_CLIENT_ID=muster-github-client-id:latest,GITHUB_OAUTH_CLIENT_SECRET=muster-github-client-secret:latest,OAUTH_STATE_SECRET=muster-oauth-state-secret:latest"
 
 URL="$(gcloud run services describe "${SERVICE}" --project "${PROJECT}" --region "${REGION}" --format='value(status.url)')"

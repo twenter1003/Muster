@@ -9,6 +9,9 @@
 # 사용법:
 #   ./scripts/setup-gcs.sh <project-id> <bucket-name> [region]
 #
+#   DEPLOY_URL=https://<Cloud Run 주소>  — 배포된 화면에서도 업로드하려면 함께 넘긴다.
+#                                          CORS 허용 목록에 그 오리진이 들어간다.
+#
 # 여러 번 실행해도 안전하다(멱등). 이미 있는 리소스는 건너뛴다.
 
 set -euo pipefail
@@ -31,6 +34,7 @@ if [[ -z "$PROJECT_ID" || -z "$BUCKET" ]]; then
   echo "사용법: $0 <project-id> <bucket-name> [region]" >&2
   echo "예:    $0 muster-470101 muster-docs-taewoo" >&2
   echo "       $0 muster-470101 muster-docs-taewoo asia-northeast3" >&2
+  echo "       DEPLOY_URL=https://muster-x.run.app $0 muster-470101 muster-docs-taewoo" >&2
   exit 1
 fi
 
@@ -74,6 +78,23 @@ gcloud storage buckets add-iam-policy-binding "gs://$BUCKET" \
   --member="serviceAccount:$SA_EMAIL" \
   --role="roles/storage.objectAdmin" --quiet >/dev/null
 
+# 배포된 API는 이 서비스 계정이 아니라 Cloud Run의 기본 런타임 계정으로 돈다
+# (docs/DEPLOY.md가 시크릿 권한을 주는 그 계정이다). 여기에 버킷 권한을 주지 않으면
+# 로컬에서는 업로드가 되는데 배포에서만 403이 나는, 원인 찾기 어려운 상태가 된다.
+PROJECT_NUMBER="$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')"
+RUNTIME_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+
+echo "==> Cloud Run 런타임 계정에도 버킷 권한 부여: $RUNTIME_SA"
+gcloud storage buckets add-iam-policy-binding "gs://$BUCKET" \
+  --member="serviceAccount:$RUNTIME_SA" \
+  --role="roles/storage.objectAdmin" --quiet >/dev/null
+
+# 배포에서는 이 계정이 자기 이름으로 signed URL에 서명한다(메타데이터 서버가 서명 주체를
+# 알려준다). 서명 자체에 필요한 권한은 자기 자신에 대한 tokenCreator다.
+gcloud iam service-accounts add-iam-policy-binding "$RUNTIME_SA" \
+  --member="serviceAccount:$RUNTIME_SA" \
+  --role="roles/iam.serviceAccountTokenCreator" --quiet >/dev/null
+
 echo "==> 키 없이 signed URL에 서명할 수 있도록 자기 자신에 대한 서명 권한 부여"
 # JSON 키 파일은 그 자체가 평문 자격증명이라 만들지 않는다 (설계서 Part 2 §6.2).
 gcloud iam service-accounts add-iam-policy-binding "$SA_EMAIL" \
@@ -95,11 +116,24 @@ fi
 
 echo "==> CORS 설정"
 # 브라우저가 signed URL로 GCS에 직접 PUT 하므로 CORS가 없으면 업로드가 무조건 실패한다.
+#
+# 오리진은 화면이 떠 있는 주소다 — 로컬 개발 서버와, 있다면 배포 주소. 와일드카드를 쓰지
+# 않는 이유는 signed URL이 유효한 동안 아무 사이트나 그 URL로 업로드를 시도할 수 있게
+# 되기 때문이다. 목록에 없는 주소에서 열면 업로드만 CORS로 막힌다(조회는 서버가 한다).
+ORIGINS='"http://localhost:5173"'
+if [[ -n "${DEPLOY_URL:-}" ]]; then
+  # 끝의 슬래시는 오리진이 아니다. 붙여 두면 브라우저가 보내는 Origin과 달라 조용히 막힌다.
+  ORIGINS="${ORIGINS}, \"${DEPLOY_URL%/}\""
+  echo "    허용 오리진: http://localhost:5173, ${DEPLOY_URL%/}"
+else
+  echo "    허용 오리진: http://localhost:5173 (배포 주소는 DEPLOY_URL=... 로 함께 넘긴다)"
+fi
+
 CORS_FILE="$(mktemp -t muster-cors)"
-cat > "$CORS_FILE" <<'JSON'
+cat > "$CORS_FILE" <<JSON
 [
   {
-    "origin": ["http://localhost:5173"],
+    "origin": [${ORIGINS}],
     "method": ["PUT", "GET", "HEAD"],
     "responseHeader": ["Content-Type"],
     "maxAgeSeconds": 3600
@@ -118,3 +152,7 @@ echo "GCS_SIGNER_SERVICE_ACCOUNT=$SA_EMAIL"
 echo
 echo "그리고 애플리케이션용 자격증명이 따로 필요합니다 (gcloud auth login과 다릅니다):"
 echo "  gcloud auth application-default login"
+echo
+echo "배포에도 반영하려면 (GCS_SIGNER_SERVICE_ACCOUNT는 넘기지 않는다 — Cloud Run은"
+echo "메타데이터 서버가 서명 주체를 알려준다):"
+echo "  GCS_BUCKET=$BUCKET ./scripts/deploy-cloudrun.sh"
