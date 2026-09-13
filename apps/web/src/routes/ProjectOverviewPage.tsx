@@ -870,11 +870,7 @@ function EnvConfigCard({
               return (
                 <span key={t.id} title={`${actorLabel(t.actor)} · ${formatDateTime(t.created_at)}`}>
                   {i > 0 && <span aria-hidden="true"> {'>'} </span>}
-                  {i === arr.length - 1 && to !== null ? (
-                    <StatusBadge status={to} />
-                  ) : (
-                    t.to_status
-                  )}
+                  {i === arr.length - 1 && to !== null ? <StatusBadge status={to} /> : t.to_status}
                 </span>
               );
             })}
