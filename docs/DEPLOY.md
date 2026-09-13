@@ -1,0 +1,156 @@
+# 배포 — Cloud Run + Supabase (무료)
+
+월 $0을 목표로 한 구성이다. 값을 바꾸기 전에 **무엇이 과금되는지**를 먼저 읽을 것.
+
+## 구성
+
+| 조각 | 무엇 | 무료 한도 | 우리 |
+|---|---|---|---|
+| Cloud Run | API + 화면(한 컨테이너) | 200만 요청 · 360,000 vCPU-초 · 180,000 GiB-초 | 개인용이라 한참 아래 |
+| Artifact Registry | 이미지 | 0.5 GB (**압축 기준**) | 약 135 MB |
+| Supabase | Postgres | 500 MB · 5 GB 송신 | 시드 기준 수 MB |
+| Secret Manager | 시크릿 4개 | 활성 버전 6개 | 4개 |
+
+**Cloud SQL은 쓰지 않는다.** 무료 티어가 없고, GCP의 지출 상한이 적용되지 않는 종류의
+리소스라 실수하면 멈추지 않고 과금된다.
+
+## 과금을 0으로 묶는 값
+
+`scripts/deploy-cloudrun.sh`에 박혀 있다. 바꾸려면 무엇이 늘어나는지 알고 바꿀 것.
+
+- `--min-instances 0` — 안 쓰면 0으로 내려가 과금이 멈춘다. **1로 올리는 순간 상시 과금**이
+  시작된다. 무료 한도를 하루에 태우는 가장 흔한 실수다.
+- `--max-instances 2` — 최악의 경우를 묶는다. 무한 확장은 곧 청구서다.
+- `--memory 512Mi` — 무료 한도는 GiB-초로 센다. 크게 잡으면 같은 요청이 한도를 더 먹는다.
+
+## 순서
+
+각 단계에 **누가 하는지**를 적었다. "사람"이라고 적힌 것은 계정 생성과 자격증명 입력이라
+자동화하지 않는다.
+
+### 1. Supabase 프로젝트 (사람)
+
+1. <https://supabase.com>에서 GitHub으로 가입하고 프로젝트를 만든다. 리전은 `ap-northeast-2`(서울).
+2. Settings → Database → **Connection string → Session pooler**를 복사한다.
+
+**Session pooler여야 한다.** 셋 중 이것만 맞는다:
+
+| 방식 | 포트 | 되는가 |
+|---|---|---|
+| Direct connection | 5432 | ✗ IPv6 전용 — Cloud Run에서 닿지 않는다 |
+| **Session pooler** | **5432** | ✓ IPv4 + prepared statement |
+| Transaction pooler | 6543 | ✗ prepared statement 미지원 — TypeORM이 깨진다 |
+
+문자열 끝에 `?sslmode=require`를 붙인다.
+
+### 2. GitHub OAuth 앱 (사람)
+
+<https://github.com/settings/developers>에서 앱을 만들거나 기존 것을 쓴다.
+**콜백 주소는 Cloud Run 주소가 나온 뒤(5단계)에 채운다.** 지금은 Client ID와 Secret만 챙긴다.
+
+### 3. GCP 준비 (사람 — 한 번만)
+
+```bash
+gcloud config set project <프로젝트 id>
+gcloud services enable run.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com
+gcloud artifacts repositories create muster --repository-format=docker --location=asia-northeast3
+gcloud auth configure-docker asia-northeast3-docker.pkg.dev
+```
+
+결제 계정이 연결돼 있어야 한다 — 무료 한도 안에서도 필요하다.
+
+### 4. 시크릿 (사람)
+
+값이 셸 기록에 남지 않도록 파일이나 표준입력으로 넣는다.
+
+```bash
+printf '%s' 'postgresql://...세션 풀러 문자열...' | gcloud secrets create muster-database-url --data-file=-
+printf '%s' '<GitHub Client ID>'                 | gcloud secrets create muster-github-client-id --data-file=-
+printf '%s' '<GitHub Client Secret>'             | gcloud secrets create muster-github-client-secret --data-file=-
+openssl rand -base64 32                          | gcloud secrets create muster-oauth-state-secret --data-file=-
+```
+
+Cloud Run의 서비스 계정에 읽기 권한을 준다:
+
+```bash
+PROJECT=$(gcloud config get-value project)
+NUM=$(gcloud projects describe "$PROJECT" --format='value(projectNumber)')
+for s in muster-database-url muster-github-client-id muster-github-client-secret muster-oauth-state-secret; do
+  gcloud secrets add-iam-policy-binding "$s" \
+    --member="serviceAccount:${NUM}-compute@developer.gserviceaccount.com" \
+    --role=roles/secretmanager.secretAccessor
+done
+```
+
+### 5. 첫 배포
+
+```bash
+./scripts/deploy-cloudrun.sh
+```
+
+주소가 나온다. **그 주소로 두 가지를 마저 한다:**
+
+1. GitHub OAuth 앱의 **Authorization callback URL**에
+   `https://<주소>/api/v1/auth/github/callback`을 넣는다.
+2. 주소를 환경변수로 넣어 **다시 배포**한다 — OAuth 리다이렉트를 만들 때 서버가 자기
+   주소를 알아야 한다:
+
+```bash
+FRONTEND_URL=https://<주소> API_BASE_URL=https://<주소> ./scripts/deploy-cloudrun.sh
+```
+
+### 6. 마이그레이션 (사람, 로컬에서)
+
+**배포가 자동으로 돌리지 않는다.** 배포와 스키마 변경을 한 명령에 묶으면 롤백이 어려워지고,
+인스턴스가 여럿일 때 동시에 돌 수 있다.
+
+```bash
+DATABASE_URL='postgresql://...세션 풀러 문자열...' pnpm --filter @muster/api migration:run
+```
+
+### 7. 정지 막기 (사람 — 한 번만)
+
+**무료 Supabase는 7일간 DB 활동이 없으면 프로젝트를 정지시킨다.** 정지되면 링크를 받은
+사람이 열었을 때 앱이 죽어 있고 소유자가 대시보드에서 복구해야 한다.
+
+저장소 Settings → Secrets and variables → Actions → **Variables**에
+`DEPLOY_URL = https://<주소>`를 추가한다. `.github/workflows/keepalive.yml`이 주 1회
+헬스체크를 때려 DB를 깨운다(헬스체크가 실제로 `SELECT 1`을 돌린다).
+
+## 확인
+
+```bash
+curl -s https://<주소>/api/v1/health          # {"status":"ok"}
+curl -s -o /dev/null -w '%{http_code}\n' https://<주소>/          # 200 (화면)
+curl -s https://<주소>/api/v1/nope            # JSON 404 (HTML이면 안 된다)
+```
+
+그다음 브라우저로 들어가 GitHub 로그인까지 해본다.
+
+## 비용이 새는지 보기
+
+```bash
+gcloud billing accounts list
+gcloud beta billing budgets list --billing-account=<계정 id>
+```
+
+**예산 알림을 걸어 둘 것.** Cloud Run은 지출 상한을 걸 수 있지만, 걸어도 이미 뜬 요청은
+처리된다. 알림이 먼저 오는 편이 낫다.
+
+## 롤백
+
+이미지에 커밋 해시가 태그로 붙어 있다.
+
+```bash
+gcloud run services update-traffic muster --region asia-northeast3 --to-revisions=<이전 리비전>=100
+```
+
+리비전 목록: `gcloud run revisions list --service muster --region asia-northeast3`
+
+## 남아 있는 제약
+
+- **에이전트 실행 어댑터가 없다.** 환경 구성을 실행하면 `running`에서 멈춘다.
+- **Policy Gate가 trivy·conftest를 컨테이너 안에서 직접 부른다.** Cloud Run의 요청 타임아웃
+  (60초) 안에 끝나야 하고, 파일시스템은 메모리다. 큰 이미지를 스캔하면 메모리를 먹는다.
+- **문서 업로드(GCS)는 설정하지 않았다.** `GCS_BUCKET`이 비어 있으면 DocStore가 503을 낸다.
+  나머지 기능은 그대로 돈다.

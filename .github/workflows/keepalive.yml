@@ -1,0 +1,37 @@
+name: Supabase 깨우기
+
+# 무료 Supabase는 **7일간 DB 활동이 없으면 프로젝트를 정지**시킨다. 정지되면 링크를 받은
+# 사람이 열었을 때 앱이 죽어 있고, 소유자가 대시보드에서 직접 복구해야 한다.
+# "가끔 남에게 보여 준다"는 이 배포의 목적에 정면으로 걸리는 성질이라, 주 1회 깨운다.
+#
+# 헬스체크가 실제로 SELECT 1을 돌리므로 이 요청 하나가 DB 활동이 된다 —
+# 프로세스만 확인하는 경로였다면 소용이 없다.
+on:
+  schedule:
+    # 매주 월요일 00:17 UTC. 정각을 피하는 이유는 그 시각에 전 세계 cron이 몰려
+    # GitHub이 실행을 늦추기 때문이다.
+    - cron: '17 0 * * 1'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 헬스체크 호출
+        env:
+          # 배포 주소. 저장소 변수(Settings → Variables)에 넣는다 — 비밀이 아니라
+          # 공개 주소이므로 secret이 아니라 variable이다.
+          URL: ${{ vars.DEPLOY_URL }}
+        run: |
+          if [ -z "$URL" ]; then
+            echo "DEPLOY_URL 변수가 없다. 저장소 Settings → Variables에 추가할 것." >&2
+            exit 1
+          fi
+
+          code=$(curl -sS -o /tmp/body -w '%{http_code}' --max-time 30 "$URL/api/v1/health")
+          echo "HTTP $code"
+          cat /tmp/body
+
+          # 200이 아니면 실패로 남긴다. 조용히 넘어가면 몇 주 뒤 정지된 것을 모른 채
+          # 남에게 링크를 건네게 된다.
+          [ "$code" = "200" ]
