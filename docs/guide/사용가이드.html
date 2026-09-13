@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Muster 사용 가이드</title>
+<style>
+  @page { size: 13.333in 7.5in; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink:   #14181f;
+    --ink2:  #4a5262;
+    --ink3:  #7b8496;
+    --line:  #dfe3ea;
+    --bg:    #ffffff;
+    --soft:  #f5f7fa;
+    --brand: #2f5bd7;
+    --brand-soft: #eaf0fe;
+    --warn:  #b5541a;
+    --warn-soft: #fdf1e6;
+    --ok:    #1c7a55;
+    --ok-soft: #e8f6f0;
+  }
+
+  html { font-family: 'Noto Sans KR', sans-serif; color: var(--ink); }
+  body { background: #8a8f99; }
+
+  .slide {
+    width: 13.333in; height: 7.5in;
+    background: var(--bg);
+    padding: 0.62in 0.78in 0.55in;
+    display: flex; flex-direction: column;
+    position: relative;
+    page-break-after: always;
+    overflow: hidden;
+  }
+  .slide:last-child { page-break-after: auto; }
+
+  /* ── 슬라이드 머리글 ─────────────────────── */
+  .eyebrow {
+    font-size: 10.5pt; font-weight: 700; letter-spacing: .09em;
+    color: var(--brand); text-transform: uppercase; margin-bottom: 6px;
+  }
+  h1.t { font-size: 27pt; font-weight: 700; letter-spacing: -.02em; line-height: 1.15; }
+  p.sub { font-size: 12pt; color: var(--ink2); margin-top: 9px; line-height: 1.5; max-width: 9.6in; }
+  .rule { height: 3px; width: 52px; background: var(--brand); margin: 15px 0 20px; border-radius: 2px; }
+
+  .body { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; padding-bottom: 22px; }
+  .foot {
+    position: absolute; left: .78in; right: .78in; bottom: .3in;
+    display: flex; justify-content: space-between;
+    font-size: 8.5pt; color: var(--ink3); border-top: 1px solid var(--line); padding-top: 7px;
+  }
+
+  /* ── 표지 ─────────────────────── */
+  .cover { background: #10141c; color: #fff; justify-content: center; }
+  .cover h1 { font-size: 52pt; font-weight: 700; letter-spacing: -.03em; }
+  .cover .kicker { font-size: 13pt; color: #7f8ba6; letter-spacing: .3em; font-weight: 700; margin-bottom: 20px; }
+  .cover .lede { font-size: 15pt; color: #b9c2d4; margin-top: 22px; line-height: 1.65; max-width: 8.4in; }
+  .cover .stripe { display: flex; gap: 6px; margin-top: 46px; }
+  .cover .stripe span { height: 6px; width: 78px; background: var(--brand); border-radius: 3px; }
+  .cover .stripe span:nth-child(2) { background: #3f7ce8; width: 40px; }
+  .cover .stripe span:nth-child(3) { background: #23324e; width: 24px; }
+  .cover .meta { position: absolute; bottom: .55in; left: .78in; font-size: 9.5pt; color: #5d6880; }
+
+  /* ── 격자 ─────────────────────── */
+  .grid { display: grid; gap: 14px; }
+  .g2 { grid-template-columns: 1fr 1fr; }
+  .g3 { grid-template-columns: repeat(3, 1fr); }
+  .g4 { grid-template-columns: repeat(4, 1fr); }
+
+  .card {
+    border: 1px solid var(--line); border-radius: 9px;
+    padding: 15px 17px; background: var(--bg);
+  }
+  .card.soft { background: var(--soft); }
+  .card h3 { font-size: 12.5pt; font-weight: 700; margin-bottom: 7px; }
+  .card p  { font-size: 11pt; color: var(--ink2); line-height: 1.6; }
+
+  /* ── 버튼 설명 목록 ─────────────────────── */
+  .btns { display: flex; flex-direction: column; gap: 12px; }
+  .btn-row { display: grid; grid-template-columns: 1.85in 1fr; gap: 14px; align-items: start; }
+  .chip {
+    display: inline-block; font-size: 11pt; font-weight: 700;
+    padding: 6px 11px; border-radius: 6px; text-align: center; width: 100%;
+    background: var(--brand); color: #fff; line-height: 1.3;
+  }
+  .chip.ghost { background: #fff; color: var(--ink); border: 1.4px solid var(--ink); }
+  .chip.tab   { background: var(--brand-soft); color: var(--brand); border: 1px solid #cddafb; }
+  .chip.danger{ background: #fff; color: #a32020; border: 1.4px solid #e0b3b3; }
+  .btn-desc { font-size: 11pt; color: var(--ink2); line-height: 1.5; padding-top: 3px; }
+  .btn-desc b { color: var(--ink); font-weight: 600; }
+
+  /* ── 흐름도 ─────────────────────── */
+  .flow { display: flex; align-items: stretch; gap: 0; margin-top: 4px; }
+  .step { flex: 1; position: relative; padding: 0 12px; }
+  .step:not(:last-child)::after {
+    content: '›'; position: absolute; right: -9px; top: 20px;
+    font-size: 24pt; color: var(--line); font-weight: 700;
+  }
+  .step .num {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: var(--brand); color: #fff;
+    font-size: 11.5pt; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; margin-bottom: 11px;
+  }
+  .step h4 { font-size: 11.5pt; font-weight: 700; margin-bottom: 6px; }
+  .step p  { font-size: 10.5pt; color: var(--ink2); line-height: 1.5; }
+
+  /* ── 화면 지도(모형) ─────────────────────── */
+  .mock { display: grid; grid-template-columns: 2.05in 1fr; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; height: 100%; }
+  .mock__side { background: var(--soft); border-right: 1px solid var(--line); padding: 13px 12px; }
+  .mock__side .grp { font-size: 8pt; font-weight: 700; letter-spacing: .1em; color: var(--ink3); margin: 12px 0 6px; }
+  .mock__side .grp:first-child { margin-top: 0; }
+  .mock__side .it { font-size: 9.5pt; padding: 4px 7px; border-radius: 5px; color: var(--ink2); }
+  .mock__side .it.on { background: var(--brand); color: #fff; font-weight: 600; }
+  .mock__main { padding: 14px 16px; }
+  .mock__top { display: flex; gap: 7px; border-bottom: 1px solid var(--line); padding-bottom: 9px; margin-bottom: 12px; flex-wrap: wrap; }
+  .mock__top span { font-size: 9.5pt; padding: 4px 10px; border-radius: 5px; color: var(--ink2); }
+  .mock__top span.on { background: var(--ink); color: #fff; font-weight: 600; }
+
+  /* ── 참고 상자 ─────────────────────── */
+  .note {
+    border-left: 4px solid var(--brand); background: var(--brand-soft);
+    padding: 14px 17px; border-radius: 0 7px 7px 0; font-size: 11pt; line-height: 1.55; color: #1f3468;
+  }
+  .note.warn { border-color: var(--warn); background: var(--warn-soft); color: #6e3610; }
+  .note.ok   { border-color: var(--ok);   background: var(--ok-soft);   color: #14503a; }
+  .note b { font-weight: 700; }
+
+  ul.ticks { list-style: none; display: flex; flex-direction: column; gap: 7px; }
+  ul.ticks li { font-size: 11pt; color: var(--ink2); line-height: 1.5; padding-left: 18px; position: relative; }
+  ul.ticks li::before { content: '—'; position: absolute; left: 0; color: var(--brand); font-weight: 700; }
+  ul.ticks li b { color: var(--ink); font-weight: 600; }
+
+  table.tbl { width: 100%; border-collapse: collapse; font-size: 11pt; }
+  table.tbl th { text-align: left; font-size: 8.5pt; letter-spacing: .07em; color: var(--ink3); text-transform: uppercase; padding: 0 12px 8px 0; border-bottom: 1.5px solid var(--line); }
+  table.tbl td { padding: 9px 12px 9px 0; border-bottom: 1px solid var(--line); color: var(--ink2); line-height: 1.45; vertical-align: top; }
+  table.tbl td:first-child { color: var(--ink); font-weight: 600; white-space: nowrap; }
+</style>
+</head>
+<body>
+
+<!-- 1 · 표지 -->
+<section class="slide cover">
+  <div class="kicker">AGENTOPS PLATFORM</div>
+  <h1>Muster 사용 가이드</h1>
+  <p class="lede">
+    처음 쓰는 사람을 위한 화면·버튼 설명서.<br>
+    어느 버튼이 무슨 일을 하는지, 어떤 순서로 눌러야 하는지를 화면 단위로 정리했습니다.
+  </p>
+  <div class="stripe"><span></span><span></span><span></span></div>
+  <div class="meta">v1 · 초보자용 · 전체 17장</div>
+</section>
+
+<!-- 2 · 3분 요약 -->
+<section class="slide">
+  <div class="eyebrow">먼저 읽기</div>
+  <h1 class="t">Muster는 무엇을 하는 도구인가</h1>
+  <div class="rule"></div>
+  <div class="body">
+    <p class="sub" style="margin-bottom:20px">
+      AI 에이전트를 여러 개 굴릴 때 생기는 <b>문서·실행 환경·실행 기록·비용</b>을 한곳에서 관리합니다.
+      모든 것은 <b>프로젝트</b> 안에 담깁니다. 프로젝트를 먼저 만들고, 그 안에 문서·환경·에이전트를 채우는 구조입니다.
+    </p>
+    <div class="grid g4">
+      <div class="card soft"><h3>📁 문서</h3><p>기획서·설계서를 올려 두고 버전을 관리합니다. 파일은 클라우드에 바로 올라갑니다.</p></div>
+      <div class="card soft"><h3>📦 환경 구성</h3><p>언어·프레임워크·DB를 고르면 Docker 구성을 만들어 주고, 승인하면 실제로 빌드합니다.</p></div>
+      <div class="card soft"><h3>🤖 에이전트</h3><p>AI 에이전트를 등록하고 실행합니다. 실행마다 토큰·비용이 기록됩니다.</p></div>
+      <div class="card soft"><h3>💰 예산</h3><p>월 토큰·비용 한도를 정해 두면 넘기 전에 알림이 옵니다.</p></div>
+    </div>
+    <div class="note" style="margin-top:20px">
+      <b>이 문서 읽는 법</b> — 파란 알약은 <b>누르는 버튼</b>, 흰 테두리 알약은 <b>보조 버튼</b>,
+      연한 파란 알약은 <b>탭(화면 전환)</b>, 빨간 테두리는 <b>되돌릴 수 없는 동작</b>입니다.
+    </div>
+  </div>
+  <div class="foot"><span>Muster 사용 가이드</span><span>2 / 17</span></div>
+</section>
+
+<!-- 3 · 화면 구조 -->
+<section class="slide">
+  <div class="eyebrow">화면 구조</div>
+  <h1 class="t">왼쪽 메뉴 11개가 전부입니다</h1>
+  <div class="rule"></div>
+  <div class="body" style="display:grid;grid-template-columns:3.6in 1fr;gap:24px">
+    <div class="mock" style="grid-template-columns:1fr">
+      <div class="mock__side" style="border-right:none">
+        <div class="grp">개요</div>
+        <div class="it on">◼ 대시보드</div>
+        <div class="it">▤ 프로젝트</div>
+        <div class="it">✉ 알림</div>
+        <div class="grp">모듈</div>
+        <div class="it">▦ DocStore</div>
+        <div class="it">▣ EnvCatalog</div>
+        <div class="it">◈ AgentRegistry</div>
+        <div class="it">≡ 로그 · 헬스</div>
+        <div class="grp">관리</div>
+        <div class="it">▧ 리포트</div>
+        <div class="it">◷ 감사 로그</div>
+        <div class="it">⚙ 설정</div>
+      </div>
+    </div>
+    <div>
+      <table class="tbl">
+        <tr><th>메뉴</th><th>여기서 하는 일</th></tr>
+        <tr><td>대시보드</td><td>전체 프로젝트 현황과 최근 활동을 한눈에 봅니다. 로그인하면 처음 뜨는 화면.</td></tr>
+        <tr><td>프로젝트</td><td>프로젝트 목록. <b>실제 작업은 거의 다 여기서 프로젝트 하나를 열고 시작합니다.</b></td></tr>
+        <tr><td>알림</td><td>내 승인이 필요한 것들. 숫자 배지가 붙으면 대기 중인 일이 있다는 뜻입니다.</td></tr>
+        <tr><td>DocStore / EnvCatalog / AgentRegistry</td><td>문서·환경 템플릿·에이전트를 <b>프로젝트를 가로질러</b> 모아 보는 곳. 등록은 프로젝트 안에서 합니다.</td></tr>
+        <tr><td>로그 · 헬스</td><td>실행 로그와 배포 지표(DORA)를 봅니다.</td></tr>
+        <tr><td>리포트 / 감사 로그</td><td>요약 통계와 “누가 언제 무엇을 했나” 기록.</td></tr>
+        <tr><td>설정</td><td>예산 · API 키 · Git 연동 · 멤버 4개 탭.</td></tr>
+      </table>
+      <div class="note" style="margin-top:16px">오른쪽 위에는 <b>검색창</b>(프로젝트·문서·에이전트), <b>테마 전환</b>, <b>로그아웃</b>이 있습니다.</div>
+    </div>
+  </div>
+  <div class="foot"><span>화면 구조</span><span>3 / 17</span></div>
+</section>
+
+<!-- 4 · 처음 시작 -->
+<section class="slide">
+  <div class="eyebrow">처음 시작</div>
+  <h1 class="t">이 순서대로 다섯 번만 누르면 됩니다</h1>
+  <div class="rule"></div>
+  <div class="body">
+    <div class="flow" style="margin-bottom:26px">
+      <div class="step"><div class="num">1</div><h4>로그인</h4><p>GitHub 계정으로 들어갑니다. 별도 가입 절차는 없습니다.</p></div>
+      <div class="step"><div class="num">2</div><h4>프로젝트 만들기</h4><p><b>프로젝트</b> 메뉴 → 새 프로젝트. 이름과 스택을 적습니다.</p></div>
+      <div class="step"><div class="num">3</div><h4>문서 올리기</h4><p>프로젝트 안 <b>문서</b> 탭 → 파일 선택 → 업로드.</p></div>
+      <div class="step"><div class="num">4</div><h4>환경 만들기</h4><p><b>환경 구성</b> 탭 → 새 환경 구성 → 승인하고 실행.</p></div>
+      <div class="step"><div class="num">5</div><h4>에이전트 등록</h4><p><b>에이전트</b> 탭 → 에이전트 등록 → 줄의 실행 버튼.</p></div>
+    </div>
+    <div class="grid g2">
+      <div class="note ok"><b>순서를 지켜야 하나요?</b> 3·4·5는 순서 상관없습니다. 다만 2번(프로젝트)은 반드시 먼저입니다 — 나머지가 전부 프로젝트에 담기기 때문입니다.</div>
+      <div class="note warn"><b>버튼이 안 보인다면</b> 대부분 프로젝트를 열지 않고 왼쪽 모듈 메뉴(DocStore 등)에 들어가 있어서입니다. 그 화면들은 <b>보는 곳</b>이고, 만드는 곳은 프로젝트 안입니다.</div>
+    </div>
+  </div>
+  <div class="foot"><span>처음 시작</span><span>4 / 17</span></div>
+</section>
+
+<!-- 5 · 대시보드 -->
+<section class="slide">
+  <div class="eyebrow">화면 ①</div>
+  <h1 class="t">대시보드</h1>
+  <p class="sub">로그인 직후 뜨는 화면. 아무것도 만들지 않은 상태라면 비어 있는 게 정상입니다.</p>
+  <div class="rule"></div>
+  <div class="body">
+    <div class="btns">
+      <div class="btn-row"><span class="chip">새로고침</span><span class="btn-desc">숫자를 지금 시점으로 다시 불러옵니다. 화면이 자동으로 갱신되지 않을 때 누릅니다.</span></div>
+      <div class="btn-row"><span class="chip tab">전체 현황</span><span class="btn-desc">프로젝트 수 · 진행 단계별 분포. 숫자를 누르면 해당 프로젝트 목록으로 넘어갑니다.</span></div>
+      <div class="btn-row"><span class="chip tab">헬스</span><span class="btn-desc">프로젝트별 건강도 점수. 점수가 낮으면 색으로 표시되고, <b>위험 설명</b>에 왜 낮은지가 적힙니다.</span></div>
+      <div class="btn-row"><span class="chip tab">최근 활동</span><span class="btn-desc">최근 실행·배포·문서 변경 기록. 줄을 누르면 해당 프로젝트로 이동합니다.</span></div>
+    </div>
+    <div class="note" style="margin-top:22px"><b>여기서는 만들 수 없습니다.</b> 대시보드는 보기 전용입니다. 무언가 만들려면 왼쪽 <b>프로젝트</b> 메뉴로 가세요.</div>
+  </div>
+  <div class="foot"><span>대시보드</span><span>5 / 17</span></div>
+</section>
+
+<!-- 6 · 프로젝트 목록 -->
+<section class="slide">
+  <div class="eyebrow">화면 ②</div>
+  <h1 class="t">프로젝트 목록</h1>
+  <p class="sub">모든 작업의 출발점. 표의 줄 하나가 프로젝트 하나입니다.</p>
+  <div class="rule"></div>
+  <div class="body">
+    <div class="btns">
+      <div class="btn-row"><span class="chip">새 프로젝트</span><span class="btn-desc"><b>이름</b>과 <b>스택</b>(사용할 언어·기술)을 적어 만듭니다. 나중에 수정할 수 있으니 고민하지 말고 만드세요.</span></div>
+      <div class="btn-row"><span class="chip ghost">프로젝트 이름 (줄 클릭)</span><span class="btn-desc">프로젝트 개요 화면으로 들어갑니다. <b>실제 작업의 90%는 그 안에서 일어납니다.</b></span></div>
+      <div class="btn-row"><span class="chip tab">진행 단계</span><span class="btn-desc">기획 → 설계 → 개발 → 배포처럼 프로젝트가 지금 어느 단계인지. 개요 화면에서 바꿉니다.</span></div>
+      <div class="btn-row"><span class="chip tab">환경 상태 · 헬스 · 비용</span><span class="btn-desc">환경 빌드가 됐는지, 건강도, 이번 달 누적 비용. 보기 전용 열입니다.</span></div>
+    </div>
+    <div class="note ok" style="margin-top:22px">
+      <b>추천</b> — 처음이라면 “테스트”라는 이름으로 프로젝트 하나 만들어 이것저것 눌러 보세요. 프로젝트는 나중에 통째로 삭제할 수 있습니다.
+    </div>
+  </div>
+  <div class="foot"><span>프로젝트 목록</span><span>6 / 17</span></div>
+</section>
+
+<!-- 7 · 프로젝트 개요 지도 -->
+<section class="slide">
+  <div class="eyebrow">화면 ③</div>
+  <h1 class="t">프로젝트 개요 — 탭 7개가 전부입니다</h1>
+  <div class="rule"></div>
+  <div class="body">
+    <div class="mock">
+      <div class="mock__side">
+        <div class="grp">개요</div>
+        <div class="it">◼ 대시보드</div>
+        <div class="it on">▤ 프로젝트</div>
+        <div class="it">✉ 알림</div>
+      </div>
+      <div class="mock__main">
+        <div class="mock__top">
+          <span class="on">개요</span><span>문서</span><span>환경 구성</span><span>에이전트</span><span>로그</span><span>단계 이력</span><span>감사</span>
+        </div>
+        <table class="tbl">
+          <tr><td style="width:1.3in">개요</td><td>프로젝트 이름·스택·단계·헬스 요약. <b>수정</b>과 <b>삭제</b>도 여기에 있습니다.</td></tr>
+          <tr><td>문서</td><td>파일 업로드·다운로드·수정·삭제. (8쪽)</td></tr>
+          <tr><td>환경 구성</td><td>Docker 실행 환경을 만들고 빌드합니다. (9–11쪽)</td></tr>
+          <tr><td>에이전트</td><td>에이전트 등록·실행·수정·삭제, 예산 현황. (12–13쪽)</td></tr>
+          <tr><td>로그</td><td>이 프로젝트에서 나온 로그. 위 칩으로 <b>error / warn / info</b> 필터를 겁니다.</td></tr>
+          <tr><td>단계 이력</td><td>진행 단계가 언제 누구에 의해 바뀌었는지의 기록.</td></tr>
+          <tr><td>감사</td><td>이 프로젝트에서 일어난 모든 변경의 감사 기록. 보기 전용.</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>프로젝트 개요</span><span>7 / 17</span></div>
+</section>
+
+<!-- 8 · 문서 탭 -->
+<section class="slide">
+  <div class="eyebrow">탭 · 문서</div>
+  <h1 class="t">문서 올리고 관리하기</h1>
+  <p class="sub">파일은 서버를 거치지 않고 클라우드 저장소로 바로 올라갑니다. 그래서 큰 파일도 빠릅니다.</p>
+  <div class="rule"></div>
+  <div class="body">
+    <div class="btns">
+      <div class="btn-row"><span class="chip ghost">파일 선택</span><span class="btn-desc">올릴 파일을 고릅니다. 고르면 아래에 이름과 크기가 표시됩니다.</span></div>
+      <div class="btn-row"><span class="chip">업로드</span><span class="btn-desc">실제로 올립니다. 3단계(주소 발급 → 전송 → 완료 처리)가 자동으로 돌고, 끝나면 표에 <b>completed</b>로 나타납니다.</span></div>
+      <div class="btn-row"><span class="chip ghost">다운로드</span><span class="btn-desc">올린 파일을 내려받습니다. <b>completed</b> 상태일 때만 눌립니다 — 아직 전송 중이면 비활성입니다.</span></div>
+      <div class="btn-row"><span class="chip ghost">수정</span><span class="btn-desc">제목 · 종류 · 커밋 참조를 고칩니다. <b>파일 내용 자체는 바뀌지 않습니다</b>(새 버전은 다시 업로드).</span></div>
+      <div class="btn-row"><span class="chip danger">삭제</span><span class="btn-desc">문서를 지웁니다. 되돌릴 수 없습니다.</span></div>
+    </div>
+    <div class="note warn" style="margin-top:20px">
+      <b>업로드가 503으로 실패한다면</b> 서버에 저장소(GCS 버킷) 설정이 안 된 상태입니다. 배포할 때 <code>GCS_BUCKET</code> 값을 넣어야 켜집니다. 다른 기능은 그대로 동작합니다.
+    </div>
+  </div>
+  <div class="foot"><span>문서 탭</span><span>8 / 17</span></div>
+</section>
+
+<!-- 9 · 환경 구성 개념 -->
+<section class="slide">
+  <div class="eyebrow">탭 · 환경 구성</div>
+  <h1 class="t">“환경 구성”이 대체 뭔가요?</h1>
+  <div class="rule"></div>
+  <div class="body">
+    <p class="sub" style="margin-bottom:22px">
+      에이전트가 코드를 돌릴 <b>실행 환경</b>(Docker)입니다. 도커를 몰라도 됩니다 —
+      <b>언어 · 프레임워크 · 데이터베이스</b>를 고르면 Muster가 설정 파일을 대신 만들어 줍니다.
+    </p>
+    <div class="flow">
+      <div class="step"><div class="num">1</div><h4>고른다</h4><p>Python + FastAPI + PostgreSQL 처럼 클릭으로 고릅니다.</p></div>
+      <div class="step"><div class="num">2</div><h4>검사한다</h4><p><b>Policy Gate</b>가 위험한 설정(외부 포트 개방 등)을 자동으로 잡아냅니다.</p></div>
+      <div class="step"><div class="num">3</div><h4>승인한다</h4><p>검사를 통과하면 <b>승인하고 실행</b>이 활성화됩니다.</p></div>
+      <div class="step"><div class="num">4</div><h4>빌드된다</h4><p>GitHub Actions에서 실제로 이미지가 만들어지고 상태가 갱신됩니다.</p></div>
+    </div>
+    <div class="grid g2" style="margin-top:26px">
+      <div class="card soft"><h3>상태(build_status)가 뜻하는 것</h3><p><b>draft</b> 작성 중 · <b>approved</b> 승인됨 · <b>running</b> 빌드 중 · <b>succeeded</b> 완료 · <b>failed</b> 실패</p></div>
+      <div class="card soft"><h3>Policy Gate란</h3><p>“이 설정이 안전한가”를 자동 검사하는 관문입니다. 걸리면 무엇이 왜 걸렸는지 화면에 이유가 나오고, 고치면 다시 통과합니다.</p></div>
+    </div>
+  </div>
+  <div class="foot"><span>환경 구성 개념</span><span>9 / 17</span></div>
+</section>
+
+<!-- 10 · 환경 구성 버튼 -->
+<section class="slide">
+  <div class="eyebrow">탭 · 환경 구성</div>
+  <h1 class="t">환경 구성 화면의 버튼</h1>
+  <div class="rule"></div>
+  <div class="body">
+    <div class="btns">
+      <div class="btn-row"><span class="chip">새 환경 구성</span><span class="btn-desc">프로젝트 → <b>환경 구성</b> 탭 맨 위. 여기서 만들기 화면으로 들어갑니다.</span></div>
+      <div class="btn-row"><span class="chip ghost">언어 · 프레임워크 · DB</span><span class="btn-desc">드롭다운으로 고릅니다. 고를 때마다 아래 <b>위험도 설명</b>과 <b>Policy Gate</b> 결과가 실시간으로 바뀝니다.</span></div>
+      <div class="btn-row"><span class="chip ghost">템플릿</span><span class="btn-desc">미리 만들어 둔 프리셋을 고릅니다. 비워 두면 “직접 작성”입니다. (다음 쪽)</span></div>
+      <div class="btn-row"><span class="chip ghost">저장</span><span class="btn-desc">아직 실행하지 않고 <b>draft</b>로만 저장합니다. 나중에 이어서 할 때.</span></div>
+      <div class="btn-row"><span class="chip">승인하고 실행</span><span class="btn-desc">승인(approve)과 실행(execute)을 한 번에 합니다. 누르면 실제 빌드가 시작되고 상태가 <b>running</b>이 됩니다.</span></div>
+      <div class="btn-row"><span class="chip tab">상태 전이 / 판정</span><span class="btn-desc">이 구성이 어떤 상태를 거쳐 왔는지, 왜 승인/거절됐는지의 기록. 실패했을 때 <b>여기를 먼저 보세요.</b></span></div>
+    </div>
+    <div class="note warn" style="margin-top:18px"><b>“승인하고 실행”이 회색이라면</b> Policy Gate를 아직 통과하지 못한 것입니다. 그 위 검사 목록에서 빨간 항목의 이유를 읽고 설정을 고치세요.</div>
+  </div>
+  <div class="foot"><span>환경 구성 버튼</span><span>10 / 17</span></div>
+</section>
+
+<!-- 11 · 템플릿 -->
+<section class="slide">
+  <div class="eyebrow">EnvCatalog</div>
+  <h1 class="t">환경 템플릿 쓰는 법</h1>
+  <p class="sub">같은 구성을 여러 프로젝트에서 반복해서 만들 때 씁니다. 템플릿은 <b>프로젝트가 아니라 계정</b>에 달려 있습니다.</p>
+  <div class="rule"></div>
+  <div class="body">
+    <div class="flow" style="margin-bottom:24px">
+      <div class="step"><div class="num">1</div><h4>템플릿을 만든다</h4><p>왼쪽 메뉴 <b>EnvCatalog</b> → 아래 “템플릿” 카드 → <b>이름 · 스택 · Dockerfile</b>을 적고 <b>생성</b>.</p></div>
+      <div class="step"><div class="num">2</div><h4>프로젝트에서 고른다</h4><p>프로젝트 → 환경 구성 탭 → <b>새 환경 구성</b> → 템플릿 드롭다운에서 방금 만든 것을 선택.</p></div>
+      <div class="step"><div class="num">3</div><h4>실행한다</h4><p>검사를 통과하면 <b>승인하고 실행</b>. 이후는 직접 작성한 구성과 완전히 같습니다.</p></div>
+    </div>
+    <div class="grid g2">
+      <div class="card"><h3>EnvCatalog 화면의 버튼</h3><p>
+        <b>생성</b> — 새 템플릿 등록<br>
+        <b>삭제</b> — 템플릿 제거(이미 그 템플릿으로 만든 환경 구성은 그대로 남습니다)<br>
+        <b>상태 필터</b> — 전체 환경 구성을 build_status로 걸러 봅니다
+      </p></div>
+      <div class="note"><b>템플릿이 꼭 필요한가요?</b> 아닙니다. 프로젝트 하나만 쓸 거라면 건너뛰고 “직접 작성”으로 만드세요. 같은 구성을 세 번째 만들 때쯤 템플릿으로 빼면 됩니다.</div>
+    </div>
+  </div>
+  <div class="foot"><span>환경 템플릿</span><span>11 / 17</span></div>
+</section>
+
+<!-- 12 · 에이전트 -->
+<section class="slide">
+  <div class="eyebrow">탭 · 에이전트</div>
+  <h1 class="t">에이전트 등록하고 실행하기</h1>
+  <div class="rule"></div>
+  <div class="body">
+    <div class="btns">
+      <div class="btn-row"><span class="chip">에이전트 등록</span><span class="btn-desc"><b>이름</b>만 있으면 등록됩니다. 설정(마크다운)은 비워 두고 나중에 채워도 됩니다 — 먼저 등록해서 돌려 보는 게 실제 순서입니다.</span></div>
+      <div class="btn-row"><span class="chip">실행</span><span class="btn-desc">줄마다 하나씩 있습니다. 누르면 실행이 시작되고 아래에 실행 기록이 쌓입니다.</span></div>
+      <div class="btn-row"><span class="chip ghost">수정</span><span class="btn-desc">이름과 설정을 고칩니다. 건드리지 않은 칸은 전송되지 않아 다른 사람의 수정을 덮어쓰지 않습니다.</span></div>
+      <div class="btn-row"><span class="chip ghost">실행 결과 정정</span><span class="btn-desc">실행 기록의 상태·토큰·비용을 손으로 고칩니다. 외부에서 돌린 실행을 기록에 맞춰 넣을 때 씁니다. <b>비우면 그 칸은 안 바뀝니다.</b></span></div>
+      <div class="btn-row"><span class="chip danger">삭제</span><span class="btn-desc">에이전트를 제거합니다. 실행 기록도 함께 사라집니다.</span></div>
+    </div>
+    <div class="note" style="margin-top:18px"><b>설정(config_md)에 뭘 적나요?</b> 이 에이전트가 무슨 역할인지, 어떤 규칙을 지켜야 하는지를 마크다운으로 적습니다. 비워 둬도 등록과 실행에는 지장이 없습니다.</div>
+  </div>
+  <div class="foot"><span>에이전트 탭</span><span>12 / 17</span></div>
+</section>
+
+<!-- 13 · 예산 -->
+<section class="slide">
+  <div class="eyebrow">탭 · 에이전트 / 설정</div>
+  <h1 class="t">예산과 알림</h1>
+  <p class="sub">에이전트를 돌리면 토큰과 비용이 쌓입니다. 한도를 정해 두면 넘기 전에 알려 줍니다.</p>
+  <div class="rule"></div>
+  <div class="body">
+    <div class="grid g2" style="margin-bottom:22px">
+      <div class="card"><h3>어디서 보나</h3><p>프로젝트 → <b>에이전트</b> 탭 오른쪽 <b>예산</b> 카드. 이번 달 사용량과 한도 대비 비율이 막대로 나옵니다.</p></div>
+      <div class="card"><h3>어디서 정하나</h3><p>왼쪽 메뉴 <b>설정</b> → <b>예산</b> 탭. 월 토큰 한도, 월 비용(USD) 한도, 경고 기준(%)을 정합니다.</p></div>
+    </div>
+    <div class="btns">
+      <div class="btn-row"><span class="chip ghost">토큰 한도 (월)</span><span class="btn-desc">이번 달 쓸 수 있는 토큰의 상한. 비워 두면 한도 없음입니다.</span></div>
+      <div class="btn-row"><span class="chip ghost">비용 한도 (USD)</span><span class="btn-desc">이번 달 쓸 수 있는 금액의 상한.</span></div>
+      <div class="btn-row"><span class="chip ghost">경고 기준 (%)</span><span class="btn-desc">예: 80으로 두면 한도의 80%를 넘는 순간 <b>알림</b> 메뉴에 경고가 들어옵니다.</span></div>
+      <div class="btn-row"><span class="chip">저장</span><span class="btn-desc">한도를 적용합니다. 즉시 반영됩니다.</span></div>
+    </div>
+  </div>
+  <div class="foot"><span>예산과 알림</span><span>13 / 17</span></div>
+</section>
+
+<!-- 14 · 설정 -->
+<section class="slide">
+  <div class="eyebrow">화면 ④</div>
+  <h1 class="t">설정 — 탭 4개</h1>
+  <div class="rule"></div>
+  <div class="body">
+    <table class="tbl">
+      <tr><th>탭</th><th>하는 일</th><th>주요 버튼</th></tr>
+      <tr><td>예산</td><td>월 토큰·비용 한도와 경고 기준을 정합니다.</td><td>저장</td></tr>
+      <tr><td>API 키</td><td>외부에서 Muster API를 부를 때 쓰는 키를 발급합니다.</td><td>발급 · 폐기</td></tr>
+      <tr><td>Git 연동</td><td>GitHub 저장소를 연결합니다. <b>환경 구성 빌드가 여기에 의존합니다</b> — 연동이 없으면 “승인하고 실행”이 실패합니다.</td><td>연결 · 해제</td></tr>
+      <tr><td>멤버</td><td>같이 쓸 사람을 초대하고 권한을 정합니다.</td><td>초대 · 권한 변경 · 내보내기</td></tr>
+    </table>
+    <div class="note warn" style="margin-top:24px">
+      <b>API 키는 발급 직후 한 번만 보입니다.</b> 화면을 벗어나면 다시 볼 수 없으니 그 자리에서 복사해 두세요. 잃어버렸으면 폐기하고 새로 발급하면 됩니다.
+    </div>
+    <div class="note" style="margin-top:14px">
+      맨 위 <b>프로젝트 선택</b> 드롭다운에 주의하세요 — 예산은 프로젝트마다 따로입니다. 엉뚱한 프로젝트의 한도를 고치고 있지 않은지 확인하세요.
+    </div>
+  </div>
+  <div class="foot"><span>설정</span><span>14 / 17</span></div>
+</section>
+
+<!-- 15 · 보는 화면들 -->
+<section class="slide">
+  <div class="eyebrow">화면 ⑤</div>
+  <h1 class="t">모아 보는 화면들</h1>
+  <p class="sub">프로젝트를 가로질러 한눈에 보는 곳입니다. <b>여기서는 대부분 만들 수 없습니다</b> — 만들기는 프로젝트 안에서.</p>
+  <div class="rule"></div>
+  <div class="body">
+    <div class="grid g3" style="margin-bottom:16px">
+      <div class="card"><h3>▦ DocStore</h3><p>모든 프로젝트의 문서를 한 표로 봅니다. 제목·종류·프로젝트·업로드 상태.</p></div>
+      <div class="card"><h3>◈ AgentRegistry</h3><p>등록된 에이전트 전체 목록. 여기서는 <b>수정·삭제</b>만 가능합니다.</p></div>
+      <div class="card"><h3>≡ 로그 · 헬스</h3><p>로그 전체와 배포 지표를 봅니다.</p></div>
+    </div>
+    <div class="grid g2">
+      <div class="card soft"><h3>로그 · 헬스에 나오는 지표(DORA)</h3><p>
+        <b>배포 빈도</b> 얼마나 자주 배포하나 · <b>리드 타임</b> 커밋에서 배포까지 걸린 시간 ·
+        <b>변경 실패율</b> 배포 중 실패 비율 · <b>종합</b> 이 셋을 합친 건강도 점수
+      </p></div>
+      <div class="card soft"><h3>▧ 리포트 · ◷ 감사 로그</h3><p>
+        <b>리포트</b>는 기간별 요약과 “최다 차단 사유”(Policy Gate에 가장 많이 걸린 항목)를 보여 줍니다.<br>
+        <b>감사 로그</b>는 누가·언제·무엇을 했는지의 변경 기록입니다. 지울 수 없습니다.
+      </p></div>
+    </div>
+  </div>
+  <div class="foot"><span>모아 보는 화면들</span><span>15 / 17</span></div>
+</section>
+
+<!-- 16 · FAQ -->
+<section class="slide">
+  <div class="eyebrow">막혔을 때</div>
+  <h1 class="t">자주 막히는 곳</h1>
+  <div class="rule"></div>
+  <div class="body">
+    <table class="tbl">
+      <tr><th style="width:3.4in">이런 상황</th><th>이렇게 하세요</th></tr>
+      <tr><td>버튼이 아무 데도 안 보인다</td><td>모듈 메뉴(DocStore·EnvCatalog·AgentRegistry)에 있는지 확인하세요. 만들기는 <b>프로젝트 → 해당 탭</b>에서만 됩니다.</td></tr>
+      <tr><td>업로드가 실패한다 (503)</td><td>서버에 저장소 설정이 없는 상태입니다. 배포 시 <code>GCS_BUCKET</code>이 필요합니다.</td></tr>
+      <tr><td>다운로드 버튼이 회색이다</td><td>업로드 상태가 <b>completed</b>가 아닙니다. 표의 상태 열을 확인하고, 실패했다면 다시 올리세요.</td></tr>
+      <tr><td>“승인하고 실행”이 안 눌린다</td><td>Policy Gate 검사에 걸렸습니다. 검사 목록의 빨간 항목 이유를 읽고 설정을 고치면 활성화됩니다.</td></tr>
+      <tr><td>실행했는데 빌드가 안 돈다</td><td>설정 → <b>Git 연동</b>이 안 돼 있을 가능성이 큽니다. 저장소를 연결하고 다시 실행하세요.</td></tr>
+      <tr><td>저장을 눌렀는데 “바뀐 것이 없다”</td><td>정상입니다. 실제로 바뀐 칸이 없으면 요청을 보내지 않습니다 — 남의 수정을 덮어쓰지 않기 위해서입니다.</td></tr>
+      <tr><td>실수로 지웠다</td><td>삭제는 되돌릴 수 없습니다. 다만 <b>감사 로그</b>에 누가 언제 지웠는지는 남아 있습니다.</td></tr>
+    </table>
+  </div>
+  <div class="foot"><span>자주 막히는 곳</span><span>16 / 17</span></div>
+</section>
+
+<!-- 17 · 용어 -->
+<section class="slide">
+  <div class="eyebrow">부록</div>
+  <h1 class="t">용어 한 줄 정리</h1>
+  <div class="rule"></div>
+  <div class="body">
+    <div class="grid g2">
+      <div>
+        <ul class="ticks">
+          <li><b>프로젝트</b> — 모든 것이 담기는 그릇. 여기서 시작합니다.</li>
+          <li><b>문서(Document)</b> — 프로젝트에 올린 파일. 제목·종류·버전이 붙습니다.</li>
+          <li><b>환경 구성(Env Config)</b> — 코드를 돌릴 Docker 실행 환경 한 벌.</li>
+          <li><b>템플릿(Env Template)</b> — 환경 구성을 만들 때 쓰는 프리셋. 계정 단위.</li>
+          <li><b>Policy Gate</b> — 환경 구성이 안전한지 자동 검사하는 관문.</li>
+          <li><b>build_status</b> — 환경 구성의 상태. draft / approved / running / succeeded / failed.</li>
+        </ul>
+      </div>
+      <div>
+        <ul class="ticks">
+          <li><b>에이전트(Agent)</b> — 등록해 두고 실행하는 AI 작업자.</li>
+          <li><b>실행(Run)</b> — 에이전트를 한 번 돌린 기록. 토큰·비용·상태가 남습니다.</li>
+          <li><b>예산(Budget)</b> — 프로젝트별 월 토큰·비용 한도.</li>
+          <li><b>헬스(Health)</b> — 프로젝트 건강도 점수. 낮으면 이유가 함께 표시됩니다.</li>
+          <li><b>DORA 지표</b> — 배포 빈도·리드 타임·변경 실패율. 개발 속도와 안정성의 척도.</li>
+          <li><b>감사 로그(Audit)</b> — 누가 언제 무엇을 했는지의 지울 수 없는 기록.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="note ok" style="margin-top:26px">
+      <b>기억할 한 가지</b> — 헷갈리면 <b>프로젝트 목록 → 프로젝트 열기</b>로 돌아가세요. 만드는 일은 전부 그 안의 탭에 있습니다.
+    </div>
+  </div>
+  <div class="foot"><span>용어 정리</span><span>17 / 17</span></div>
+</section>
+
+</body>
+</html>
