@@ -388,3 +388,19 @@
   margin-left: auto;
   font-family: inherit;
 }
+
+/* 문서 업로드 줄. 파일 선택 · 종류 · 버튼을 한 줄로 두되, 좁으면 접힌다.
+   목록 위에 놓는 이유는 "여기서 추가한다"가 목록을 보기 전에 읽혀야 하기 때문이다. */
+.po-upload {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+/* 오류 문구는 줄을 통째로 차지한다 — 버튼 옆에 끼면 긴 메시지가 잘린다. */
+.po-upload .po-note {
+  flex-basis: 100%;
+  margin: 0;
+}
