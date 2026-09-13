@@ -12,6 +12,9 @@ import { DOCKER_CONFIG_GENERATOR, type DockerConfigGenerator } from './docker-co
 import { GeminiDockerConfigGenerator } from './gemini-docker-config.generator';
 import { VertexDockerConfigGenerator } from './vertex-docker-config.generator';
 import { POLICY_GATE, type PolicyGate } from './policy-gate';
+import { ENV_CONFIG_EXECUTOR } from './env-config-executor';
+import { GitHubActionsExecutor } from './github-actions.executor';
+import { AuthModule } from '../auth/auth.module';
 import { CliPolicyGate } from './cli-policy-gate';
 import { ApiException } from '../../common/errors/api.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
@@ -35,6 +38,8 @@ class UnconfiguredGenerator implements DockerConfigGenerator {
  * 설계서 Part 1 §3.2 / Part 4 §5.
  */
 @Module({
+  // 실행 어댑터가 사용자의 GitHub 액세스 토큰을 쓴다(만료 시 갱신은 그쪽 책임이다).
+  imports: [AuthModule],
   controllers: [EnvTemplatesController, ProjectEnvConfigsController, EnvConfigsController],
   providers: [
     EnvTemplatesService,
@@ -60,6 +65,8 @@ class UnconfiguredGenerator implements DockerConfigGenerator {
         );
       },
     },
+    // 실행은 사용자 레포의 GitHub Actions가 한다. 근거는 github-actions.executor.ts 주석.
+    { provide: ENV_CONFIG_EXECUTOR, useClass: GitHubActionsExecutor },
     {
       provide: POLICY_GATE,
       useFactory: (): PolicyGate =>

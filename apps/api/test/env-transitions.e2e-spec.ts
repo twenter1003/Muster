@@ -7,6 +7,11 @@ import { DATA_SOURCE } from '../src/database/database.module';
 import { SessionService } from '../src/modules/auth/session.service';
 import { EnvConfigTransition, ProjectEnvConfig, Session, User } from '../src/database/entities';
 import type { BuildStatus } from '../src/database/entities/enums';
+import {
+  ENV_CONFIG_EXECUTOR,
+  type EnvConfigExecutor,
+  type StartExecutionParams,
+} from '../src/modules/env-catalog/env-config-executor';
 
 /**
  * 환경 구성 상태 전이 이력.
@@ -73,8 +78,28 @@ describe('Phase 7 — ENV_CONFIG_TRANSITIONS (e2e)', () => {
     }[];
   };
 
+  /**
+   * 실행 어댑터를 대체한다. 진짜 어댑터는 사용자 레포의 GitHub Actions를 부르는데, 여기엔
+   * 연동도 자격증명도 없다. 그걸 흉내 내면 검증 대상이 "전이 이력"이 아니라 "가짜 GitHub"이
+   * 된다 — 실제 호출 형태는 github-actions.executor.spec.ts가 따로 고정한다.
+   *
+   * 대신 여기서만 볼 수 있는 것을 본다: 시작에 실패했을 때 **실제 Postgres에** running과
+   * failed 두 줄이 순서대로 쌓이는가.
+   */
+  const started: StartExecutionParams[] = [];
+  let executorFails = false;
+  const executor: EnvConfigExecutor = {
+    start: async (params) => {
+      started.push(params);
+      if (executorFails) throw new Error('워크플로가 없습니다');
+    },
+  };
+
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(ENV_CONFIG_EXECUTOR)
+      .useValue(executor)
+      .compile();
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix('api/v1');
     app.useGlobalPipes(
@@ -128,6 +153,11 @@ describe('Phase 7 — ENV_CONFIG_TRANSITIONS (e2e)', () => {
     ]);
   });
 
+  beforeEach(() => {
+    started.length = 0;
+    executorFails = false;
+  });
+
   it('여러 전이가 시간 오름차순으로 쌓인다 — 이력은 지나온 순서대로 읽는다', async () => {
     const configId = await createConfig('policy_passed');
 
@@ -141,6 +171,22 @@ describe('Phase 7 — ENV_CONFIG_TRANSITIONS (e2e)', () => {
 
     const times = items.map((i) => Date.parse(i.created_at));
     expect([...times].sort((a, b) => a - b)).toEqual(times);
+
+    // 전이만 하고 끝나지 않는다 — 실행을 실제로 시작시킨다.
+    expect(started).toEqual([{ envConfigId: configId, projectId, userId: alice.id }]);
+  });
+
+  it('실행을 시작하지 못하면 running 다음에 failed가 쌓인다', async () => {
+    // 아무것도 돌지 않는데 화면에는 도는 것으로 보이는 상태를 남기지 않는다.
+    const configId = await createConfig('approved');
+    executorFails = true;
+
+    await http().post(`/api/v1/env-configs/${configId}/execute`).set(auth(aliceToken)).expect(500);
+
+    const items = await transitionsOf(configId);
+    expect(items.map((i) => i.to_status)).toEqual(['running', 'failed']);
+    expect(items[1].from_status).toBe('running');
+    expect(items[1].reason).toContain('실행을 시작하지 못했습니다');
   });
 
   it('반려도 누가 했는지를 남긴다', async () => {

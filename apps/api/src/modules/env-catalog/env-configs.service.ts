@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
 import { DataSource, Repository } from 'typeorm';
 import { InjectRepository } from '../../database/inject-repository.decorator';
 import {
@@ -18,7 +19,13 @@ import {
   type PageRequest,
   type ScopedPage,
 } from '../../common/pagination/paginate';
+import { DomainEvent, type WorkflowRunCompletedEvent } from '../../common/events/domain-events';
 import { DOCKER_CONFIG_GENERATOR, type DockerConfigGenerator } from './docker-config-generator';
+import {
+  ENV_CONFIG_EXECUTOR,
+  envConfigIdFromRunName,
+  type EnvConfigExecutor,
+} from './env-config-executor';
 import { POLICY_GATE, type PolicyGate } from './policy-gate';
 import { AuditService } from '../audit/audit.service';
 import { EnvTemplatesService } from './env-templates.service';
@@ -36,6 +43,7 @@ export class EnvConfigsService {
     private readonly transitionRepo: Repository<EnvConfigTransition>,
     @Inject(DOCKER_CONFIG_GENERATOR) private readonly generator: DockerConfigGenerator,
     @Inject(POLICY_GATE) private readonly gate: PolicyGate,
+    @Inject(ENV_CONFIG_EXECUTOR) private readonly executor: EnvConfigExecutor,
     private readonly templates: EnvTemplatesService,
     private readonly audit: AuditService,
     private readonly dataSource: DataSource,
@@ -314,11 +322,66 @@ export class EnvConfigsService {
       project_id: config.project_id,
     });
 
-    this.logger.warn(
-      `환경 구성 ${config.id}가 running으로 전이했지만 실행 어댑터가 없습니다 ` +
-        `(기술 사양서 9장 미해결 — EnvCatalog 실행 인프라).`,
-    );
+    /*
+     * running으로 옮긴 **뒤에** 시작시킨다. 순서를 뒤집으면 실행 측이 우리보다 먼저 끝나
+     * 결과 웹훅이 approved 상태의 구성에 도착할 수 있고, 그러면 그 결과를 버리게 된다.
+     *
+     * 시작조차 못 하면 running에 두지 않는다 — 아무것도 돌고 있지 않은데 화면에는 도는
+     * 것으로 보이는 상태가 최악이다. failed로 되돌리고 사유를 남긴 뒤 원래 오류를 올린다.
+     */
+    try {
+      await this.executor.start({
+        envConfigId: saved.id,
+        projectId: saved.project_id,
+        userId,
+      });
+    } catch (error) {
+      await this.transitionTo(
+        saved,
+        'failed',
+        userId,
+        `실행을 시작하지 못했습니다: ${describe(error)}`,
+      );
+      throw error;
+    }
+
     return saved;
+  }
+
+  /**
+   * 실행 결과 수신. Ingest가 발행한 워크플로 완료 이벤트 중 **우리가 시작시킨 것**만 집는다.
+   *
+   * 구독으로 받는 이유는 모듈 경계다(Part 2 §8) — Ingest는 EnvCatalog를 모른다.
+   * 대조는 실행 이름에 박아 보낸 구성 id로 한다.
+   */
+  @OnEvent(DomainEvent.WORKFLOW_RUN_COMPLETED)
+  async onWorkflowRunCompleted(event: WorkflowRunCompletedEvent): Promise<void> {
+    const configId = envConfigIdFromRunName(event.run_name);
+    if (!configId) return; // 사용자 레포의 다른 워크플로다.
+
+    const config = await this.configs.findOneBy({ id: configId });
+    if (!config) {
+      this.logger.warn(`실행 결과가 왔지만 환경 구성 ${configId}이(가) 없습니다.`);
+      return;
+    }
+    // 같은 레포가 다른 프로젝트에 연동돼 있어도 남의 구성을 건드리지 않는다.
+    if (config.project_id !== event.project_id) {
+      this.logger.warn(`실행 결과의 프로젝트가 환경 구성 ${configId}의 것과 다릅니다.`);
+      return;
+    }
+    // running이 아니면 이미 결론이 난 것이다. 재전송된 웹훅이 끝난 구성을 되살리지 않는다.
+    if (config.build_status !== 'running') return;
+
+    const succeeded = event.conclusion === 'success';
+    const where = event.run_url ? ` (${event.run_url})` : '';
+    await this.transitionTo(
+      config,
+      succeeded ? 'succeeded' : 'failed',
+      // 사람이 누른 전이가 아니다. actor를 실행 버튼을 누른 사용자로 적으면 그 사람이
+      // 실패시킨 것처럼 읽힌다.
+      null,
+      `GitHub Actions ${event.conclusion ?? '결론 없음'}${where}`,
+    );
   }
 
   private requireStatus(config: ProjectEnvConfig, allowed: BuildStatus[], action: string): void {
@@ -344,4 +407,20 @@ export class EnvConfigsService {
 
     return config;
   }
+}
+
+/**
+ * 전이 사유에 남길 오류 설명.
+ *
+ * ApiException의 `.message`는 "Api Exception"이다 — 사용자 메시지는 응답 본문 안에 있다.
+ * 그대로 쓰면 "실행을 시작하지 못했습니다: Api Exception"이 이력에 남아, 나중에 왜
+ * 실패했는지 아무도 알 수 없다.
+ */
+function describe(error: unknown): string {
+  if (error instanceof ApiException) {
+    const body = error.getResponse() as { error?: { message?: unknown } };
+    const message = body?.error?.message;
+    if (typeof message === 'string' && message !== '') return message;
+  }
+  return error instanceof Error ? error.message : String(error);
 }
