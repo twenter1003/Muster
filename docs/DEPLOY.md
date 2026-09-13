@@ -142,8 +142,13 @@ DATABASE_URL='postgresql://...세션 풀러 문자열...' pnpm --filter @muster/
 
 ### 8. 자동 배포 (사람 — 한 번만, 선택)
 
-`.github/workflows/deploy.yml`이 main 푸시마다 배포한다. 안 걸어 두면 지금처럼
-`./scripts/deploy-cloudrun.sh`를 사람이 돌리면 된다 — 워크플로도 같은 스크립트를 부른다.
+`.github/workflows/deploy.yml`이 배포한다. 워크플로도 `./scripts/deploy-cloudrun.sh`를
+부르므로, 안 쓰면 사람이 그 스크립트를 직접 돌리면 된다.
+
+**지금은 수동 실행(Actions → 배포 (Cloud Run) → Run workflow)만 걸려 있다.** 아래 변수가
+없는 채로 main 푸시에 걸어 두면 모든 푸시가 실패로 끝나고, 늘 실패하는 검사는 곧 아무도
+안 보는 검사가 된다. 변수를 채운 뒤 워크플로 상단 주석의 `on:` 블록으로 되돌리면 main
+푸시마다 자동 배포된다.
 
 **서비스 계정 키(JSON)를 저장소 시크릿에 넣지 않는다.** 만료가 없어 유출되면 회수 전까지
 계속 유효하다. GitHub Actions의 OIDC 토큰을 GCP가 직접 신뢰하게 한다(Workload Identity).

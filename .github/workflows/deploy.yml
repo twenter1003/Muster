@@ -1,21 +1,27 @@
 name: 배포 (Cloud Run)
 
-# main에 들어간 것을 Cloud Run에 올린다. 지금까지 배포는 사람이 로컬에서
+# 현재 커밋을 Cloud Run에 올린다. 지금까지 배포는 사람이 로컬에서
 # scripts/deploy-cloudrun.sh를 돌리는 것이었고, 그래서 "지금 떠 있는 것이 어느 커밋인가"에
 # 답하려면 그 사람에게 물어야 했다.
+#
+# **수동 실행 전용이다.** main 푸시에 걸어 두었더니 아래 저장소 변수가 아직 없어 모든 푸시가
+# 빨간 X로 끝났다 — 배포는 시도조차 되지 않고 실패만 쌓인다. 늘 실패하는 검사는 곧 아무도
+# 안 보는 검사가 되고, 그러면 진짜 실패도 같이 묻힌다.
+# 변수를 채운 뒤(docs/DEPLOY.md 8단계) push 트리거를 되살리면 된다:
+#
+#   on:
+#     push:
+#       branches: [main]
+#       paths-ignore: ['**/*.md', 'docs/**', 'files/**']
+#     workflow_dispatch:
+#
+# paths-ignore가 함께 있는 이유는, 문서만 고친 커밋으로 이미지를 다시 구우면 무료 한도
+# (Artifact Registry 0.5 GB)를 쓰는 쪽이 배포 횟수가 아니라 쌓이는 이미지이기 때문이다.
 #
 # **마이그레이션은 여기서 돌리지 않는다.** docs/DEPLOY.md 6단계 그대로 사람이 돌린다.
 # 배포와 스키마 변경을 한 트리거에 묶으면 롤백이 어려워진다 — 코드는 리비전으로 되돌려도
 # 스키마는 되돌아가지 않는다.
 on:
-  push:
-    branches: [main]
-    # 문서만 고친 커밋으로 이미지를 다시 굽지 않는다. 무료 한도(Artifact Registry 0.5 GB)를
-    # 쓰는 쪽은 배포 횟수가 아니라 쌓이는 이미지다.
-    paths-ignore:
-      - '**/*.md'
-      - 'docs/**'
-      - 'files/**'
   workflow_dispatch:
 
 # 배포는 취소하지 않는다. 중간에 끊긴 배포보다 두 번 도는 편이 낫다.
