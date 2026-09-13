@@ -1,11 +1,12 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { HealthIndicator } from '../components/HealthIndicator';
 import { LogRow } from '../components/LogRow';
 import { StageBadge } from '../components/StageBadge';
 import { StatusBadge } from '../components/StatusBadge';
-import { ApiError, apiPost, type Page as ApiPage } from '../lib/api';
+import { ApiError, apiPatch, apiPost, type Page as ApiPage } from '../lib/api';
+import { Modal } from '../components/Modal';
 import { useApi } from '../lib/useApi';
 import { actorLabel, type TransitionView } from '../lib/transitions';
 import {
@@ -358,6 +359,7 @@ export function ProjectOverviewPage() {
 
   const projectPath = id === undefined ? null : `/projects/${id}`;
   const project = useApi<ProjectView>(projectPath);
+  const [editing, setEditing] = useState(false);
 
   /*
    * ── 지연 로딩 ──
@@ -476,7 +478,9 @@ export function ProjectOverviewPage() {
           </div>
         </div>
         <div className="po__actions">
-          <Button>수정</Button>
+          <Button onClick={() => setEditing(true)} disabled={project.data === null}>
+            수정
+          </Button>
           {/*
             실행 버튼은 여기 없다. POST /agents/:id/runs가 세션 인증도 받게 되면서 웹에서
             부를 수 있게 됐지만, 그 요청에는 **어느 에이전트인지**가 반드시 필요하다.
@@ -485,6 +489,20 @@ export function ProjectOverviewPage() {
           */}
         </div>
       </header>
+
+      {project.data !== null && (
+        <EditProjectDialog
+          open={editing}
+          project={project.data}
+          onClose={() => setEditing(false)}
+          onSaved={() => {
+            setEditing(false);
+            // 저장된 값을 화면 상태에 직접 써넣지 않고 다시 읽는다. 서버가 updated_at 같은
+            // 파생 값을 함께 바꾸므로, 응답만 믿고 일부만 갈아 끼우면 화면이 반쯤 낡는다.
+            project.reload();
+          }}
+        />
+      )}
 
       <div className="po__tabs" role="tablist" aria-label="프로젝트 상세">
         {TABS.map((t) => {
@@ -1053,5 +1071,116 @@ function BudgetPanel({ budget }: { budget: BudgetUsage }) {
       )}
       {over && <p className="meta po-note po-note--signal">임계치 초과 — 예산을 확인해야 한다.</p>}
     </>
+  );
+}
+
+/* ───────────────────────── 프로젝트 수정 ─────────────────────────
+ * 서버가 받는 것은 이름과 진행 단계 둘이다(UpdateProjectDto). 삭제는 여기 두지 않았다 —
+ * 수정과 삭제가 같은 상자에 있으면 이름을 고치러 들어왔다가 지우는 사고가 난다.
+ */
+
+const PROJECT_NAME_MAX = 200;
+
+function EditProjectDialog({
+  open,
+  project,
+  onClose,
+  onSaved,
+}: {
+  open: boolean;
+  project: ProjectView;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(project.name);
+  const [stage, setStage] = useState(project.current_stage);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // 열 때마다 현재 값에서 다시 시작한다. 직전에 고치다 취소한 값이 남아 있으면,
+  // 다음에 열었을 때 화면이 서버와 다른 것을 보여 주게 된다.
+  useEffect(() => {
+    if (open) {
+      setName(project.name);
+      setStage(project.current_stage);
+      setError(null);
+    }
+  }, [open, project.name, project.current_stage]);
+
+  const trimmed = name.trim();
+  const changed = trimmed !== project.name || stage !== project.current_stage;
+  const canSave = trimmed.length > 0 && trimmed.length <= PROJECT_NAME_MAX && changed && !saving;
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canSave) return;
+
+    setSaving(true);
+    setError(null);
+
+    // 바뀐 것만 보낸다. PATCH는 부분 수정이고, 안 바뀐 값을 같이 보내면 그 사이 남이 고친
+    // 것을 덮어쓴다.
+    const body: { name?: string; current_stage?: string } = {};
+    if (trimmed !== project.name) body.name = trimmed;
+    if (stage !== project.current_stage) body.current_stage = stage;
+
+    apiPatch<ProjectView>(`/projects/${project.id}`, body).then(onSaved, (err: unknown) => {
+      setSaving(false);
+      setError(err instanceof ApiError ? `${err.message} (${err.code})` : String(err));
+    });
+  };
+
+  return (
+    <Modal open={open} title="프로젝트 수정" onClose={saving ? () => undefined : onClose}>
+      <form className="modal__form" onSubmit={submit}>
+        <div className="field">
+          <label className="meta" htmlFor="edit-project-name">
+            이름
+          </label>
+          <input
+            id="edit-project-name"
+            className="input modal__input"
+            value={name}
+            maxLength={PROJECT_NAME_MAX}
+            autoFocus
+            onChange={(e) => setName(e.target.value)}
+          />
+        </div>
+
+        <div className="field">
+          <label className="meta" htmlFor="edit-project-stage">
+            진행 단계
+          </label>
+          <select
+            id="edit-project-stage"
+            className="input modal__input"
+            value={stage}
+            onChange={(e) => setStage(e.target.value)}
+          >
+            {PROJECT_STAGES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          <span className="meta">바꾸면 단계 이력에 남습니다.</span>
+        </div>
+
+        {error !== null && (
+          <p className="error-note" role="alert">
+            저장하지 못했다: {error}
+          </p>
+        )}
+
+        <div className="modal__actions">
+          <Button type="button" onClick={onClose} disabled={saving}>
+            취소
+          </Button>
+          <Button type="submit" variant="solid" disabled={!canSave}>
+            {saving ? '저장 중…' : '저장'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
