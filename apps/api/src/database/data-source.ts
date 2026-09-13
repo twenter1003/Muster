@@ -5,6 +5,67 @@ import { ALL_ENTITIES } from './entities';
 
 loadDotenv({ quiet: true });
 
+const RAW_DATABASE_URL =
+  process.env.DATABASE_URL ?? 'postgresql://muster:muster@localhost:5432/muster';
+
+/**
+ * 연결 문자열에서 `sslmode`를 떼어낸다.
+ *
+ * pg는 문자열의 `sslmode`를 코드가 넘긴 `ssl` 옵션보다 **우선한다**. 그래서 아래에서
+ * 아무리 CA를 지정하거나 검증을 끄더라도, 문자열에 `sslmode=require`가 남아 있으면
+ * 그 설정이 무시되고 기본 검증으로 되돌아간다(자체 서명 인증서에서 그대로 죽는다).
+ *
+ * TLS를 어떻게 할지는 **코드가 정한다**. 제공자가 복사해 주는 문자열에 무엇이 붙어 있든
+ * 그것이 보안 설정을 조용히 바꾸지 못하게 한다.
+ */
+function stripSslMode(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.searchParams.delete('sslmode');
+    return parsed.toString();
+  } catch {
+    // 파싱할 수 없는 문자열은 그대로 넘긴다 — 여기서 던지면 원인이 TLS가 아니라
+    // "설정 파일이 터졌다"로 보인다. 연결 단계에서 제대로 된 에러가 난다.
+    return url;
+  }
+}
+
+const DATABASE_URL = stripSslMode(RAW_DATABASE_URL);
+
+/**
+ * 관리형 Postgres의 TLS.
+ *
+ * Supabase·Neon 같은 곳의 풀러는 **자체 CA로 서명한** 인증서를 쓴다. pg 8.x는
+ * `sslmode=require`를 만나면 체인을 검증하는데, 공개 CA가 아니라서
+ * `self-signed certificate in certificate chain`으로 연결이 거부된다.
+ *
+ * 두 갈래가 있고, 여기서는 **둘 다 열어 두되 안전한 쪽을 기본으로 시도한다**:
+ *
+ * 1. `DATABASE_CA_CERT`에 제공자의 CA 인증서(PEM)를 넣으면 그것으로 **검증한다**.
+ *    암호화와 신원 확인이 모두 산다. 제공자 대시보드에서 받을 수 있다.
+ * 2. 없으면 검증 없이 암호화만 한다. 트래픽은 보호되지만 **서버가 그 서버인지는 확인하지
+ *    않는다** — 경로를 가로챌 수 있는 공격자가 DB를 사칭해 자격증명과 데이터를 받을 수 있다.
+ *    실제로 그러려면 Cloud Run과 제공자 사이의 네트워크 경로를 장악해야 해서 문턱이 높지만,
+ *    "없는 위험"은 아니다. 그래서 이 경로로 갈 때는 경고를 남긴다 — 조용히 낮아진 보안은
+ *    낮아진 줄도 모르게 된다.
+ *
+ * 로컬 개발(도커 컴포즈)은 평문이라 TLS 자체를 쓰지 않는다.
+ */
+function sslOptions(): false | { ca: string } | { rejectUnauthorized: false } {
+  const isLocal = /@(localhost|127\.0\.0\.1|db):/.test(DATABASE_URL);
+  if (isLocal) return false;
+
+  const ca = process.env.DATABASE_CA_CERT;
+  if (ca !== undefined && ca.trim().length > 0) return { ca };
+
+  console.warn(
+    '[database] DATABASE_CA_CERT가 없어 TLS 인증서를 검증하지 않습니다. ' +
+      '연결은 암호화되지만 서버 신원은 확인되지 않습니다. ' +
+      '제공자의 CA 인증서를 DATABASE_CA_CERT에 넣으면 검증이 켜집니다.',
+  );
+  return { rejectUnauthorized: false };
+}
+
 /**
  * TypeORM CLI(마이그레이션 생성/실행)와 NestJS 런타임이 공유하는 접속 설정.
  *
@@ -13,7 +74,8 @@ loadDotenv({ quiet: true });
  */
 export const dataSourceOptions: DataSourceOptions = {
   type: 'postgres',
-  url: process.env.DATABASE_URL ?? 'postgresql://muster:muster@localhost:5432/muster',
+  url: DATABASE_URL,
+  ssl: sslOptions(),
   entities: [...ALL_ENTITIES],
   migrations: [__dirname + '/migrations/*.{ts,js}'],
   synchronize: false,

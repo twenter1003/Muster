@@ -107,15 +107,19 @@ gcloud projects add-iam-policy-binding "$PROJECT" \
 ./scripts/deploy-cloudrun.sh
 ```
 
-주소가 나온다. **그 주소로 두 가지를 마저 한다:**
+주소가 나온다. **그 주소로 GitHub OAuth 앱의 Authorization callback URL을 채운다:**
+`https://<주소>/api/v1/auth/github/callback`.
 
-1. GitHub OAuth 앱의 **Authorization callback URL**에
-   `https://<주소>/api/v1/auth/github/callback`을 넣는다.
-2. 주소를 환경변수로 넣어 **다시 배포**한다 — OAuth 리다이렉트를 만들 때 서버가 자기
-   주소를 알아야 한다:
+주소를 넣어 다시 배포할 필요는 없다. 서버는 OAuth 리다이렉트를 만들 때 자기 주소를 알아야
+하는데, 스크립트가 그 값을 스스로 채운다 — 기존 리비전이 있으면 그 주소를, 없으면 Cloud
+Run의 결정적 형식(`<서비스>-<프로젝트번호>.<리전>.run.app`)을 쓴다. 주소가 있어야 배포가
+뜨고 배포가 떠야 주소가 나오는 고리를 그렇게 끊었다.
+
+예상과 실제 주소가 다르면(리전·서비스 이름을 바꾼 경우) 스크립트가 마지막에 그 사실과
+다시 돌릴 명령을 함께 알려 준다. 주소를 직접 정하고 싶으면 덮어쓸 수 있다:
 
 ```bash
-FRONTEND_URL=https://<주소> API_BASE_URL=https://<주소> ./scripts/deploy-cloudrun.sh
+FRONTEND_URL=https://<주소> ./scripts/deploy-cloudrun.sh
 ```
 
 ### 6. 마이그레이션 (사람, 로컬에서)
