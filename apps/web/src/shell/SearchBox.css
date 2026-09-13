@@ -1,0 +1,75 @@
+/* 상단바 검색. 색·간격은 토큰만 쓴다. */
+
+.searchbox {
+  position: relative;
+  flex: 1 1 320px;
+  /* flex 자식의 기본값(auto)은 내용의 고유 너비에 묶인다. 상단바가 밀리는 원인이 그것이다. */
+  min-width: 0;
+}
+
+/*
+ * 드롭다운. 상단바 위로 떠야 하므로 absolute다.
+ * 목록이 길어도 화면을 덮지 않게 자체 스크롤을 갖는다.
+ */
+.searchbox__panel {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 60vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-1);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+  /* 아래 내용과 겹쳐 뜨므로 경계가 선 하나로는 약하다. */
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+}
+
+.searchbox__note {
+  padding: var(--space-2);
+}
+
+.searchbox__hit {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2);
+  border: none;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--font-size-body);
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+
+/* 키보드와 마우스가 같은 표시를 쓴다 — 지금 어디에 있는지가 한 곳에서만 읽히도록. */
+.searchbox__hit[aria-selected='true'] {
+  background: var(--color-surface);
+}
+
+.searchbox__kind {
+  flex: none;
+}
+
+/* 긴 제목이 프로젝트 이름을 밀어내지 않게 자기 자리에서 자른다. */
+.searchbox__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* <768: 상단바에서 검색을 감추는 규칙(app.css)은 그대로 둔다. 상자도 함께 사라져야 한다. */
+@media (max-width: 767px) {
+  .searchbox {
+    display: none;
+  }
+}
