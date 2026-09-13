@@ -1,0 +1,80 @@
+name: 자동 머지
+
+# CI가 초록이면 PR을 머지한다. 사람이 "통과했나" 보고 버튼을 누르는 일을 없앤다.
+#
+# **드래프트가 손잡이다.** 드래프트인 동안은 절대 머지하지 않는다. 다 됐다고 판단해
+# ready로 올리는 순간부터 CI가 통과하면 들어간다 — 별도 라벨을 외울 필요가 없고,
+# "아직 보지 마라"를 표시하는 자리가 이미 GitHub에 있다.
+#
+# workflow_run으로 도는 이유: pull_request 이벤트로 돌면 포크 PR에서 토큰이 읽기 전용이라
+# 머지할 수 없다. workflow_run은 기본 브랜치의 정의로, 기본 브랜치의 권한으로 돈다.
+# **그래서 이 파일은 main에 들어간 뒤부터 동작한다** — PR 브랜치에 올려 둔 동안은 돌지 않는다.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+# 같은 PR에 여러 번 걸리지 않게 묶는다. 머지는 취소하지 않는다.
+concurrency:
+  group: automerge-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    name: CI 초록이면 머지
+    # 실패한 CI, 그리고 PR이 아닌 실행(main 푸시 등)은 여기서 걸러진다.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: 머지 대상인지 확인
+        id: target
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+
+          # 이 커밋이 달린 열린 PR. 드래프트·포크·main 외 대상은 여기서 뺀다.
+          #   draft            아직 보지 말라는 뜻이다.
+          #   head.repo        포크 PR은 남의 코드다. 검토 없이 들이지 않는다.
+          #   base.ref=main    릴리스 브랜치 같은 다른 대상은 사람이 판단한다.
+          number="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${SHA}/pulls" \
+            --jq '[.[] | select(.state == "open" and .draft == false
+                    and .base.ref == "main"
+                    and .head.repo.full_name == env.GITHUB_REPOSITORY)]
+                  | first | .number // empty')"
+
+          if [ -z "$number" ]; then
+            echo "머지할 PR이 없다 (드래프트이거나, 포크이거나, 이미 닫혔다)."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # CI가 통과한 커밋이 지금도 PR의 head인지 본다. 그 사이에 새 커밋이 올라왔다면
+          # 초록은 낡은 커밋의 것이다 — 검사받지 않은 코드를 머지하게 된다.
+          head="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${number}" --jq '.head.sha')"
+          if [ "$head" != "$SHA" ]; then
+            echo "PR #${number}의 head가 ${head}로 바뀌었다. 그 커밋의 CI가 끝나면 다시 걸린다."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "go=true" >> "$GITHUB_OUTPUT"
+          echo "number=${number}" >> "$GITHUB_OUTPUT"
+
+      - name: 머지
+        if: steps.target.outputs.go == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NUMBER: ${{ steps.target.outputs.number }}
+        # 이 저장소의 관행대로 머지 커밋으로 넣는다(스쿼시·리베이스 아님).
+        # 머지할 수 없는 상태(충돌 등)면 gh가 실패하고, 그 실패가 이 워크플로에 남는다 —
+        # 조용히 넘어가면 "왜 안 들어갔지"를 사람이 나중에 발견하게 된다.
+        run: gh pr merge "$NUMBER" --repo "$GITHUB_REPOSITORY" --merge
