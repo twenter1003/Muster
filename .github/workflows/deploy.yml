@@ -1,0 +1,92 @@
+name: 배포 (Cloud Run)
+
+# main에 들어간 것을 Cloud Run에 올린다. 지금까지 배포는 사람이 로컬에서
+# scripts/deploy-cloudrun.sh를 돌리는 것이었고, 그래서 "지금 떠 있는 것이 어느 커밋인가"에
+# 답하려면 그 사람에게 물어야 했다.
+#
+# **마이그레이션은 여기서 돌리지 않는다.** docs/DEPLOY.md 6단계 그대로 사람이 돌린다.
+# 배포와 스키마 변경을 한 트리거에 묶으면 롤백이 어려워진다 — 코드는 리비전으로 되돌려도
+# 스키마는 되돌아가지 않는다.
+on:
+  push:
+    branches: [main]
+    # 문서만 고친 커밋으로 이미지를 다시 굽지 않는다. 무료 한도(Artifact Registry 0.5 GB)를
+    # 쓰는 쪽은 배포 횟수가 아니라 쌓이는 이미지다.
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'files/**'
+  workflow_dispatch:
+
+# 배포는 취소하지 않는다. 중간에 끊긴 배포보다 두 번 도는 편이 낫다.
+concurrency:
+  group: deploy-cloudrun
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: 빌드 · 푸시 · 배포
+    runs-on: ubuntu-latest
+
+    # WIF가 이 토큰으로 GCP 자격증명을 받아 온다. 서비스 계정 키(JSON)를 저장소 시크릿에
+    # 두는 방식은 쓰지 않는다 — 만료가 없어 유출되면 회수 전까지 계속 유효하다.
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 설정이 빠졌을 때 gcloud의 인증 오류로 알게 되면 원인을 찾는 데 시간이 든다.
+      # 무엇을 어디에 넣어야 하는지 먼저 말한다.
+      - name: 설정 확인
+        env:
+          PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
+          SA: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          PROJECT: ${{ vars.GCP_PROJECT }}
+          URL: ${{ vars.DEPLOY_URL }}
+        run: |
+          missing=""
+          for v in PROVIDER SA PROJECT URL; do
+            [ -n "${!v}" ] || missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then
+            echo "저장소 변수가 없다:$missing" >&2
+            echo "Settings → Secrets and variables → Actions → Variables에 넣는다." >&2
+            echo "GCP_WIF_PROVIDER / GCP_SERVICE_ACCOUNT / GCP_PROJECT / DEPLOY_URL — 설정 방법은 docs/DEPLOY.md 8단계." >&2
+            exit 1
+          fi
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ vars.GCP_PROJECT }}
+
+      - name: Artifact Registry 로그인
+        run: gcloud auth configure-docker "${{ vars.GCP_REGION || 'asia-northeast3' }}-docker.pkg.dev" --quiet
+
+      # 로컬 배포와 같은 스크립트를 쓴다. 여기에 gcloud run deploy를 다시 적으면
+      # min-instances·memory 같은 과금을 묶는 값이 두 벌이 되어 조용히 갈라진다.
+      - name: 배포
+        env:
+          GCP_PROJECT: ${{ vars.GCP_PROJECT }}
+          GCP_REGION: ${{ vars.GCP_REGION || 'asia-northeast3' }}
+          # 서버가 OAuth 리다이렉트를 만들 때 자기 주소를 알아야 한다. 비워 두고 배포하면
+          # 기본값(localhost)으로 덮여 로그인이 깨진다.
+          FRONTEND_URL: ${{ vars.DEPLOY_URL }}
+          API_BASE_URL: ${{ vars.DEPLOY_URL }}
+        run: ./scripts/deploy-cloudrun.sh
+
+      # 배포가 성공해도 컨테이너가 기동에 실패할 수 있다(환경변수 검증, DB 연결).
+      # 그 경우 Cloud Run은 이전 리비전으로 트래픽을 유지하므로 배포 단계는 초록이다.
+      - name: 헬스체크
+        env:
+          URL: ${{ vars.DEPLOY_URL }}
+        run: |
+          code=$(curl -sS -o /tmp/body -w '%{http_code}' --max-time 30 "$URL/api/v1/health")
+          echo "HTTP $code"; cat /tmp/body; echo
+          [ "$code" = "200" ]
