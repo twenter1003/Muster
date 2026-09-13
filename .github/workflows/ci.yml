@@ -1,0 +1,108 @@
+name: CI
+
+# PR과 main 푸시에서 돈다. 지금까지 검증 숫자는 전부 로컬에서만 나왔고 PR 화면에는 아무
+# 증거도 남지 않았다 — "테스트 통과했다"는 말을 믿는 수밖에 없는 상태였다. 그 말을
+# 저장소가 대신하게 한다.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# 같은 브랜치에 새 푸시가 오면 돌던 것을 취소한다. 낡은 커밋의 결과를 기다릴 이유가 없다.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    name: API (타입 · 린트 · 단위 · e2e)
+    runs-on: ubuntu-latest
+
+    # e2e는 진짜 Postgres에 붙는다. 스키마 검증(테이블·CHECK 개수)과 키셋 페이지네이션,
+    # DISTINCT ON 질의는 인메모리 대체물로는 검증되지 않는 것들이다.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: muster
+          POSTGRES_PASSWORD: muster
+          POSTGRES_DB: muster
+        ports:
+          - 5432:5432
+        # 헬스체크 없이 두면 DB가 뜨기 전에 마이그레이션이 먼저 달려 간헐적으로 깨진다.
+        options: >-
+          --health-cmd "pg_isready -U muster -d muster"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://muster:muster@localhost:5432/muster
+      # 나머지 환경변수는 env.schema.ts가 전부 기본값을 갖고 있다. 여기에 늘어놓으면
+      # 스키마의 기본값과 두 벌이 되어 조용히 갈라진다.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm 버전은 package.json의 packageManager에서 읽는다 — 여기에 다시 적으면
+      # 로컬과 CI가 다른 버전으로 도는 날이 온다.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: 타입 검사
+        working-directory: apps/api
+        run: npx tsc --noEmit
+
+      # src만이 아니라 test까지 본다. 예전에 test/가 빠져 있어 require() 한 건이 숨어 있었다.
+      - name: 린트
+        working-directory: apps/api
+        run: npx eslint src test --max-warnings 0
+
+      - name: 단위 테스트
+        working-directory: apps/api
+        run: npx jest --ci
+
+      - name: 마이그레이션
+        working-directory: apps/api
+        run: pnpm migration:run
+
+      - name: e2e
+        working-directory: apps/api
+        run: npx jest --config ./test/jest-e2e.json --ci --runInBand
+
+  web:
+    name: Web (타입 · 린트 · 테스트 · 빌드)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: 타입 검사
+        working-directory: apps/web
+        run: npx tsc --noEmit
+
+      - name: 린트
+        working-directory: apps/web
+        run: npx eslint src --max-warnings 0
+
+      - name: 테스트
+        working-directory: apps/web
+        run: npx vitest run
+
+      # 빌드를 마지막에 두는 이유: 앞의 셋보다 느리고, 앞에서 걸리는 문제가 훨씬 많다.
+      - name: 빌드
+        working-directory: apps/web
+        run: npm run build
