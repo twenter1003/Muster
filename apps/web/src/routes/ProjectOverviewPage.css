@@ -434,3 +434,18 @@
   gap: var(--space-2);
   margin-top: var(--space-2);
 }
+
+/* 목록 위의 안내 + 시작 버튼 한 줄. 좁은 화면에서는 버튼이 아래로 내려간다. */
+.po-listhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.po-listhead > p {
+  flex: 1 1 240px;
+  margin: 0;
+}

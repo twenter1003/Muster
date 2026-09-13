@@ -231,6 +231,11 @@ export function EnvCatalogPage() {
           템플릿은 프로젝트가 아니라 계정에 달려 있다. 새 환경 구성은 프로젝트 안에서 만들되, 고를
           수 있는 프리셋이 무엇인지는 여기서만 한눈에 보인다.
         </p>
+        {/* 쓰는 순서를 적어 둔다 — 템플릿만 보고는 "그래서 이걸로 뭘 하나"에 답이 안 됐다. */}
+        <p className="meta">
+          쓰는 순서: ① 여기서 템플릿을 만든다 → ② 프로젝트 → 환경 탭 → <b>새 환경 구성</b> → ③
+          템플릿을 고르고 <b>승인하고 실행</b>을 누르면 빌드가 시작된다.
+        </p>
         {templates.error !== null ? (
           <p className="error-note" role="alert">
             템플릿을 불러오지 못했다: {templates.error.message}

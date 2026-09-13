@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { AGENT_CONFIG_MAX, AGENT_NAME_MAX, buildAgentPatch, type EditableAgent } from './agentEdit';
+import {
+  AGENT_CONFIG_MAX,
+  AGENT_NAME_MAX,
+  buildAgentCreate,
+  buildAgentPatch,
+  type EditableAgent,
+} from './agentEdit';
 
 const current: EditableAgent = { name: '리뷰어', config_md: '# 역할\n리뷰한다.\n' };
 
@@ -53,6 +59,43 @@ describe('buildAgentPatch', () => {
       name: '리뷰어',
       configMd: 'x'.repeat(AGENT_CONFIG_MAX + 1),
     });
+
+    expect(r.ok).toBe(false);
+  });
+});
+
+describe('buildAgentCreate', () => {
+  it('이름을 trim해서 싣는다', () => {
+    const r = buildAgentCreate({ name: '  리뷰어  ', configMd: '# 역할\n' });
+
+    expect(r).toEqual({ ok: true, body: { name: '리뷰어', config_md: '# 역할\n' } });
+  });
+
+  it('설정이 비어 있어도 등록된다 — 나중에 채우는 것이 실제 순서다', () => {
+    const r = buildAgentCreate({ name: '리뷰어', configMd: '' });
+
+    expect(r).toEqual({ ok: true, body: { name: '리뷰어', config_md: '' } });
+  });
+
+  it('설정의 들여쓰기·끝줄은 깎지 않는다', () => {
+    const configMd = '```\n  들여쓴 코드\n```\n\n';
+    const r = buildAgentCreate({ name: '리뷰어', configMd });
+
+    expect(r.ok && r.body.config_md).toBe(configMd);
+  });
+
+  it('이름이 공백뿐이면 막는다', () => {
+    expect(buildAgentCreate({ name: '   ', configMd: '' }).ok).toBe(false);
+  });
+
+  it('이름 상한을 넘으면 막는다', () => {
+    expect(buildAgentCreate({ name: 'ㄱ'.repeat(AGENT_NAME_MAX + 1), configMd: '' }).ok).toBe(
+      false,
+    );
+  });
+
+  it('설정 상한을 넘으면 막는다', () => {
+    const r = buildAgentCreate({ name: '리뷰어', configMd: 'x'.repeat(AGENT_CONFIG_MAX + 1) });
 
     expect(r.ok).toBe(false);
   });
