@@ -69,7 +69,14 @@ export class GitHubActionsExecutor implements EnvConfigExecutor {
       },
     );
 
-    if (res.status === 204) return;
+    /*
+     * 2xx면 성공이다. 204만 보다가 크게 데였다 — GitHub이 200에 workflow_run_id를 담아
+     * 돌려주기 시작했는데, 그것을 실패로 읽어 **이미 돌고 있는 실행을 failed로 뒤집었다.**
+     * 화면에는 실패로 남고 워크플로는 계속 도는, 최악의 어긋남이었다.
+     *
+     * 특정 코드 하나에 성공을 거는 것 자체가 잘못이었다. 성공의 정의는 2xx다.
+     */
+    if (res.ok) return;
 
     // 무엇을 고쳐야 하는지가 상태 코드마다 다르다. 하나로 뭉치면 사용자가 워크플로 파일이
     // 없는 것인지 권한이 없는 것인지 알 수 없다.
