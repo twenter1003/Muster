@@ -40,6 +40,20 @@ export class ApiException extends HttpException {
     return new ApiException(ErrorCode.GITHUB_REAUTH_REQUIRED, message, HttpStatus.FORBIDDEN);
   }
 
+  /**
+   * 시크릿 저장소에 접근할 수 없다 — 배포 설정 문제다.
+   *
+   * 503인 이유: 요청은 옳았고 서버 쪽 의존성이 답하지 않는 것이라, 사용자가 요청을
+   * 고쳐서 될 일이 아니다(4xx가 아니다). 운영자가 권한을 열면 재배포 없이 낫는다.
+   */
+  static secretStoreUnavailable(message: string) {
+    return new ApiException(
+      ErrorCode.SECRET_STORE_UNAVAILABLE,
+      message,
+      HttpStatus.SERVICE_UNAVAILABLE,
+    );
+  }
+
   static conflict(code: ErrorCodeValue, message: string) {
     return new ApiException(code, message, HttpStatus.CONFLICT);
   }

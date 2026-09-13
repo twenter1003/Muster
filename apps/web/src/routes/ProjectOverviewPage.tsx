@@ -11,6 +11,7 @@ import { useApi } from '../lib/useApi';
 import { browserUploadDeps, uploadDocument } from '../lib/uploadDocument';
 import { buildRunPatch } from '../lib/runCorrection';
 import { buildAgentCreate } from '../lib/agentEdit';
+import { canRerun } from '../lib/envConfigRetry';
 import { DOCUMENT_TITLE_MAX, buildDocumentPatch, canDownload } from '../lib/documentEdit';
 import { useSse } from '../lib/useSse';
 import { actorLabel, type TransitionView } from '../lib/transitions';
@@ -686,7 +687,16 @@ export function ProjectOverviewPage() {
                         aside={`build_status: ${config.build_status}`}
                       >
                         {/* 목록 응답에는 docker_config가 없다(서버가 상세에만 싣는다). */}
-                        <EnvConfigCard config={config} docker={null} checks={null} />
+                        <EnvConfigCard
+                          config={config}
+                          docker={null}
+                          checks={null}
+                          retry={
+                            id === undefined
+                              ? undefined
+                              : { projectId: id, onChanged: envConfigs.reload }
+                          }
+                        />
                       </Card>
                     ))}
                   </>
@@ -873,10 +883,19 @@ function EnvConfigCard({
   config,
   docker,
   checks,
+  retry,
 }: {
   config: EnvConfigView;
   docker: Record<string, unknown> | null;
   checks: PolicyCheckView[] | null;
+  /**
+   * 재실행 갈래를 붙일지. 없으면 카드는 보기 전용이다.
+   *
+   * 프로젝트 id를 여기서 받는 이유: 목록 응답(EnvConfigView)에 project_id가 없고,
+   * 이 카드를 그리는 화면은 어차피 자기가 어느 프로젝트인지 알고 있다. 없는 필드를
+   * 서버에 요구하는 것보다 이미 아는 값을 내려 주는 편이 싸다.
+   */
+  retry?: { projectId: string; onChanged: () => void };
 }) {
   const cards = toServiceCards(config.stack_config, docker);
   const status = asBuildStatus(config.build_status);
@@ -887,6 +906,35 @@ function EnvConfigCard({
    */
   const transitions = useApi<{ items: TransitionView[] }>(`/env-configs/${config.id}/transitions`);
   const history = transitions.data?.items ?? [];
+
+  const navigate = useNavigate();
+  const [rerunning, setRerunning] = useState(false);
+  const [rerunError, setRerunError] = useState<string | null>(null);
+
+  /*
+   * 실패한 구성에만 나오는 두 갈래.
+   *
+   * 다시 실행 — 실패의 상당수는 구성이 아니라 바깥 사정이다(권한·Actions 비활성·러너
+   *   장애). 그럴 때 같은 값을 다시 입력하게 하면 실패 사본만 쌓인다. 서버가 failed에서
+   *   실행을 받아 주므로 이 자리에서 끝난다.
+   * 새로 만들기 — 설정 자체가 문제였다면 고쳐야 한다. 만들기 화면을 ?from=으로 열어
+   *   이 구성의 값을 채워 준다. 라우터 state가 아니라 URL에 두는 이유는 새로고침·공유로
+   *   날아가면 "그 설정으로 다시"라는 말이 성립하지 않기 때문이다.
+   */
+  const rerun = async () => {
+    if (rerunning) return;
+    setRerunning(true);
+    setRerunError(null);
+    try {
+      await apiPost(`/env-configs/${config.id}/execute`);
+      transitions.reload();
+      retry?.onChanged();
+    } catch (e: unknown) {
+      setRerunError(e instanceof ApiError ? `${e.message} (${e.code})` : String(e));
+    } finally {
+      setRerunning(false);
+    }
+  };
 
   return (
     <>
@@ -971,6 +1019,24 @@ function EnvConfigCard({
         <div className="po-transition">
           <StatusBadge status={status} />
         </div>
+      )}
+
+      {retry !== undefined && canRerun(config.build_status) && (
+        <div className="po-listhead po-listhead--end">
+          <Button variant="solid" onClick={rerun} disabled={rerunning}>
+            {rerunning ? '실행 중…' : '다시 실행'}
+          </Button>
+          <Button
+            onClick={() => navigate(`/projects/${retry.projectId}/env/new?from=${config.id}`)}
+          >
+            이 설정으로 새로 만들기
+          </Button>
+        </div>
+      )}
+      {rerunError !== null && (
+        <p className="meta po-note po-note--signal" role="alert">
+          {rerunError}
+        </p>
       )}
     </>
   );

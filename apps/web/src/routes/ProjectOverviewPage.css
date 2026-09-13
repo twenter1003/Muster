@@ -449,3 +449,10 @@
   flex: 1 1 240px;
   margin: 0;
 }
+
+/* 카드 아래 붙는 동작 버튼 줄. 안내 문구 없이 버튼만 오른쪽에 모은다. */
+.po-listhead--end {
+  justify-content: flex-end;
+  margin-top: 12px;
+  margin-bottom: 0;
+}

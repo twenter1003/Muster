@@ -11,7 +11,7 @@ const CONFIG = '33333333-3333-4333-8333-333333333333';
 type Call = { url: string; method: string; body: unknown; headers: Record<string, string> };
 
 /** 호출 순서대로 응답을 돌려주는 fetch 대역. 요청은 전부 기록한다. */
-function stubFetch(responses: { status: number; body?: unknown }[]) {
+function stubFetch(responses: { status: number; body?: unknown; scopes?: string }[]) {
   const calls: Call[] = [];
   let i = 0;
   global.fetch = (async (url: string, init: RequestInit = {}) => {
@@ -25,6 +25,8 @@ function stubFetch(responses: { status: number; body?: unknown }[]) {
     return {
       ok: res.status >= 200 && res.status < 300,
       status: res.status,
+      // GitHub은 토큰의 스코프를 이 헤더로 알려 준다 — 403의 원인을 가르는 유일한 단서다.
+      headers: { get: (name: string) => (name === 'x-oauth-scopes' ? (res.scopes ?? null) : null) },
       json: async () => res.body ?? {},
       text: async () => JSON.stringify(res.body ?? {}),
     };
@@ -92,6 +94,39 @@ describe('GitHubActionsExecutor', () => {
     stubFetch([{ status: 200, body: { default_branch: 'main' } }, { status: 403 }]);
 
     await expect(make(LINKED).start(params)).rejects.toMatchObject({ status: 403 });
+  });
+
+  /**
+   * repo 스코프는 실행기가 들어온 뒤에 추가됐다. 그 전에 로그인한 토큰으로는 레포
+   * 권한이 완벽해도 403이 나는데, 화면에 "레포 권한을 확인하라"만 뜨면 사용자는
+   * 영영 엉뚱한 곳을 뒤진다 — 실제로 그렇게 막혔다.
+   */
+  it('토큰에 repo 스코프가 없으면 재로그인을 안내한다', async () => {
+    stubFetch([
+      { status: 200, body: { default_branch: 'main' } },
+      { status: 403, scopes: 'read:user, admin:repo_hook' },
+    ]);
+
+    const error = await make(LINKED)
+      .start(params)
+      .catch((e: unknown) => e);
+
+    expect(error).toMatchObject({ code: 'GITHUB_REAUTH_REQUIRED', status: 403 });
+    expect(userMessage(error)).toContain('다시 로그인');
+  });
+
+  it('스코프가 충분한 403은 레포 설정을 가리킨다 — 재로그인은 소용없다', async () => {
+    stubFetch([
+      { status: 200, body: { default_branch: 'main' } },
+      { status: 403, scopes: 'read:user, admin:repo_hook, repo' },
+    ]);
+
+    const error = await make(LINKED)
+      .start(params)
+      .catch((e: unknown) => e);
+
+    expect(error).toMatchObject({ code: 'FORBIDDEN', status: 403 });
+    expect(userMessage(error)).toContain('Actions 활성화');
   });
 
   it('422는 트리거 선언을 확인하라고 안내한다', async () => {

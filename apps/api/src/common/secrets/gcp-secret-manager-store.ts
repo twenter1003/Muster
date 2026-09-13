@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common';
 import { GoogleAuth } from 'google-auth-library';
 import { createHash } from 'node:crypto';
 import type { SecretStore } from './secret-store';
+import { ApiException } from '../errors/api.exception';
 
 /** 액세스 토큰만 있으면 되므로 GoogleAuth 전체가 아니라 이 모양에만 의존한다(테스트 대체 지점). */
 export interface AccessTokenSource {
@@ -148,7 +149,26 @@ function secretId(name: string): string {
     : createHash('sha256').update(name).digest('hex');
 }
 
+/**
+ * 실패 응답 → 던질 예외.
+ *
+ * 401·403만 갈라내는 이유: 그 둘은 배포 설정 누락이지 코드 결함이 아니다. 일반 Error로
+ * 던지면 필터가 500 INTERNAL("서버 내부 오류가 발생했습니다")로 접어 버려, 화면에는
+ * 무엇을 해야 하는지 한 글자도 남지 않는다 — 운영자가 로그를 뒤져야만 원인을 안다.
+ * 나머지 상태(5xx, 429 등)는 일시적이거나 우리가 손쓸 수 없는 것이라 그대로 둔다.
+ */
 async function failure(res: Response, what: string): Promise<Error> {
   const detail = await res.text().catch(() => '');
-  return new Error(`${what} (HTTP ${res.status}) ${detail}`.trim());
+  const full = `${what} (HTTP ${res.status}) ${detail}`.trim();
+
+  if (res.status === 401 || res.status === 403) {
+    // 로그에는 GCP가 준 본문을 그대로 남긴다 — 어느 권한이 없는지는 거기에만 있다.
+    new Logger('GcpSecretManagerStore').error(full);
+    return ApiException.secretStoreUnavailable(
+      '서버의 시크릿 저장소에 접근할 수 없습니다. 배포 설정 문제이니 관리자에게 알려 주세요 ' +
+        '(Cloud Run 서비스 계정에 roles/secretmanager.admin 이 필요합니다).',
+    );
+  }
+
+  return new Error(full);
 }

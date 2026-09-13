@@ -1,3 +1,4 @@
+import { ApiException } from '../errors/api.exception';
 import { GcpSecretManagerStore } from './gcp-secret-manager-store';
 
 /** ADC 대신 고정 토큰을 준다. */
@@ -84,8 +85,9 @@ describe('GcpSecretManagerStore', () => {
     await expect(store.put('hook-1', 'v2')).resolves.toBe('gcp://hook-1');
   });
 
+  // 403은 설정 문제로 따로 갈라져 나가므로(아래) 여기서는 일반 실패인 500을 쓴다.
   it('버전 추가가 실패하면 던진다', async () => {
-    stubFetch([{ status: 200 }, { status: 403, body: { error: 'denied' } }]);
+    stubFetch([{ status: 200 }, { status: 500, body: { error: 'boom' } }]);
     await expect(store.put('hook-1', 'v')).rejects.toThrow('버전 추가 실패');
   });
 
@@ -123,8 +125,38 @@ describe('GcpSecretManagerStore', () => {
     await expect(store.delete('gcp://hook-1')).resolves.toBeUndefined();
   });
 
-  it('삭제가 권한 문제로 실패하면 던진다', async () => {
-    stubFetch([{ status: 403 }]);
-    await expect(store.delete('gcp://hook-1')).rejects.toThrow('삭제 실패');
+  /**
+   * 403은 배포 설정 누락이라 500 INTERNAL로 접히면 안 된다. 실제로 Cloud Run 서비스
+   * 계정에 프로젝트 수준 권한이 없어 레포 연동이 "서버 내부 오류"로만 죽은 적이 있다.
+   */
+  it('권한 오류(403)는 무엇을 해야 하는지 말하는 503으로 나간다', async () => {
+    stubFetch([{ status: 403, body: { error: { status: 'PERMISSION_DENIED' } } }]);
+
+    const err = await store.get('gcp://github-token-1').catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApiException);
+    const api = err as ApiException;
+    expect(api.code).toBe('SECRET_STORE_UNAVAILABLE');
+    expect(api.getStatus()).toBe(503);
+    expect((api.getResponse() as { error: { message: string } }).error.message).toContain(
+      'secretmanager.admin',
+    );
+  });
+
+  it('인증 오류(401)도 같은 길로 간다 — 토큰이 없거나 죽은 것도 설정 문제다', async () => {
+    stubFetch([{ status: 401 }]);
+
+    const err = await store.put('github-token-1', 'v').catch((e: unknown) => e);
+
+    expect((err as ApiException).code).toBe('SECRET_STORE_UNAVAILABLE');
+  });
+
+  it('그 밖의 실패는 그대로 500이다 — 일시적이거나 우리가 손쓸 수 없다', async () => {
+    stubFetch([{ status: 500 }]);
+
+    const err = await store.delete('gcp://hook-1').catch((e: unknown) => e);
+
+    expect(err).not.toBeInstanceOf(ApiException);
+    expect((err as Error).message).toContain('삭제 실패');
   });
 });

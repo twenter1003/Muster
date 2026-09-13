@@ -189,6 +189,21 @@ describe('Phase 7 — ENV_CONFIG_TRANSITIONS (e2e)', () => {
     expect(items[1].reason).toContain('실행을 시작하지 못했습니다');
   });
 
+  /**
+   * 실패의 상당수는 구성이 아니라 바깥 사정이다(권한·Actions 비활성·러너 장애). 그럴 때
+   * 같은 설정을 다시 입력하게 하면 실패 사본만 쌓인다 — 그 자리에서 다시 시작해야 한다.
+   */
+  it('실패한 구성을 다시 실행하면 failed 다음에 running이 쌓인다', async () => {
+    const configId = await createConfig('failed');
+
+    await http().post(`/api/v1/env-configs/${configId}/execute`).set(auth(aliceToken)).expect(202);
+
+    const items = await transitionsOf(configId);
+    expect(items.map((i) => i.to_status)).toEqual(['running']);
+    expect(items[0].from_status).toBe('failed');
+    expect(started).toEqual([{ envConfigId: configId, projectId, userId: alice.id }]);
+  });
+
   it('반려도 누가 했는지를 남긴다', async () => {
     const configId = await createConfig('policy_blocked');
 

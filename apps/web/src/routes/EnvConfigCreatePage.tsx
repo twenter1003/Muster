@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { StatusBadge } from '../components/StatusBadge';
 import { ApiError, apiFetch, type Page as ApiPage } from '../lib/api';
 import { useApi } from '../lib/useApi';
 import { BUILD_STATUSES, EM_DASH, type BuildStatus } from '../lib/domain';
 import { actorLabel, type TransitionView } from '../lib/transitions';
+import { prefillFromConfig } from '../lib/envConfigRetry';
 import './EnvConfigCreatePage.css';
 
 /* ─────────────────────────── 서버 응답 타입 ───────────────────────────
@@ -202,6 +203,17 @@ type InputTab = 'ui' | 'natural_language';
 export function EnvConfigCreatePage() {
   const { id } = useParams<{ id: string }>();
 
+  /*
+   * ?from=<구성 id> — 실패한 구성의 값을 채운 채로 연다.
+   *
+   * 라우터 state가 아니라 URL에 두는 이유: 새로고침이나 링크 공유로 값이 날아가면
+   * "그 설정으로 다시"라는 말 자체가 성립하지 않는다. 값은 서버에서 다시 읽는다 —
+   * 주소에 폼 전체를 실으면 길어지고, 그 사이 구성이 바뀌었을 때 낡은 값을 쓰게 된다.
+   */
+  const [params] = useSearchParams();
+  const fromId = params.get('from');
+  const source = useApi<ConfigDetailView>(fromId === null ? null : `/env-configs/${fromId}`);
+
   /* ── 입력 상태 ──
    * 탭은 "지금 보고 있는 칸"일 뿐 값의 소유자가 아니다(주석 4). 탭을 바꿔도 값을 버리지
    * 않으므로 폼으로 뼈대를 잡고 자연어로 보완하는 실제 사용 방식이 그대로 성립한다.
@@ -239,6 +251,27 @@ export function EnvConfigCreatePage() {
   const transitions = useApi<{ items: TransitionView[] }>(
     configId === null ? null : `/env-configs/${configId}/transitions`,
   );
+
+  /*
+   * 원본을 읽어 오면 폼을 한 번만 채운다.
+   *
+   * 한 번만인 이유: 채운 뒤 사용자가 고친 값을 재렌더마다 되돌리면 입력이 불가능해진다.
+   * 그래서 채웠다는 사실을 ref로 기억한다 — 상태로 두면 그 갱신이 다시 렌더를 부른다.
+   */
+  const prefilled = useRef(false);
+  useEffect(() => {
+    if (prefilled.current || source.data === null) return;
+    prefilled.current = true;
+
+    const f = prefillFromConfig(source.data.stack_config, source.data.template_id);
+    setTab(f.mode);
+    setLanguage(f.language);
+    setFramework(f.framework);
+    setDatabase(f.database);
+    setExtras(f.extras);
+    setNotes(f.notes);
+    setTemplateId(f.templateId);
+  }, [source.data]);
 
   /* 생성 대기가 수십 초까지 갈 수 있어, 멈춘 화면이 아니라는 신호로 경과 초를 센다. */
   useEffect(() => {

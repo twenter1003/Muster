@@ -104,11 +104,27 @@ export class GitHubActionsExecutor implements EnvConfigExecutor {
       );
     }
     if (res.status === 403) {
-      return new ApiException(
-        ErrorCode.FORBIDDEN,
-        `${owner}/${repo}의 Actions를 실행할 권한이 없습니다. 레포 권한과 Actions 활성화 여부를 확인해 주세요.`,
-        403,
-      );
+      /**
+       * 재로그인을 먼저 안내하는 이유: 실행에 필요한 repo 스코프는 나중에 추가됐고,
+       * 그 전에 로그인한 토큰에는 없다. 그런 토큰으로는 레포 권한이 완벽해도 403이
+       * 나는데, 사용자가 볼 수 있는 곳에는 단서가 없어 레포 설정만 계속 뒤지게 된다.
+       * 스코프는 응답 헤더로 확인할 수 있으므로 원인이 그것일 때만 짚어 준다.
+       */
+      const scopes = res.headers.get('x-oauth-scopes') ?? '';
+      const missingRepoScope =
+        scopes.length > 0 && !scopes.split(',').some((s) => s.trim() === 'repo');
+
+      return missingRepoScope
+        ? new ApiException(
+            ErrorCode.GITHUB_REAUTH_REQUIRED,
+            'GitHub 재인증이 필요합니다. 로그아웃 후 다시 로그인해 주세요 — 이 계정의 토큰에는 Actions 실행 권한(repo)이 없습니다.',
+            403,
+          )
+        : new ApiException(
+            ErrorCode.FORBIDDEN,
+            `${owner}/${repo}의 Actions를 실행할 권한이 없습니다. 레포 권한과 Actions 활성화 여부를 확인해 주세요.`,
+            403,
+          );
     }
     if (res.status === 422) {
       // 브랜치가 없거나 워크플로가 workflow_dispatch를 선언하지 않은 경우다.

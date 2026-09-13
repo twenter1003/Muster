@@ -30,7 +30,10 @@ GITHUB_OAUTH_CLIENT_SECRET=
   이 값은 코드에서 `API_BASE_URL + /api/v1/auth/github/callback`으로 만들어진다.
   다른 주소로 배포하면 `API_BASE_URL`도 함께 바꾸고 **GitHub 앱에도 같은 값을 등록**해야 한다
   (GitHub은 authorize와 토큰 교환의 redirect_uri가 다르면 교환을 거부한다).
-- 스코프는 코드에서 `read:user`, `admin:repo_hook`을 요청한다. 앱 등록 화면에서 정하는 값이 아니다.
+- 스코프는 코드에서 `read:user`, `admin:repo_hook`, `repo`를 요청한다. 앱 등록 화면에서 정하는 값이 아니다.
+  `repo`는 환경 구성 빌드를 사용자 레포의 Actions에서 돌리기 위한 것이다(`workflow_dispatch`가 요구한다).
+  **스코프가 늘어난 뒤로는 기존 로그인 토큰이 부족하다** — 예전에 로그인한 계정은 로그아웃 후 다시 로그인해야
+  실행이 된다. 아니면 실행에서만 403이 난다.
 
 ### 값을 채운 뒤 확인
 
