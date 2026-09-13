@@ -23,6 +23,8 @@
     "noUnusedParameters": true,
     "paths": { "src/*": ["src/*"] }
   },
-  "include": ["src/**/*", "test/**/*"],
+  // scripts/는 타입 검사에는 넣되 빌드에서는 뺀다(tsconfig.build.json) —
+  // dev-session.ts는 인증을 우회하는 도구라 배포 이미지에 들어가면 안 된다.
+  "include": ["src/**/*", "test/**/*", "scripts/**/*"],
   "exclude": ["node_modules", "dist"]
 }
