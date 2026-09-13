@@ -44,6 +44,9 @@ export const GITHUB_OAUTH_CLIENT = Symbol('GITHUB_OAUTH_CLIENT');
  * - read:user  — 로그인 시 프로필 조회
  * - admin:repo_hook — 웹훅 자동 등록 (설계서 Part 4 §3)
  * - repo — 환경 구성 빌드를 사용자 레포의 Actions에서 돌린다(workflow_dispatch)
+ * - workflow — 그 빌드 워크플로 파일을 PR로 넣어 준다(EnvWorkflowInstaller). .github/workflows/
+ *   아래 파일은 repo만으로는 쓸 수 없고 GitHub이 이 스코프를 따로 요구한다. 없으면 설치
+ *   버튼이 403으로 죽고, 사용자는 문서를 보고 손으로 복사하는 수밖에 없다
  *
  * repo가 넓은 것은 알고 있다. 예전에는 "공개 레포 웹훅에 불필요하다"며 빼 두었는데,
  * 실행기(GitHubActionsExecutor)가 들어오면서 그 전제가 깨졌다: GitHub은
@@ -54,7 +57,7 @@ export const GITHUB_OAUTH_CLIENT = Symbol('GITHUB_OAUTH_CLIENT');
  * **파일 수정** 권한이지 실행 권한이 아니다. GitHub App으로 옮기면 actions:write만
  * 따로 받을 수 있지만, 그것은 인증 방식 자체를 바꾸는 일이라 여기서 할 수 없다.
  */
-export const GITHUB_OAUTH_SCOPES = ['read:user', 'admin:repo_hook', 'repo'] as const;
+export const GITHUB_OAUTH_SCOPES = ['read:user', 'admin:repo_hook', 'repo', 'workflow'] as const;
 
 /**
  * GitHub REST API 버전. 헤더를 생략하면 GitHub이 2022-11-28로 처리하는데,

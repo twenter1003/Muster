@@ -19,6 +19,7 @@ import { EnvTemplatesService } from './env-templates.service';
 import { EnvConfigsService } from './env-configs.service';
 import { CreateEnvTemplateDto } from './dto/create-env-template.dto';
 import { CreateEnvConfigDto } from './dto/create-env-config.dto';
+import { EnvWorkflowInstaller, type InstallResult } from './env-workflow-installer';
 import { ListAllEnvConfigsQuery } from './dto/list-all-env-configs.query';
 import type {
   EnvConfigTransition,
@@ -127,7 +128,27 @@ export class EnvTemplatesController {
 /** 설계서 Part 4 §5.2 — 프로젝트 환경 구성. */
 @Controller('projects')
 export class ProjectEnvConfigsController {
-  constructor(private readonly configs: EnvConfigsService) {}
+  constructor(
+    private readonly configs: EnvConfigsService,
+    private readonly workflow: EnvWorkflowInstaller,
+  ) {}
+
+  /**
+   * 실행용 워크플로 파일을 연동한 레포에 PR로 넣는다.
+   *
+   * 200인 이유: 만들어지는 것은 우리 리소스가 아니라 남의 레포의 PR이고, 두 번 눌러도
+   * 같은 답이 온다(이미 있으면 그 PR을 돌려준다). 201은 "이 주소 아래 자원이 생겼다"는
+   * 뜻인데 그런 자원이 없다.
+   */
+  @Post(':id/env-workflow')
+  @UseGuards(ProjectMemberGuard)
+  @HttpCode(HttpStatus.OK)
+  async installWorkflow(
+    @Param('id') projectId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<InstallResult> {
+    return this.workflow.install(projectId, user.id);
+  }
 
   @Get(':id/env-configs')
   @UseGuards(ProjectMemberGuard)

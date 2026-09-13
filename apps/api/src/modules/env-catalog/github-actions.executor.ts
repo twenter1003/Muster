@@ -10,9 +10,11 @@ import { parseRepoUrl } from '../project-core/repo-url';
 import type { EnvConfigExecutor, StartExecutionParams } from './env-config-executor';
 
 /**
- * 사용자 레포에 있어야 하는 워크플로 파일. 우리가 그 레포에 파일을 써 넣지는 않는다 —
- * 남의 레포에 커밋하는 것은 연동의 범위를 훨씬 넘어선다. 템플릿은 files/에 두고
- * 사용자가 복사해 넣는다(docs/EXECUTION.md).
+ * 사용자 레포에 있어야 하는 워크플로 파일.
+ *
+ * 기본 브랜치에 직접 커밋하지는 않는다 — 연동이 허락한 것은 "이 레포와 일한다"이지
+ * "이 레포를 고친다"가 아니다. 대신 EnvWorkflowInstaller가 PR을 열어 주고, 무엇이
+ * 들어가는지 본 사람이 머지한다. 손으로 넣고 싶으면 files/templates에 같은 파일이 있다.
  */
 export const WORKFLOW_FILE = 'muster-env-build.yml';
 
@@ -99,7 +101,7 @@ export class GitHubActionsExecutor implements EnvConfigExecutor {
     if (res.status === 404) {
       return new ApiException(
         ErrorCode.VALIDATION_FAILED,
-        `${owner}/${repo}에 ${WORKFLOW_FILE} 워크플로가 없습니다. docs/EXECUTION.md의 템플릿을 레포에 넣어 주세요.`,
+        `${owner}/${repo}에 ${WORKFLOW_FILE} 워크플로가 없습니다. 환경 구성 탭의 「워크플로 설치」로 넣어 주세요.`,
         400,
       );
     }

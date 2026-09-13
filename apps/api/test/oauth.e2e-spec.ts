@@ -101,10 +101,15 @@ describe('Phase 3 — GitHub OAuth 플로우 (e2e)', () => {
      * repo가 들어온 경위: 환경 구성 빌드를 사용자 레포의 Actions에서 돌리는데
      * workflow_dispatch가 repo를 요구한다. 더 좁은 대안이 없다(github-oauth.client.ts 주석).
      */
-    it('요청 스코프는 read:user · admin:repo_hook · repo 셋뿐이다', async () => {
+    it('요청 스코프는 read:user · admin:repo_hook · repo · workflow 넷뿐이다', async () => {
       const res = await http().get('/api/v1/auth/github/login').expect(302);
       const scope = new URL(res.headers.location).searchParams.get('scope');
-      expect(scope?.split(' ').sort()).toEqual(['admin:repo_hook', 'read:user', 'repo']);
+      expect(scope?.split(' ').sort()).toEqual([
+        'admin:repo_hook',
+        'read:user',
+        'repo',
+        'workflow',
+      ]);
     });
 
     it('redirect_uri가 등록한 콜백 주소와 일치한다', async () => {
