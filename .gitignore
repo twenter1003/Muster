@@ -12,3 +12,7 @@ coverage/
 # tsc --build가 남기는 증분 빌드 캐시. 빌드할 때마다 바뀌는 산출물이라 추적하면
 # 관계없는 PR마다 diff에 끼어들고, 커밋 사이에 충돌까지 낸다.
 *.tsbuildinfo
+
+# 시드된 캔버스 페이지는 에디터 런타임 2MB가 통째로 들어간 산출물이다.
+# 아트보드(.dc.html)와 canvas.json만 원본이고, 이 파일은 거기서 다시 만든다.
+muster-user-guide.html

@@ -1,0 +1,161 @@
+{
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 1280,
+      "h": 720,
+      "title": "1. 표지",
+      "print": "fixed"
+    },
+    {
+      "file": "WhatIsMuster.dc.html",
+      "x": 1420,
+      "y": 0,
+      "w": 1280,
+      "h": 720,
+      "title": "2. 3분 요약",
+      "print": "fixed"
+    },
+    {
+      "file": "NavMap.dc.html",
+      "x": 2840,
+      "y": 0,
+      "w": 1280,
+      "h": 720,
+      "title": "3. 화면 구조",
+      "print": "fixed"
+    },
+    {
+      "file": "GettingStarted.dc.html",
+      "x": 4260,
+      "y": 0,
+      "w": 1280,
+      "h": 720,
+      "title": "4. 처음 시작",
+      "print": "fixed"
+    },
+    {
+      "file": "Dashboard.dc.html",
+      "x": 0,
+      "y": 920,
+      "w": 1280,
+      "h": 720,
+      "title": "5. 대시보드",
+      "print": "fixed"
+    },
+    {
+      "file": "ProjectList.dc.html",
+      "x": 1420,
+      "y": 920,
+      "w": 1280,
+      "h": 720,
+      "title": "6. 프로젝트 목록",
+      "print": "fixed"
+    },
+    {
+      "file": "ProjectTabs.dc.html",
+      "x": 2840,
+      "y": 920,
+      "w": 1280,
+      "h": 720,
+      "title": "7. 프로젝트 개요 지도",
+      "print": "fixed"
+    },
+    {
+      "file": "DocsTab.dc.html",
+      "x": 4260,
+      "y": 920,
+      "w": 1280,
+      "h": 720,
+      "title": "8. 문서 탭",
+      "print": "fixed"
+    },
+    {
+      "file": "EnvConcept.dc.html",
+      "x": 0,
+      "y": 1840,
+      "w": 1280,
+      "h": 720,
+      "title": "9. 환경 구성 개념",
+      "print": "fixed"
+    },
+    {
+      "file": "EnvButtons.dc.html",
+      "x": 1420,
+      "y": 1840,
+      "w": 1280,
+      "h": 720,
+      "title": "10. 환경 구성 버튼",
+      "print": "fixed"
+    },
+    {
+      "file": "EnvTemplates.dc.html",
+      "x": 2840,
+      "y": 1840,
+      "w": 1280,
+      "h": 720,
+      "title": "11. 템플릿",
+      "print": "fixed"
+    },
+    {
+      "file": "AgentsTab.dc.html",
+      "x": 4260,
+      "y": 1840,
+      "w": 1280,
+      "h": 720,
+      "title": "12. 에이전트",
+      "print": "fixed"
+    },
+    {
+      "file": "Budget.dc.html",
+      "x": 0,
+      "y": 2760,
+      "w": 1280,
+      "h": 720,
+      "title": "13. 예산",
+      "print": "fixed"
+    },
+    {
+      "file": "Settings.dc.html",
+      "x": 1420,
+      "y": 2760,
+      "w": 1280,
+      "h": 720,
+      "title": "14. 설정",
+      "print": "fixed"
+    },
+    {
+      "file": "Modules.dc.html",
+      "x": 2840,
+      "y": 2760,
+      "w": 1280,
+      "h": 720,
+      "title": "15. 보는 화면들",
+      "print": "fixed"
+    },
+    {
+      "file": "Troubleshooting.dc.html",
+      "x": 4260,
+      "y": 2760,
+      "w": 1280,
+      "h": 720,
+      "title": "16. FAQ",
+      "print": "fixed"
+    },
+    {
+      "file": "Glossary.dc.html",
+      "x": 0,
+      "y": 3680,
+      "w": 1280,
+      "h": 720,
+      "title": "17. 용어",
+      "print": "fixed"
+    }
+  ],
+  "launch": {
+    "view": "focused",
+    "file": "Main.dc.html"
+  }
+}
