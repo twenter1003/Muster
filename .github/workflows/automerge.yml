@@ -6,26 +6,37 @@ name: 자동 머지
 # ready로 올리는 순간부터 CI가 통과하면 들어간다 — 별도 라벨을 외울 필요가 없고,
 # "아직 보지 마라"를 표시하는 자리가 이미 GitHub에 있다.
 #
-# workflow_run으로 도는 이유: pull_request 이벤트로 돌면 포크 PR에서 토큰이 읽기 전용이라
-# 머지할 수 없다. workflow_run은 기본 브랜치의 정의로, 기본 브랜치의 권한으로 돈다.
-# **그래서 이 파일은 main에 들어간 뒤부터 동작한다** — PR 브랜치에 올려 둔 동안은 돌지 않는다.
+# 트리거가 둘인 이유는 순서가 둘이기 때문이다:
+#   ready로 올려 둔 PR에 CI가 끝나는 경우   → workflow_run
+#   CI가 이미 끝난 PR을 ready로 올리는 경우 → pull_request(ready_for_review)
+# 처음에는 workflow_run만 걸었는데, 두 번째 순서에서는 새로 도는 CI가 없어 트리거가 영영
+# 걸리지 않았다(#24가 그렇게 손 머지로 들어갔다). 확인하고 나서 ready로 올리는 쪽이 오히려
+# 흔한 흐름이다.
+#
+# workflow_run은 기본 브랜치의 정의로 돈다 — **이 파일은 main에 들어간 뒤부터 동작한다.**
 on:
   workflow_run:
     workflows: [CI]
     types: [completed]
+  pull_request:
+    types: [ready_for_review]
 
-# 같은 PR에 여러 번 걸리지 않게 묶는다. 머지는 취소하지 않는다.
+# 같은 커밋에 두 트리거가 겹쳐 들어올 수 있다(ready 직후 CI 완료). 커밋 단위로 묶어
+# 한 번만 돌게 한다. 머지 도중에 취소하지는 않는다.
 concurrency:
-  group: automerge-${{ github.event.workflow_run.head_sha }}
+  group: >-
+    automerge-${{ github.event.workflow_run.head_sha || github.event.pull_request.head.sha }}
   cancel-in-progress: false
 
 jobs:
   merge:
     name: CI 초록이면 머지
-    # 실패한 CI, 그리고 PR이 아닌 실행(main 푸시 등)은 여기서 걸러진다.
+    # 실패한 CI와 PR이 아닌 실행(main 푸시 등)은 여기서 걸러진다.
+    # ready_for_review로 들어온 경우는 CI 상태를 아래 스텝이 직접 조회한다.
     if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'pull_request'
+      github.event_name == 'pull_request' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'pull_request')
     runs-on: ubuntu-latest
 
     permissions:
@@ -37,34 +48,61 @@ jobs:
         id: target
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SHA: ${{ github.event.workflow_run.head_sha }}
+          # 트리거에 따라 한쪽만 채워진다.
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
 
-          # 이 커밋이 달린 열린 PR. 드래프트·포크·main 외 대상은 여기서 뺀다.
-          #   draft            아직 보지 말라는 뜻이다.
-          #   head.repo        포크 PR은 남의 코드다. 검토 없이 들이지 않는다.
-          #   base.ref=main    릴리스 브랜치 같은 다른 대상은 사람이 판단한다.
-          number="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${SHA}/pulls" \
-            --jq '[.[] | select(.state == "open" and .draft == false
-                    and .base.ref == "main"
-                    and .head.repo.full_name == env.GITHUB_REPOSITORY)]
-                  | first | .number // empty')"
+          # 머지하지 않고 끝내는 모든 길이 여기를 지난다. 이유를 반드시 남긴다 —
+          # 아무 말 없이 안 들어간 PR은 사람이 한참 뒤에 발견한다.
+          skip() { echo "$1"; echo "go=false" >> "$GITHUB_OUTPUT"; exit 0; }
 
-          if [ -z "$number" ]; then
-            echo "머지할 PR이 없다 (드래프트이거나, 포크이거나, 이미 닫혔다)."
-            echo "go=false" >> "$GITHUB_OUTPUT"
-            exit 0
+          # 1. 대상 PR 번호. workflow_run은 커밋으로 거슬러 올라가고, ready는 그대로 온다.
+          if [ -n "${PR_NUMBER:-}" ]; then
+            number="$PR_NUMBER"
+          else
+            number="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${RUN_SHA}/pulls" \
+              --jq '[.[] | select(.state == "open")] | first | .number // empty')"
           fi
 
-          # CI가 통과한 커밋이 지금도 PR의 head인지 본다. 그 사이에 새 커밋이 올라왔다면
-          # 초록은 낡은 커밋의 것이다 — 검사받지 않은 코드를 머지하게 된다.
-          head="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${number}" --jq '.head.sha')"
-          if [ "$head" != "$SHA" ]; then
-            echo "PR #${number}의 head가 ${head}로 바뀌었다. 그 커밋의 CI가 끝나면 다시 걸린다."
-            echo "go=false" >> "$GITHUB_OUTPUT"
-            exit 0
+          [ -n "$number" ] || skip "이 커밋에 열린 PR이 없다."
+
+          # 2. PR 자체가 대상인지. 조건은 PR에서 직접 읽는다 — 이벤트 페이로드는 낡을 수 있고
+          #    (ready로 올린 뒤 다시 드래프트로 내리는 경우), 두 트리거의 모양도 다르다.
+          #      draft            아직 보지 말라는 뜻이다.
+          #      head.repo        포크 PR은 남의 코드다. 검토 없이 들이지 않는다.
+          #      base.ref=main    릴리스 브랜치 같은 다른 대상은 사람이 판단한다.
+          pr="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${number}")"
+          state="$(jq -r '.state' <<<"$pr")"
+          draft="$(jq -r '.draft' <<<"$pr")"
+          base="$(jq -r '.base.ref' <<<"$pr")"
+          head_repo="$(jq -r '.head.repo.full_name' <<<"$pr")"
+          head="$(jq -r '.head.sha' <<<"$pr")"
+
+          if [ "$state" != "open" ] || [ "$draft" != "false" ] \
+             || [ "$base" != "main" ] || [ "$head_repo" != "$GITHUB_REPOSITORY" ]; then
+            skip "PR #${number}은(는) 자동 머지 대상이 아니다 (state=$state draft=$draft base=$base repo=$head_repo)."
           fi
+
+          # 3. CI가 통과한 커밋이 지금도 head인지. workflow_run으로 들어온 경우에만 의미가
+          #    있다 — 그 사이 새 커밋이 올라왔다면 초록은 낡은 커밋의 것이다.
+          if [ -n "${RUN_SHA:-}" ] && [ "$head" != "$RUN_SHA" ]; then
+            skip "PR #${number}의 head가 ${head}로 바뀌었다. 그 커밋의 CI가 끝나면 다시 걸린다."
+          fi
+
+          # 4. 지금 head에 달린 검사가 전부 끝났고 전부 성공인지 확인한다.
+          #    ready로 들어온 경로에는 이 조회가 유일한 CI 판단 근거다. workflow_run 경로에도
+          #    같은 검사를 거는 이유는, 그 사이 다른 검사가 추가되거나 재실행될 수 있어서다.
+          checks="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${head}/check-runs" --paginate)"
+          total="$(jq -r '.total_count' <<<"$checks" | head -1)"
+          pending="$(jq -r '[.check_runs[] | select(.status != "completed")] | length' <<<"$checks")"
+          bad="$(jq -r '[.check_runs[] | select(.status == "completed" and
+                          (.conclusion | IN("success", "neutral", "skipped") | not))] | length' <<<"$checks")"
+
+          [ "$total" != "0" ] || skip "PR #${number}의 head에 검사가 하나도 없다. 머지하지 않는다."
+          [ "$pending" = "0" ] || skip "아직 도는 검사가 ${pending}개 있다. 끝나면 workflow_run으로 다시 걸린다."
+          [ "$bad" = "0" ] || skip "실패한 검사가 ${bad}개 있다. 머지하지 않는다."
 
           echo "go=true" >> "$GITHUB_OUTPUT"
           echo "number=${number}" >> "$GITHUB_OUTPUT"
