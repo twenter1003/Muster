@@ -31,6 +31,19 @@ COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 RUN pnpm install --frozen-lockfile --filter @muster/api...
 
+# 프론트엔드 빌드용 의존성. API와 따로 받는 이유는 레이어를 나눠 두면 한쪽 package.json만
+# 바뀌었을 때 다른 쪽 설치를 다시 하지 않기 때문이다.
+FROM base AS web-deps
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/api/package.json apps/api/
+COPY apps/web/package.json apps/web/
+RUN pnpm install --frozen-lockfile --filter @muster/web...
+
+# 정적 빌드. API 컨테이너가 이 결과를 그대로 서빙한다(main.ts의 WEB_ROOT 주석 참조).
+FROM web-deps AS web-build
+COPY apps/web apps/web
+RUN pnpm --filter @muster/web build
+
 # 로컬 개발용 — docker compose가 src를 볼륨 마운트하고 watch 모드로 돈다.
 #
 # 기동 전에 마이그레이션을 돌린다. 안 그러면 새 컬럼을 쓰는 코드가 "코드는 맞는데 500"을
@@ -66,5 +79,7 @@ ENV NODE_ENV=production
 COPY --from=build /deploy/node_modules ./node_modules
 COPY --from=build /deploy/dist ./dist
 COPY --from=build /deploy/package.json ./package.json
+# main.ts가 __dirname/../web에서 찾는다. dist가 /app/dist이므로 /app/web이다.
+COPY --from=web-build /app/apps/web/dist ./web
 EXPOSE 8080
 CMD ["node", "dist/main.js"]
