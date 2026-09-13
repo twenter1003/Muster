@@ -122,8 +122,7 @@ interface LogAppendedEvent {
  * 서버는 enum 값을 string으로 내보낸다. 컴포넌트는 유니온을 요구하므로 여기서 한 번만
  * 검사해서 넘긴다. 캐스팅으로 뚫으면 서버에 값이 추가됐을 때 화면이 조용히 틀린다.
  */
-const isStage = (v: string): v is ProjectStage =>
-  (PROJECT_STAGES as readonly string[]).includes(v);
+const isStage = (v: string): v is ProjectStage => (PROJECT_STAGES as readonly string[]).includes(v);
 const isLogLevel = (v: string): v is LogLevel => (LOG_LEVELS as readonly string[]).includes(v);
 const isBuildStatus = (v: string): v is BuildStatus =>
   (BUILD_STATUSES as readonly string[]).includes(v);
@@ -169,10 +168,12 @@ function useProjectDetails(projects: readonly ProjectView[] | null) {
 
     for (const project of projects) {
       void Promise.all([
-        apiFetch<Page<HealthSnapshotView>>(`/projects/${project.id}/health-snapshots?limit=1`).catch(
+        apiFetch<Page<HealthSnapshotView>>(
+          `/projects/${project.id}/health-snapshots?limit=1`,
+        ).catch(() => null),
+        apiFetch<Page<ConfigView>>(`/projects/${project.id}/env-configs?limit=20`).catch(
           () => null,
         ),
-        apiFetch<Page<ConfigView>>(`/projects/${project.id}/env-configs?limit=20`).catch(() => null),
       ]).then(([health, configs]) => {
         if (!live) return;
         const latest = health?.items[0];
@@ -221,7 +222,9 @@ export function DashboardPage() {
 
   // 오늘 구간. DORA는 서버가 고정 관측창(90일)을 쓰므로 from에 영향을 받지 않는다.
   const [from] = useState(todayStartIso);
-  const summaryState = useApi<ReportSummaryView>(`/reports/summary?from=${encodeURIComponent(from)}`);
+  const summaryState = useApi<ReportSummaryView>(
+    `/reports/summary?from=${encodeURIComponent(from)}`,
+  );
   const summary = summaryState.data;
 
   const { details, patchConfig } = useProjectDetails(projects);
@@ -394,7 +397,9 @@ function ProjectProgressWidget({
               return (
                 <tr key={p.id}>
                   <td className="dash-table__name">{p.name}</td>
-                  <td>{isStage(p.current_stage) ? <StageBadge stage={p.current_stage} /> : EM_DASH}</td>
+                  <td>
+                    {isStage(p.current_stage) ? <StageBadge stage={p.current_stage} /> : EM_DASH}
+                  </td>
                   <td>
                     {/* 주석 2: 붉어지는 기준은 HealthIndicator 안의 HEALTH_SIGNAL_THRESHOLD 하나뿐이다.
                         여기서 2.5를 다시 적으면 화면마다 기준이 갈라진다. */}
@@ -662,13 +667,7 @@ function GateCard({
 /* ── 위젯: DORA 종합 ────────────────────────────────────────────────────── */
 
 /** 4지표는 /reports/summary 한 번으로 끝난다. 프로젝트별로 긁어 평균 내지 않는다. */
-function DoraWidget({
-  summary,
-  loading,
-}: {
-  summary: ReportSummaryView | null;
-  loading: boolean;
-}) {
+function DoraWidget({ summary, loading }: { summary: ReportSummaryView | null; loading: boolean }) {
   const dora = summary?.dora ?? null;
   const metrics: { label: string; score: number | null }[] =
     dora === null
@@ -688,7 +687,11 @@ function DoraWidget({
         </h2>
         <span className="card__meta">
           composite{' '}
-          {dora?.composite_score != null ? dora.composite_score.toFixed(1) : loading ? LOADING : EM_DASH}
+          {dora?.composite_score != null
+            ? dora.composite_score.toFixed(1)
+            : loading
+              ? LOADING
+              : EM_DASH}
         </span>
       </div>
       {dora === null ? (

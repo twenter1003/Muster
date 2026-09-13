@@ -26,7 +26,13 @@ export const envSchema = z.object({
   /** GitHub에 넘길 redirect_uri를 만들 때 쓰는 이 API의 공개 주소. */
   API_BASE_URL: z.string().url().default('http://localhost:8080'),
 
-  /** 로컬 시크릿 저장소 경로. 프로덕션에서는 Secret Manager 구현이 대체한다. */
+  /**
+   * 시크릿 저장소 선택. `gcp`면 GCP Secret Manager(GCP_PROJECT_ID 필요), 그 외는 로컬 파일.
+   * 자동 판별하지 않는다 — 저장소가 바뀌면 기존 참조를 못 읽으므로 명시해야 한다.
+   */
+  SECRETS_BACKEND: z.enum(['file', 'gcp']).default('file'),
+
+  /** 로컬 시크릿 저장소 경로. SECRETS_BACKEND=gcp 이면 쓰이지 않는다. */
   SECRETS_DIR: z.string().default('.secrets'),
 
   /**

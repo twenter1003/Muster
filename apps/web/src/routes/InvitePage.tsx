@@ -125,8 +125,8 @@ export function InvitePage() {
           <>
             <h1 className="invite__title">초대를 받았습니다</h1>
             <p className="meta">
-              누가 어느 프로젝트로 불렀는지는 로그인한 뒤에 보여 줍니다. 초대를 확인하려면
-              GitHub 계정이 필요합니다.
+              누가 어느 프로젝트로 불렀는지는 로그인한 뒤에 보여 줍니다. 초대를 확인하려면 GitHub
+              계정이 필요합니다.
             </p>
             {/* 로그인 뒤 이 초대로 되돌아온다 — 토큰은 이미 맡겨 뒀다. */}
             <a className="btn btn--solid invite__cta" href="/api/v1/auth/github/login">
@@ -162,8 +162,8 @@ export function InvitePage() {
               초대했습니다. 수락하면 <span className="badge">member</span>로 합류합니다.
             </p>
             <p className="meta">
-              멤버는 이 프로젝트의 문서·개발환경·에이전트·로그를 볼 수 있습니다. 다른
-              프로젝트는 보이지 않습니다.
+              멤버는 이 프로젝트의 문서·개발환경·에이전트·로그를 볼 수 있습니다. 다른 프로젝트는
+              보이지 않습니다.
             </p>
             <div className="invite__actions">
               <Button variant="solid" onClick={accept} disabled={joining}>

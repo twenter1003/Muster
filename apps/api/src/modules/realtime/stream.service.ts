@@ -3,6 +3,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { filter, fromEvent, interval, map, merge, type Observable } from 'rxjs';
 import {
   DomainEvent,
+  type BudgetThresholdExceededEvent,
   type HealthSnapshotCreatedEvent,
   type LogAppendedEvent,
   type ProjectStageChangedEvent,
@@ -42,13 +43,20 @@ export class StreamService {
         'stage_change',
         projectId,
       ),
+      // 설계서 §7.3의 목록에 없는 넷째 타입이다. 근거는 DESIGN_DRIFT.md 10번 —
+      // 요약하면, 임계치를 넘는 순간은 지나가면 사라지고 인박스는 사람이 열어야 보인다.
+      this.typed<BudgetThresholdExceededEvent>(
+        DomainEvent.BUDGET_THRESHOLD_EXCEEDED,
+        'budget_alert',
+        projectId,
+      ),
       this.heartbeat(),
     );
   }
 
   private typed<T extends { project_id: string }>(
     name: string,
-    type: 'log' | 'health_update' | 'stage_change',
+    type: 'log' | 'health_update' | 'stage_change' | 'budget_alert',
     projectId: string,
   ): Observable<MessageEvent> {
     return fromEvent<T>(this.events, name).pipe(

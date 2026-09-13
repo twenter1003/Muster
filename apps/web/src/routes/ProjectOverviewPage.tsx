@@ -8,6 +8,7 @@ import { StatusBadge } from '../components/StatusBadge';
 import { ApiError, apiPatch, apiPost, type Page as ApiPage } from '../lib/api';
 import { Modal } from '../components/Modal';
 import { useApi } from '../lib/useApi';
+import { useSse } from '../lib/useSse';
 import { actorLabel, type TransitionView } from '../lib/transitions';
 import {
   BUILD_STATUSES,
@@ -28,6 +29,17 @@ import './ProjectOverviewPage.css';
  * 값 집합(build_status·stage·level)은 서버가 문자열로 내보내므로 여기서 좁힌다 —
  * 서버가 새 값을 추가하면 화면이 조용히 깨지는 대신 알 수 없는 값으로 표시된다.
  */
+
+/** SSE `budget_alert` 페이로드 (common/events/domain-events.ts · BudgetThresholdExceededEvent). */
+interface BudgetAlertEvent {
+  project_id: string;
+  metric: 'tokens' | 'cost';
+  used: string;
+  limit: string;
+  usage_pct: number;
+  threshold_pct: number;
+  occurred_at: string;
+}
 
 interface ProjectView {
   id: string;
@@ -405,6 +417,27 @@ export function ProjectOverviewPage() {
   const budget = useApi<BudgetUsage>(
     id !== undefined && (tab === 'overview' || tab === 'agents') ? `/projects/${id}/budget` : null,
   );
+
+  /*
+   * 예산 경보를 받으면 예산 카드를 다시 부른다.
+   *
+   * 넘어서는 순간은 이벤트로만 존재한다 — 서버는 임계치를 **넘는 순간에만** 발행하고,
+   * 열려 있는 화면은 그때 이미 조회를 끝낸 뒤다. 새로고침하기 전까지 이 화면은 한도 아래로
+   * 보이고, 그 사이에 실행이 계속 돈다.
+   *
+   * 배너를 따로 띄우지 않고 다시 부르는 쪽을 택했다. 경보 페이로드의 숫자로 화면을 고치면
+   * 화면이 두 개의 진실(조회 결과와 이벤트)을 갖게 되고, 둘이 어긋날 때 어느 쪽이 맞는지
+   * 화면 안에서는 알 수 없다. 다시 부르면 진실은 계속 하나다.
+   */
+  const budgetStream = useSse(id ?? null, 1);
+  const alert = budgetStream.events.find((e) => e.type === 'budget_alert');
+  const alertData = alert?.data as BudgetAlertEvent | undefined;
+  // 재조회 열쇠. EventSource의 lastEventId는 서버가 id를 싣지 않아 빈 문자열이라 쓸 수 없다.
+  const alertKey = alertData ? `${alertData.metric}:${alertData.occurred_at}` : null;
+  const reloadBudget = budget.reload;
+  useEffect(() => {
+    if (alertKey !== null) reloadBudget();
+  }, [alertKey, reloadBudget]);
 
   // 나머지 탭
   const docs = useApi<ApiPage<DocumentView>>(on('docs', `/projects/${id}/documents?limit=50`));
@@ -870,11 +903,7 @@ function EnvConfigCard({
               return (
                 <span key={t.id} title={`${actorLabel(t.actor)} · ${formatDateTime(t.created_at)}`}>
                   {i > 0 && <span aria-hidden="true"> {'>'} </span>}
-                  {i === arr.length - 1 && to !== null ? (
-                    <StatusBadge status={to} />
-                  ) : (
-                    t.to_status
-                  )}
+                  {i === arr.length - 1 && to !== null ? <StatusBadge status={to} /> : t.to_status}
                 </span>
               );
             })}

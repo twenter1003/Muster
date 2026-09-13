@@ -76,7 +76,7 @@ gcloud run deploy "${SERVICE}" \
   --concurrency 80 \
   --timeout 60 \
   --port 8080 \
-  --set-env-vars "NODE_ENV=production,FRONTEND_URL=${SERVICE_URL},API_BASE_URL=${API_BASE_URL:-${SERVICE_URL}}" \
+  --set-env-vars "NODE_ENV=production,SECRETS_BACKEND=gcp,GCP_PROJECT_ID=${PROJECT},FRONTEND_URL=${SERVICE_URL},API_BASE_URL=${API_BASE_URL:-${SERVICE_URL}}" \
   --set-secrets "DATABASE_URL=muster-database-url:latest,GITHUB_OAUTH_CLIENT_ID=muster-github-client-id:latest,GITHUB_OAUTH_CLIENT_SECRET=muster-github-client-secret:latest,OAUTH_STATE_SECRET=muster-oauth-state-secret:latest"
 
 URL="$(gcloud run services describe "${SERVICE}" --project "${PROJECT}" --region "${REGION}" --format='value(status.url)')"
