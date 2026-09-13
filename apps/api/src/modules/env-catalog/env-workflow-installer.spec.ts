@@ -164,6 +164,39 @@ describe('EnvWorkflowInstaller', () => {
     expect(userMessage(error)).toContain('다시 로그인');
   });
 
+  /** 커밋이 없는 레포는 브랜치를 딸 곳이 없다. 502로 뭉개면 사용자가 원인을 알 수 없다. */
+  it('빈 레포(409)는 무엇을 해야 하는지 말한다', async () => {
+    stubFetch([...START, { status: 409 }]);
+
+    const error = await make(LINKED)
+      .install(PROJECT, USER)
+      .catch((e: unknown) => e);
+
+    expect(error).toMatchObject({ status: 400 });
+    expect(userMessage(error)).toContain('비어 있습니다');
+  });
+
+  it('401은 재인증이다 — 토큰을 GitHub이 거부한 것이라 재시도로는 안 된다', async () => {
+    stubFetch([{ status: 401 }]);
+
+    const error = await make(LINKED)
+      .install(PROJECT, USER)
+      .catch((e: unknown) => e);
+
+    expect(error).toMatchObject({ code: 'GITHUB_REAUTH_REQUIRED' });
+  });
+
+  /** 예상 밖 실패에서 상태 코드가 사라지면, 원인을 좁히려고 서버 로그를 떠 와야 한다. */
+  it('그 밖의 실패는 GitHub이 준 상태 코드를 메시지에 남긴다', async () => {
+    stubFetch([{ status: 500 }]);
+
+    const error = await make(LINKED)
+      .install(PROJECT, USER)
+      .catch((e: unknown) => e);
+
+    expect(userMessage(error)).toContain('500');
+  });
+
   it('스코프가 충분한 403은 레포 권한을 가리킨다 — 재로그인은 소용없다', async () => {
     stubFetch([
       { status: 200, body: { default_branch: 'main' } },

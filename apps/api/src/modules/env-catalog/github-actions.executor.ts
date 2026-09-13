@@ -136,6 +136,20 @@ export class GitHubActionsExecutor implements EnvConfigExecutor {
         400,
       );
     }
-    return new ApiException(ErrorCode.INTERNAL, 'GitHub Actions 실행 요청이 실패했습니다.', 502);
+    if (res.status === 401) {
+      // GitHub이 토큰 자체를 거부했다. 갱신으로 될 일이 아니라 다시 받아야 한다.
+      return new ApiException(
+        ErrorCode.GITHUB_REAUTH_REQUIRED,
+        'GitHub 재인증이 필요합니다. 로그아웃 후 다시 로그인해 주세요 — GitHub이 저장된 토큰을 거부했습니다.',
+        403,
+      );
+    }
+    return new ApiException(
+      ErrorCode.INTERNAL,
+      // 상태 코드를 메시지에 남긴다. 이게 없으면 예상 밖 실패마다 사용자가 서버 로그를
+      // 떠다 주어야만 원인을 좁힐 수 있다 — 실제로 그렇게 한 번 막혔다.
+      `GitHub Actions 실행 요청이 실패했습니다 (GitHub 응답 ${res.status}).`,
+      502,
+    );
   }
 }
