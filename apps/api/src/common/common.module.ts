@@ -4,6 +4,7 @@ import { AllExceptionsFilter } from './errors/all-exceptions.filter';
 import { AuthGuard } from './auth/auth.guard';
 import { ApiKeyGuard } from './auth/api-key.guard';
 import { ApiKeyOrSessionGuard } from './auth/api-key-or-session.guard';
+import { ProjectOwnerGuard } from './auth/project-owner.guard';
 import { ProjectMemberGuard } from './auth/project-member.guard';
 import { HealthController } from './health/health.controller';
 
@@ -24,9 +25,10 @@ import { HealthController } from './health/health.controller';
     { provide: APP_GUARD, useClass: AuthGuard },
     ApiKeyGuard,
     ApiKeyOrSessionGuard,
+    ProjectOwnerGuard,
     ProjectMemberGuard,
     // SESSION_RESOLVER는 AuthModule(@Global)이 제공한다.
   ],
-  exports: [ApiKeyGuard, ApiKeyOrSessionGuard, ProjectMemberGuard],
+  exports: [ApiKeyGuard, ApiKeyOrSessionGuard, ProjectMemberGuard, ProjectOwnerGuard],
 })
 export class CommonModule {}

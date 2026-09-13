@@ -116,5 +116,9 @@ export const AUDIT_ACTIONS = [
   'budget.update',
   'api_key.create',
   'api_key.revoke',
+  // 멤버를 늘리는 일이라 반드시 남는다. 링크 유출이 의심될 때 "언제 누가 만들었나"가
+  // 유일한 단서다.
+  'invite.create',
+  'invite.revoke',
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

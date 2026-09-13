@@ -5,6 +5,7 @@ import { NotReadyPage } from './routes/pages';
 import { InboxPage } from './routes/InboxPage';
 import { AuditLogPage } from './routes/AuditLogPage';
 import { LoginPage } from './routes/LoginPage';
+import { InvitePage } from './routes/InvitePage';
 import { RequireSession } from './routes/RequireSession';
 import { DashboardPage } from './routes/DashboardPage';
 import { ProjectListPage } from './routes/ProjectListPage';
@@ -38,6 +39,12 @@ export default function App() {
         <Routes>
           {/* 로그인만 셸 밖이다. 인증 전에는 사이드바에 채울 것이 없다. */}
           <Route path="/login" element={<LoginPage />} />
+
+          {/*
+            초대 수락은 셸 밖이면서 RequireSession 밖이기도 하다. 로그인하지 않은 사람에게
+            건네는 링크라, 안쪽에 두면 /login으로 튕기면서 주소창의 토큰이 사라진다.
+          */}
+          <Route path="/invite/:token" element={<InvitePage />} />
 
           {/* 로그인이 필요한 전 구간. 실제 차단은 서버 가드가 하고 여기는 흐름만 잡는다. */}
           <Route element={<RequireSession />}>

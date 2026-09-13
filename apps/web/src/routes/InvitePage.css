@@ -1,0 +1,51 @@
+/* 초대 수락 — 로그인 화면과 같은 꼴의 단독 화면(셸 바깥이다). */
+
+.invite {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  background: var(--color-bg);
+}
+
+.invite__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 420px;
+  padding: var(--space-6);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+}
+
+.invite__brand {
+  font-size: var(--font-size-section);
+  font-weight: 600;
+  color: var(--color-ink-mid);
+}
+
+.invite__title {
+  margin: 0;
+  font-size: var(--font-size-title);
+  font-weight: 600;
+  /* 프로젝트 이름이 길어도 상자를 벌리지 않게 줄바꿈시킨다. */
+  overflow-wrap: anywhere;
+}
+
+.invite__actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: var(--space-2);
+}
+
+/* 링크지만 버튼처럼 보여야 한다 — 로그인은 서버로 넘어가는 이동이라 <a>가 맞다. */
+.invite__cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  margin-top: var(--space-2);
+}

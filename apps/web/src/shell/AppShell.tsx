@@ -1,5 +1,7 @@
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useSession } from '../lib/session';
+import { takeRememberedInvite } from '../routes/InvitePage';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { BOTTOM_TABS, NAV_GROUPS } from './nav';
@@ -32,6 +34,21 @@ function useCrumbs(): string[] {
  */
 export function AppShell() {
   const crumbs = useCrumbs();
+  const navigate = useNavigate();
+
+  /**
+   * 로그인 왕복 뒤 맡겨 둔 초대로 되돌린다.
+   *
+   * GitHub 로그인은 페이지를 통째로 떠났다가 FRONTEND_URL(루트)로 돌아오는 왕복이라,
+   * 어디로 가려던 참이었는지가 라우터 상태로는 남지 않는다. 초대 화면이 떠나기 전에
+   * 토큰을 sessionStorage에 맡겨 두고, 셸이 여기서 한 번 꺼내 쓴다.
+   *
+   * 꺼내면서 지우므로 두 번 돌아가지 않는다 — 안 그러면 다음 로그인마다 되살아난다.
+   */
+  useEffect(() => {
+    const token = takeRememberedInvite();
+    if (token !== null) navigate(`/invite/${token}`, { replace: true });
+  }, [navigate]);
   // 셸이 이미 RequireSession 안쪽이라 user는 사실상 항상 있다. 그래도 null을 그대로 넘긴다 —
   // TopBar가 "로그인 전에는 이름을 지어내지 않는다"는 계약을 갖고 있고, 여기서 빈 문자열로
   // 바꾸면 그 계약이 무의미해진다.

@@ -28,6 +28,7 @@ export { AuditLog } from './audit-log.entity';
 export { WebhookDelivery } from './webhook-delivery.entity';
 export { DeploymentEvent } from './deployment-event.entity';
 export { EnvConfigTransition } from './env-config-transition.entity';
+export { ProjectInvite } from './project-invite.entity';
 
 import { User } from './user.entity';
 import { Session } from './session.entity';
@@ -49,6 +50,7 @@ import { AuditLog } from './audit-log.entity';
 import { WebhookDelivery } from './webhook-delivery.entity';
 import { DeploymentEvent } from './deployment-event.entity';
 import { EnvConfigTransition } from './env-config-transition.entity';
+import { ProjectInvite } from './project-invite.entity';
 
 /** DataSource에 등록할 엔티티 전체 목록. 새 엔티티를 추가하면 여기에도 넣어야 한다. */
 export const ALL_ENTITIES = [
@@ -72,4 +74,5 @@ export const ALL_ENTITIES = [
   WebhookDelivery,
   DeploymentEvent,
   EnvConfigTransition,
+  ProjectInvite,
 ] as const;

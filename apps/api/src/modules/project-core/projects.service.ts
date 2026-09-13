@@ -151,6 +151,22 @@ export class ProjectsService {
     return count > 0;
   }
 
+  /**
+   * owner가 아니면 404를 던진다.
+   *
+   * 가드(ProjectOwnerGuard)를 쓸 수 없는 경로를 위한 것이다 — 경로 파라미터가 프로젝트 id가
+   * 아닐 때(예: 초대 id로 폐기할 때). 권한 부족을 403이 아니라 404로 만드는 이유는 가드와
+   * 같다: 응답이 갈리면 그 차이가 곧 "그 프로젝트가 존재한다"는 정보다.
+   */
+  async assertOwner(projectId: string, userId: string): Promise<void> {
+    const [exists, owner] = await Promise.all([
+      this.projects.countBy({ id: projectId, deleted_at: IsNull() }),
+      this.members.countBy({ project_id: projectId, user_id: userId, role: 'owner' }),
+    ]);
+
+    if (!exists || !owner) throw ApiException.notFound('프로젝트를 찾을 수 없습니다.');
+  }
+
   /** soft delete되지 않은 프로젝트인지 확인한다. */
   async exists(projectId: string): Promise<boolean> {
     const count = await this.projects.countBy({ id: projectId, deleted_at: IsNull() });

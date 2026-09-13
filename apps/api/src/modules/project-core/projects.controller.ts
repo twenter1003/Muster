@@ -20,6 +20,14 @@ import { GitIntegrationService } from './git-integration.service';
 import { CreateGitIntegrationDto } from './dto/create-git-integration.dto';
 import { ApiKeysService, type ApiKeyView } from './api-keys.service';
 import { MembersService, type ProjectMemberView } from './members.service';
+import {
+  InvitesService,
+  type InvitePreview,
+  type InviteView,
+  type IssuedInvite,
+} from './invites.service';
+import { CreateInviteDto, InviteTokenDto } from './dto/invite.dto';
+import { ProjectOwnerGuard } from '../../common/auth/project-owner.guard';
 import { CreateApiKeyDto } from './dto/create-api-key.dto';
 import { ProjectMemberGuard } from '../../common/auth/project-member.guard';
 import { CreateProjectDto } from './dto/create-project.dto';
@@ -69,6 +77,7 @@ export class ProjectsController {
     private readonly gitIntegrations: GitIntegrationService,
     private readonly apiKeys: ApiKeysService,
     private readonly members: MembersService,
+    private readonly invites: InvitesService,
     private readonly audit: AuditService,
   ) {}
 
@@ -186,6 +195,33 @@ export class ProjectsController {
     return { items, counts };
   }
 
+  /**
+   * 초대 링크 발급 — **owner만**. 멤버를 늘리는 일이라 멤버 아무나 할 수 있으면 안 된다.
+   * 원문 토큰은 이 응답에만 실린다.
+   */
+  @Post(':id/invites')
+  @UseGuards(ProjectOwnerGuard)
+  @HttpCode(HttpStatus.CREATED)
+  async createInvite(
+    @Param('id') projectId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateInviteDto,
+  ): Promise<IssuedInvite> {
+    const issued = await this.invites.issue(projectId, user.id, dto.ttl_days);
+    await this.audit.record({
+      user_id: user.id,
+      action: 'invite.create',
+      project_id: projectId,
+    });
+    return issued;
+  }
+
+  @Get(':id/invites')
+  @UseGuards(ProjectOwnerGuard)
+  async listInvites(@Param('id') projectId: string): Promise<{ items: InviteView[] }> {
+    return { items: await this.invites.listForProject(projectId) };
+  }
+
   @Get(':id/api-keys')
   @UseGuards(ProjectMemberGuard)
   listApiKeys(
@@ -214,6 +250,64 @@ export class ProjectsController {
  * API 키 폐기. `/projects/:id` 하위가 아니라 최상위 경로라 ProjectMemberGuard를 쓸 수 없어
  * (가드가 :id를 프로젝트로 읽는다) 여기서 직접 소유 프로젝트를 확인한다.
  */
+/**
+ * 초대 링크 자체를 다루는 경로.
+ *
+ * 프로젝트 하위가 아닌 이유: 수락하는 쪽은 아직 그 프로젝트의 멤버가 아니라 프로젝트 id를
+ * 알 수도, 알아서도 안 된다. 토큰만으로 성립해야 하는 경로다.
+ */
+@Controller('invites')
+export class InvitesController {
+  constructor(
+    private readonly invites: InvitesService,
+    private readonly projects: ProjectsService,
+    private readonly audit: AuditService,
+  ) {}
+
+  /**
+   * 수락 전 확인. 어느 프로젝트에 누가 불렀는지를 보여 준다 — 모르는 프로젝트로
+   * 들어오라는 링크는 그것만으로 수상하고, 그 판단은 사용자가 해야 한다.
+   */
+  @Post('lookup')
+  @HttpCode(HttpStatus.OK)
+  lookup(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: InviteTokenDto,
+  ): Promise<InvitePreview> {
+    return this.invites.preview(dto.token, user.id);
+  }
+
+  @Post('accept')
+  @HttpCode(HttpStatus.OK)
+  async accept(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: InviteTokenDto,
+  ): Promise<{ project_id: string; joined: boolean }> {
+    return this.invites.accept(dto.token, user.id);
+  }
+
+  /**
+   * 폐기 — 링크를 만든 프로젝트의 owner만.
+   *
+   * 가드를 못 쓰는 이유: ProjectOwnerGuard는 경로의 `:id`를 프로젝트로 읽는데 여기 `:id`는
+   * 초대의 id다. 그래서 소유 프로젝트를 먼저 찾고 그 프로젝트의 owner인지 직접 확인한다.
+   * 없는 초대와 남의 초대는 같은 404다.
+   */
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async revoke(
+    @Param('id') inviteId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    const projectId = await this.invites.projectIdOf(inviteId);
+    if (projectId === null) throw ApiException.notFound('초대를 찾을 수 없습니다.');
+
+    await this.projects.assertOwner(projectId, user.id);
+    await this.invites.revoke(inviteId, projectId);
+    await this.audit.record({ user_id: user.id, action: 'invite.revoke', project_id: projectId });
+  }
+}
+
 @Controller('api-keys')
 export class ApiKeysController {
   constructor(
