@@ -53,7 +53,12 @@ docker push "${IMAGE}:latest"
 #
 #   min-instances=0   안 쓰면 인스턴스가 0으로 내려가 과금이 멈춘다. 1로 올리는 순간
 #                     상시 과금이 시작된다 — 무료 한도를 하루 만에 태우는 가장 흔한 실수다.
-#   max-instances=2   최악의 경우를 묶는다. 무한 확장은 곧 청구서다. 개인용이라 2로 충분하다.
+#   max-instances=1   **비용이 아니라 정합성 때문에 1이다.** Realtime의 SSE는 인프로세스
+#                     EventEmitter2를 구독하고, 인프로세스 이벤트는 인스턴스를 건너가지
+#                     않는다. 2면 A가 받은 웹훅이 B에 붙은 SSE 클라이언트에 영영 안 간다 —
+#                     로그·헬스·단계 변경·예산 경보가 사람에 따라 안 오는 상태가 되고,
+#                     그 상태는 에러도 안 낸다. 올리려면 먼저 이벤트 발행부를 Pub/Sub으로
+#                     바꿔야 한다(README '배포 제약', 설계서 Part 2 8장).
 #   memory=512Mi      무료 한도는 GiB-초로 센다. 필요 이상으로 크게 잡으면 같은 요청이
 #                     더 많은 한도를 먹는다.
 #   concurrency=80    한 인스턴스가 동시에 받는 요청. 기본값이며, 낮추면 인스턴스가 더 뜬다.
@@ -70,7 +75,7 @@ gcloud run deploy "${SERVICE}" \
   --platform managed \
   --allow-unauthenticated \
   --min-instances 0 \
-  --max-instances 2 \
+  --max-instances 1 \
   --memory 512Mi \
   --cpu 1 \
   --concurrency 80 \
