@@ -37,11 +37,18 @@
 
 ### 1. 워크플로 파일을 레포에 넣는다
 
-`files/templates/muster-env-build.yml`을 연동한 레포의
-`.github/workflows/muster-env-build.yml`로 복사하고 커밋한다. **기본 브랜치에 있어야 한다** —
-`workflow_dispatch`는 기본 브랜치의 정의를 본다.
+프로젝트 → **환경 구성** 탭 → **워크플로 설치**를 누른다. Muster가 연동한 레포에
+`muster/env-build-workflow` 브랜치를 만들어 파일을 넣고 PR을 연다. 그 PR을 머지하면 끝이다.
 
-Muster가 대신 넣어 주지 않는다. 남의 레포에 커밋하는 것은 연동이 허락한 범위를 넘어선다.
+**PR인 이유**: 기본 브랜치에 말없이 커밋하지 않는다. 연동이 허락한 것은 "이 레포와
+일한다"이지 "이 레포를 고친다"가 아니다. 무엇이 들어가는지 본 사람이 머지하는 편이 맞다.
+두 번 눌러도 안전하다 — 브랜치 이름이 고정이고, 이미 기본 브랜치에 있으면 아무것도 하지 않는다.
+
+**머지해야 실행된다.** `workflow_dispatch`는 기본 브랜치의 정의를 보므로, PR이 열려만
+있는 동안에는 실행이 여전히 404다.
+
+손으로 넣고 싶으면 `files/templates/muster-env-build.yml`을 같은 경로로 복사해도 된다
+(같은 파일이다 — `env-workflow-template.spec.ts`가 둘이 갈라지지 않는지 지킨다).
 
 ### 2. Muster가 생성한 Dockerfile을 커밋한다
 

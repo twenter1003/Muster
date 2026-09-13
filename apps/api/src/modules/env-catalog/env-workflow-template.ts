@@ -1,6 +1,19 @@
-# Muster 환경 구성 실행기 — **사용자 레포에 넣는 파일**이다.
+/**
+ * 사용자 레포에 들어가는 워크플로 파일의 내용.
+ *
+ * 왜 파일이 아니라 문자열인가: 서버가 이것을 사용자 레포에 커밋해야 하는데, 배포 이미지에는
+ * files/ 디렉터리가 들어가지 않는다(Dockerfile이 dist만 담는다). 런타임에 디스크에서 읽으면
+ * 로컬에서는 되고 프로덕션에서만 조용히 실패한다.
+ *
+ * files/templates/muster-env-build.yml은 손으로 복사하는 사람을 위해 남겨 둔다. 두 벌이
+ * 갈라지면 "설치 버튼으로 넣은 것"과 "문서 보고 넣은 것"이 다르게 동작하므로,
+ * env-workflow-template.spec.ts가 둘이 한 글자도 다르지 않은지 검사한다.
+ */
+export const ENV_WORKFLOW_PATH = '.github/workflows/muster-env-build.yml';
+
+export const ENV_WORKFLOW_CONTENT = `# Muster 환경 구성 실행기 — **사용자 레포에 넣는 파일**이다.
 #
-# 이 저장소가 아니라, Muster 프로젝트에 연동한 레포의 `.github/workflows/`에 그대로 복사한다.
+# 이 저장소가 아니라, Muster 프로젝트에 연동한 레포의 \`.github/workflows/\`에 그대로 복사한다.
 # Muster의 「워크플로 설치」 버튼을 쓰면 이 파일을 담은 PR이 열린다.
 #
 # 하는 일: Muster가 생성한 Dockerfile을 실제로 빌드해 보고, 그 결과(성공/실패)를 돌려준다.
@@ -10,7 +23,7 @@ name: Muster 환경 구성 빌드
 
 # **이 줄이 계약이다.** Muster가 결과를 자기 환경 구성과 이어 붙이는 유일한 단서다.
 # 형식을 바꾸면 빌드는 돌지만 Muster 쪽 구성은 running에 영영 머문다.
-run-name: muster-env ${{ inputs.env_config_id }}
+run-name: muster-env \${{ inputs.env_config_id }}
 
 on:
   workflow_dispatch:
@@ -50,3 +63,4 @@ jobs:
           # 캐시가 없으면 매번 베이스 이미지부터 받는다. Actions 캐시는 무료 한도 안이다.
           cache-from: type=gha
           cache-to: type=gha,mode=max
+`;

@@ -14,6 +14,7 @@ import { VertexDockerConfigGenerator } from './vertex-docker-config.generator';
 import { POLICY_GATE, type PolicyGate } from './policy-gate';
 import { ENV_CONFIG_EXECUTOR } from './env-config-executor';
 import { GitHubActionsExecutor } from './github-actions.executor';
+import { EnvWorkflowInstaller } from './env-workflow-installer';
 import { AuthModule } from '../auth/auth.module';
 import { CliPolicyGate } from './cli-policy-gate';
 import { ApiException } from '../../common/errors/api.exception';
@@ -67,6 +68,7 @@ class UnconfiguredGenerator implements DockerConfigGenerator {
     },
     // 실행은 사용자 레포의 GitHub Actions가 한다. 근거는 github-actions.executor.ts 주석.
     { provide: ENV_CONFIG_EXECUTOR, useClass: GitHubActionsExecutor },
+    EnvWorkflowInstaller,
     {
       provide: POLICY_GATE,
       useFactory: (): PolicyGate =>
