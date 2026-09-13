@@ -52,3 +52,30 @@ export function buildAgentPatch(current: EditableAgent, form: AgentForm): AgentP
   if (Object.keys(body).length === 0) return { ok: false, reason: '바뀐 것이 없다.' };
   return { ok: true, body };
 }
+
+/** POST /projects/:id/agents 본문. 생성에는 부분 수정이 없어 두 칸이 모두 실린다. */
+export interface AgentCreate {
+  name: string;
+  config_md: string;
+}
+
+export type AgentCreateResult = { ok: true; body: AgentCreate } | { ok: false; reason: string };
+
+/**
+ * 등록 폼 입력 → POST 본문.
+ *
+ * 수정(buildAgentPatch)과 규칙이 하나 다르다: 생성에는 "안 바뀐 칸"이라는 것이 없으므로
+ * config_md가 비어 있어도 그대로 싣는다. 서버 CreateAgentDto가 0자를 허용하고, 설정을
+ * 나중에 채우는 것이 실제 사용 순서이기도 하다(먼저 등록하고, 돌려 보면서 설정을 적는다).
+ */
+export function buildAgentCreate(form: AgentForm): AgentCreateResult {
+  const name = form.name.trim();
+  if (name.length === 0 || name.length > AGENT_NAME_MAX) {
+    return { ok: false, reason: `이름은 1~${AGENT_NAME_MAX}자여야 한다.` };
+  }
+  if (form.configMd.length > AGENT_CONFIG_MAX) {
+    return { ok: false, reason: `설정은 ${AGENT_CONFIG_MAX.toLocaleString()}자를 넘을 수 없다.` };
+  }
+  // 이름만 trim하는 이유는 buildAgentPatch 주석 2와 같다.
+  return { ok: true, body: { name, config_md: form.configMd } };
+}

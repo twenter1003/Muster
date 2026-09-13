@@ -10,6 +10,7 @@ import { Modal } from '../components/Modal';
 import { useApi } from '../lib/useApi';
 import { browserUploadDeps, uploadDocument } from '../lib/uploadDocument';
 import { buildRunPatch } from '../lib/runCorrection';
+import { buildAgentCreate } from '../lib/agentEdit';
 import { DOCUMENT_TITLE_MAX, buildDocumentPatch, canDownload } from '../lib/documentEdit';
 import { useSse } from '../lib/useSse';
 import { actorLabel, type TransitionView } from '../lib/transitions';
@@ -462,6 +463,8 @@ export function ProjectOverviewPage() {
     on('env', `/projects/${id}/env-configs?limit=20`),
   );
   const agents = useApi<ApiPage<AgentView>>(on('agents', `/projects/${id}/agents?limit=50`));
+  const [creatingAgent, setCreatingAgent] = useState(false);
+  const navigate = useNavigate();
   const stages = useApi<ApiPage<StageHistoryView>>(
     on('stages', `/projects/${id}/stage-history?limit=50`),
   );
@@ -653,33 +656,62 @@ export function ProjectOverviewPage() {
         )}
 
         {tab === 'env' && (
-          <Async state={envConfigs}>
-            {(page) =>
-              page.items.length === 0 ? (
-                <Card title="환경 구성">
-                  <p className="meta po-note">아직 환경 구성이 없다.</p>
-                </Card>
-              ) : (
-                <>
-                  {page.items.map((config) => (
-                    <Card
-                      key={config.id}
-                      title={formatDateTime(config.created_at)}
-                      aside={`build_status: ${config.build_status}`}
-                    >
-                      {/* 목록 응답에는 docker_config가 없다(서버가 상세에만 싣는다). */}
-                      <EnvConfigCard config={config} docker={null} checks={null} />
-                    </Card>
-                  ))}
-                </>
-              )
-            }
-          </Async>
+          <>
+            {/* 만드는 화면(/projects/:id/env/new)은 있었는데 들어가는 링크가 어디에도 없어
+                주소를 직접 쳐야 했다. 시작점은 프로젝트 안이어야 한다 — 환경 구성은
+                프로젝트에 달리고, 환경 카탈로그는 계정 전체를 보는 곳이라 "어느 프로젝트에"가 없다. */}
+            <Card title="환경 구성" aside="EnvCatalog">
+              <div className="po-listhead">
+                <p className="meta">
+                  언어·프레임워크·DB를 고르면 Docker 구성을 만들어 준다. 템플릿을 미리 만들어
+                  두었다면 거기서 고를 수도 있다(환경 카탈로그).
+                </p>
+                <Button variant="solid" onClick={() => navigate(`/projects/${id}/env/new`)}>
+                  새 환경 구성
+                </Button>
+              </div>
+            </Card>
+            <Async state={envConfigs}>
+              {(page) =>
+                page.items.length === 0 ? (
+                  <Card title="기록">
+                    <p className="meta po-note">아직 환경 구성이 없다.</p>
+                  </Card>
+                ) : (
+                  <>
+                    {page.items.map((config) => (
+                      <Card
+                        key={config.id}
+                        title={formatDateTime(config.created_at)}
+                        aside={`build_status: ${config.build_status}`}
+                      >
+                        {/* 목록 응답에는 docker_config가 없다(서버가 상세에만 싣는다). */}
+                        <EnvConfigCard config={config} docker={null} checks={null} />
+                      </Card>
+                    ))}
+                  </>
+                )
+              }
+            </Async>
+          </>
         )}
 
         {tab === 'agents' && (
           <div className="po__panel">
             <Card title="에이전트" aside="AgentRegistry">
+              {/* 등록이 목록과 같은 카드에 있는 이유: 에이전트가 0개일 때 이 화면이 답해야 하는
+                  물음은 "무엇이 있나"가 아니라 "어떻게 만드나"다. AgentRegistry 화면은 계정
+                  전체를 보는 곳이라 "어느 프로젝트에"가 없어 등록을 둘 수 없다. */}
+              {id !== undefined && (
+                <div className="po-listhead">
+                  <p className="meta">
+                    에이전트를 등록하면 줄마다 실행 버튼이 생긴다. 설정은 나중에 채워도 된다.
+                  </p>
+                  <Button variant="solid" onClick={() => setCreatingAgent(true)}>
+                    에이전트 등록
+                  </Button>
+                </div>
+              )}
               <Async state={agents}>
                 {(page) =>
                   page.items.length === 0 ? (
@@ -697,6 +729,18 @@ export function ProjectOverviewPage() {
             <Card title="예산">
               <Async state={budget}>{(b) => <BudgetPanel budget={b} />}</Async>
             </Card>
+
+            {creatingAgent && id !== undefined && (
+              <CreateAgentDialog
+                projectId={id}
+                onClose={() => setCreatingAgent(false)}
+                onCreated={() => {
+                  setCreatingAgent(false);
+                  agents.reload();
+                  agentCount.reload();
+                }}
+              />
+            )}
           </div>
         )}
 
@@ -1088,6 +1132,92 @@ function DeleteProjectCard({ project }: { project: ProjectView }) {
  * 사람이 결과를 적어 넣는 것이 유일한 종료 경로다 — 그 값이 그대로 예산 사용량과
  * DORA 입력이 되므로, 형식 검사는 lib/runCorrection.ts에서 요청 전에 한다.
  */
+/**
+ * 에이전트 등록.
+ *
+ * 설정(config_md)을 필수로 받지 않는 이유: 서버가 0자를 허용하고, 처음 쓰는 사람에게
+ * "마크다운 설정"을 먼저 요구하면 등록 자체를 못 한다. 등록해서 목록에 세워 두고
+ * 실행해 보면서 수정으로 채우는 것이 실제 순서다.
+ */
+function CreateAgentDialog({
+  projectId,
+  onClose,
+  onCreated,
+}: {
+  projectId: string;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const [name, setName] = useState('');
+  const [configMd, setConfigMd] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const built = buildAgentCreate({ name, configMd });
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!built.ok || saving) return;
+
+    setSaving(true);
+    setError(null);
+    apiPost<AgentView>(`/projects/${projectId}/agents`, built.body).then(
+      onCreated,
+      (err: unknown) => {
+        setSaving(false);
+        setError(err instanceof ApiError ? `${err.message} (${err.code})` : String(err));
+      },
+    );
+  };
+
+  return (
+    <Modal open title="에이전트 등록" onClose={saving ? () => undefined : onClose}>
+      <form className="modal__form" onSubmit={submit}>
+        <label className="modal__label" htmlFor="new-agent-name">
+          이름
+        </label>
+        <input
+          id="new-agent-name"
+          className="input modal__input"
+          value={name}
+          disabled={saving}
+          placeholder="예: 코드 리뷰어"
+          onChange={(e) => setName(e.target.value)}
+        />
+
+        <label className="modal__label" htmlFor="new-agent-config">
+          설정 (마크다운 · 비워도 된다)
+        </label>
+        <textarea
+          id="new-agent-config"
+          className="input modal__input"
+          rows={8}
+          value={configMd}
+          disabled={saving}
+          placeholder={'# 역할\n무엇을 하는 에이전트인지 적는다.'}
+          onChange={(e) => setConfigMd(e.target.value)}
+        />
+
+        {!built.ok && <p className="meta">{built.reason}</p>}
+        {error !== null && (
+          <p className="meta po-note po-note--signal" role="alert">
+            {error}
+          </p>
+        )}
+
+        <div className="modal__actions">
+          <Button onClick={onClose} disabled={saving}>
+            취소
+          </Button>
+          <Button type="submit" variant="solid" disabled={!built.ok || saving}>
+            {saving ? '등록 중…' : '등록'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 function CorrectRunDialog({
   run,
   onClose,
