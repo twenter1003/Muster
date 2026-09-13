@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { apiFetch } from '../lib/api';
 import { EM_DASH } from '../lib/domain';
 import { useTheme } from './useTheme';
+import { SearchBox } from './SearchBox';
 
 /**
  * SSE 연결 상태. 'unknown'이 기본인 이유는 아직 구독을 열지 않았기 때문이다 —
@@ -64,12 +65,7 @@ export function TopBar({ crumbs, sse = 'unknown', userName = null }: TopBarProps
   return (
     <header className="shell__topbar">
       <span className="topbar__crumb">{crumbs.join(' / ')}</span>
-      <input
-        className="topbar__search"
-        type="search"
-        placeholder="프로젝트·문서·에이전트 검색"
-        aria-label="프로젝트·문서·에이전트 검색"
-      />
+      <SearchBox />
       <div className="topbar__right">
         {/* 점만으로는 색맹 사용자가 상태를 못 읽는다. 라벨을 항상 같이 둔다. */}
         <span className={dotClass} aria-hidden="true" />

@@ -15,6 +15,7 @@ import { IngestModule } from './modules/ingest/ingest.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { InboxModule } from './modules/inbox/inbox.module';
+import { SearchModule } from './modules/search/search.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { InboxModule } from './modules/inbox/inbox.module';
     ReportsModule,
     // 마찬가지로 설계서의 모듈 목록에 없는 신설 모듈 (inbox.module.ts 주석 참조).
     InboxModule,
+    SearchModule,
   ],
 })
 export class AppModule {}
