@@ -171,14 +171,22 @@ brew install trivy conftest
 
 ---
 
-## 7. GitHub 원격 레포 + GCP 배포 리소스 — Phase 7 (CI/CD)
-
-**막히는 것**: 배포 파이프라인 전체.
+## 7. GitHub 원격 레포 + GCP 배포 리소스 — Phase 7 (CI/CD) ✅ 완료 (2026-09-13)
 
 - ✅ 원격 레포 연결됨 — `twenter1003/Muster` (private). `origin/main` 푸시 완료.
-- Cloud Run, Cloud SQL, Secret Manager 프로비저닝 필요.
-- Cloud Run은 **`max-instances=1`로 고정**해야 한다 — 인프로세스 EventEmitter2 이벤트가
+- ✅ Cloud Run 서비스 `muster` 배포됨 (`asia-northeast3`, 프로젝트 `muster-twent`).
+  주소는 `gcloud run services list --platform=managed`로 확인.
+- ✅ Secret Manager 시크릿 4개(`muster-database-url`·`muster-github-client-id`·
+  `muster-github-client-secret`·`muster-oauth-state-secret`) 등록됨. 앱이 실행 중
+  스스로 만드는 `github-token-<사용자id>`·`webhook-secret-<프로젝트id>`도 이미 생겨
+  있다 — 실제로 로그인·레포 연동까지 검증됐다는 뜻이다.
+- ✅ Artifact Registry 저장소(`muster`, Docker) 존재.
+- Cloud Run은 **`max-instances=1`로 고정**돼 있다 — 인프로세스 EventEmitter2 이벤트가
   인스턴스 간 전달되지 않아 SSE가 깨지기 때문 (Phase 1 결정, README 참조).
+
+**재배포**는 `./scripts/deploy-cloudrun.sh`를 다시 돌리면 된다 — 로컬에 체크아웃된
+코드를 그대로 빌드해서 기존 서비스에 새 리비전으로 올린다. 새 마이그레이션이 있는
+배포만 `docs/DEPLOY.md` 6단계(마이그레이션)를 별도로 돌리면 된다.
 
 ---
 
@@ -192,7 +200,7 @@ brew install trivy conftest
 | 4. GCS 버킷 | Phase 4 전 | ✅ 완료 |
 | 5. Gemini API 키 | Phase 5 | ✅ 완료 |
 | 6. Trivy/Conftest | Phase 5 | ✅ 완료 (API 이미지에 포함) |
-| 7. GCP 배포 리소스 | Phase 7 전 | 미착수 (원격 레포만 완료) |
+| 7. GCP 배포 리소스 | Phase 7 전 | ✅ 완료 — Cloud Run 배포됨 |
 
 **Phase 3은 닫혔다.** 웹훅 *수신* 엔드포인트(`/api/v1/webhooks/github`)가 없는 것은
 정상이다 — `ingest/`는 README 기준 Phase 6 소관이다.
