@@ -83,31 +83,32 @@ Part 1 §10도 통과율/재시도율을 추적 지표로 잡아 두었다.
 `ApiKeysService.resolveProject`와 `ApiKeyGuard`를 신설했다. 폐기된 키는 매칭되지 않으며,
 없는 키와 폐기된 키의 응답을 동일하게 두었다 — 다르면 유효한 키를 탐색할 단서가 된다.
 
-## 8. LLM 호출 경로 — generateContent → Interactions API — Phase 5
+## 8. LLM 호출 경로 — "Interactions API" 전제를 되돌림 — Phase 5 정정 (project-goals 작업 중 발견)
 
-4번에서 Gemini를 택할 때 전제한 호출 방식이 낡았다.
+이 절은 원래 "`generateContent`가 레거시로 물러나고 `POST /v1beta/interactions`가
+Gemini의 기본 인터페이스가 됐다"고 적고 있었다. 근거를 다시 확인할 수 없는 서술이었고,
+그 전제로 짠 `GeminiDockerConfigGenerator`(`env-catalog/gemini-docker-config.generator.ts`,
+이제 삭제됨)는 실제로 존재하지 않는 엔드포인트·요청/응답 모양을 쓰고 있었다 —
+`GEMINI_API_KEY`가 비어 있어 Vertex 경로로 우회되는 바람에 겉으로는 멀쩡해 보였을 뿐,
+그 키를 넣는 순간 조용히 깨지는 잠재 버그였다.
 
-- **Interactions API**(`POST /v1beta/interactions`)가 2026-06 GA로 Gemini의 기본
-  인터페이스가 되었고 `generateContent`는 레거시로 물러났다. 새 기능은 Interactions에만
-  실린다.
-- 키 형식도 바뀌었다. 표준 키(`AIza`)는 2026-09부로 폐지되고 auth key(`AQ.`)가 현행이다.
+목표/요구사항 기반 진행률 기능(아래 12번)에서 Gemini를 다시 조사하며(WebSearch로 교차
+확인, 공식 문서 `ai.google.dev`는 이 프로젝트의 실행 환경 네트워크 정책상 직접 열람이
+막혀 있어 검색 스니펫으로 대조) 바로잡았다: **`generateContent`가 여전히 실제
+엔드포인트다.** `POST /v1beta/models/{model}:generateContent`, 인증은 `x-goog-api-key`
+헤더, 구조화 출력은 `generationConfig.responseMimeType`+`responseSchema`. "표준 키(AIza)
+폐지" 서술도 근거가 없어 함께 걷어냈다.
 
-**채택**: Interactions API를 쓴다. 벤더 선택(4번)은 그대로다.
+**정정**: 두 호출 경로(AI Studio API 키 / Vertex AI ADC) 모두 실제 `generateContent`
+모양을 쓰는 공용 클라이언트(`common/llm/`, `GeminiClient` 인터페이스 + `HttpGeminiClient`/
+`VertexGeminiClient`)로 합쳤다. 백엔드 선택(키 있으면 Http, 없고 GCP_PROJECT_ID 있으면
+Vertex, 둘 다 없으면 503)은 `LlmModule` 한 곳에만 있다 — env-catalog(도커 설정 생성)와
+project-goals(목표 초안·진행률 분석) 둘 다 이 모듈을 통해서만 Gemini를 만난다. 벤더
+선택(4번) 자체는 그대로다.
 
-generateContent와 다른 점 — 옮길 때 걸린 것들:
-
-| | generateContent | Interactions |
-|---|---|---|
-| 입력 | `contents: [{role, parts}]` | `input: {type: 'text', text}` |
-| 시스템 지시 | `systemInstruction.parts` | `system_instruction` (문자열) |
-| 구조화 출력 | `generationConfig.responseMimeType` | 루트 `response_format` — **스키마를 그대로** 받는다 |
-| 응답 | `candidates[].content.parts[].text` | `steps[]` — `type: 'model_output'`인 단계의 `content[].text` |
-
-응답 파싱에서 `steps`를 그냥 훑으면 안 된다. `thought` 같은 중간 단계가 섞여 있어
-그것까지 파싱하려 들면 JSON이 아니라서 실패한다. `model_output`만 골라야 한다.
-
-**폴백**: 키가 없으면 Vertex AI로 넘어간다. ADC로 인증하므로 키를 둘 수 없는 환경에서도
-돈다. Vertex는 아직 3.x 모델이 안 나와(us-central1 기준 404) 기본 모델을 따로 둔다.
+**모델 이름에 대한 고지**: 이번 정정에서도 정확한 현재 모델 ID를 공식 문서로 직접
+검증하지는 못했다. 기존에 Vertex 경로에서 실제로 쓰여 온 `gemini-2.5-flash`를 두 경로
+공통 기본값으로 삼았다 — `GEMINI_MODEL`/`VERTEX_MODEL` 환경변수로 언제든 덮어쓸 수 있다.
 
 ---
 
@@ -203,6 +204,46 @@ generateContent와 다른 점 — 옮길 때 걸린 것들:
 
 새 마이그레이션은 없다 — `Project`·`GitIntegration`·`DeploymentEvent`·`HealthSnapshot`·
 `LogEntry`·`Document`·`AgentRun` 기존 엔티티로 전부 충당된다.
+
+---
+
+## 12. 목표/요구사항 기반 진행률 — Gemini 연동 (개선 채택)
+
+11번 재설계 이후에도 "GitHub Actions 탭이랑 다를 게 없다"는 피드백이 남았다 — 커밋·배포
+카드는 전부 사실 나열이고, 해석(지금 얼마나 왔고 뭐가 남았나)이 없었다. GitHub이 못 하는
+그 해석 영역을 Gemini로 채운다.
+
+- **입력 경로 둘을 합쳤다.** 사용자가 목표를 직접 입력하는 경로와, 레포의 README/
+  `docs/`를 Gemini가 읽어 초안을 만드는 경로(`POST /projects/:id/goals/draft`) —
+  후자가 없으면 목표 입력 화면도 빈 칸으로 시작해 11번에서 고친 "뭐부터 해야 하나"
+  문제가 되풀이된다. 초안은 **저장되지 않는다** — 그 자리에서 응답으로만 돌아가고,
+  사용자가 검토·수정한 뒤 `PATCH /projects/:id/goals`로 확정해야 반영된다. 확정본
+  하나만 진실로 두어, 서버가 미확정 버전을 따로 관리할 필요가 없게 했다.
+- **문서 스캔 범위를 의도적으로 줄였다.** README + 루트 `docs/` 폴더의 `.md` 파일
+  1단계만(재귀 없음), 파일 최대 20개·파일당 20KB·합계 60KB에서 자른다
+  (`GitHubRepoClient.listDocs`) — 전체 레포를 훑으면 프롬프트 크기가 커밋마다 달라져
+  예측할 수 없고, 대부분의 프로젝트 문서는 README와 `docs/` 최상위에 있다.
+- **진행률 분석은 자동이 아니라 사용자가 누를 때만 돈다** (`POST
+  /projects/:id/progress/analyze`). 웹훅마다 돌리면 Gemini 호출 비용이 커밋 빈도에
+  묶이고, 진행률처럼 자주 안 바뀌는 값을 매 push마다 재계산할 이유가 없다.
+  `ProjectProgressSnapshot`은 `HealthSnapshot`과 같은 insert-only 이력이라, 나중에
+  추이를 보여주고 싶어지면 새 엔드포인트만 추가하면 된다.
+- **Gemini의 구조화 출력(`responseSchema`)을 스키마 강제에 쓰되, 응답을 다시
+  검증한다.** `env-catalog`의 `parseDockerConfig`와 같은 이유 — 스키마를 지키게
+  요청해도 모델이 범위를 벗어난 값(예: percent 150)을 낼 수 있어, `percent`는
+  0~100으로 자르고 `remaining_items`는 `title`이 빈 항목을 버린다.
+- **기존 Gemini 연동의 잠재 버그를 이번에 같이 고쳤다.** 8번 참조 — env-catalog의
+  Docker 설정 생성이 존재하지 않는 API 모양(`/v1beta/interactions`)을 쓰고 있었다.
+  올바른 `generateContent` 클라이언트(`common/llm/`)를 공용으로 만들어 env-catalog와
+  이 기능이 함께 쓰게 했다.
+- **모델 이름은 불확실하다.** 공식 문서(`ai.google.dev`)를 이 세션의 네트워크 정책상
+  직접 열람하지 못해 정확한 현재 모델 ID를 검증하지 못했다. 기존에 Vertex 경로에서
+  실제로 쓰여 온 `gemini-2.5-flash`를 공통 기본값으로 뒀다 — `GEMINI_MODEL`/
+  `VERTEX_MODEL` 환경변수로 배포 시점에 덮어쓸 수 있다.
+
+새 테이블 둘: `PROJECT_GOALS`(프로젝트당 1행, 확정된 목표), `PROJECT_PROGRESS_SNAPSHOTS`
+(insert-only 이력). `GEMINI_API_KEY`/`GCP_PROJECT_ID` 둘 다 없으면 이 기능도 env-catalog와
+같은 방식으로 503을 낸다(`UnconfiguredGeminiClient`).
 
 ---
 

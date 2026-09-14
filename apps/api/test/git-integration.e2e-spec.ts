@@ -23,7 +23,9 @@ import {
   type DeleteWebhookParams,
   type GitHubRepoClient,
   type ListCommitsParams,
+  type ListDocsParams,
   type ListWorkflowRunsParams,
+  type RepoDoc,
   type WorkflowRunSummary,
 } from '../src/modules/project-core/github-repo.client';
 
@@ -42,6 +44,8 @@ class FakeRepoClient implements GitHubRepoClient {
   lastListWorkflowRunsParams: ListWorkflowRunsParams | null = null;
   deletedRepos: DeleteRepoParams[] = [];
   failDeleteRepo: Error | null = null;
+  docs: RepoDoc[] = [];
+  lastListDocsParams: ListDocsParams | null = null;
 
   async createWebhook(params: CreateWebhookParams): Promise<{ id: number }> {
     if (this.failCreate) throw this.failCreate;
@@ -66,6 +70,11 @@ class FakeRepoClient implements GitHubRepoClient {
   async deleteRepo(params: DeleteRepoParams): Promise<void> {
     if (this.failDeleteRepo) throw this.failDeleteRepo;
     this.deletedRepos.push(params);
+  }
+
+  async listDocs(params: ListDocsParams): Promise<RepoDoc[]> {
+    this.lastListDocsParams = params;
+    return this.docs;
   }
 }
 

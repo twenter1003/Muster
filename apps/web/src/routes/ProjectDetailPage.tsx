@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { HealthIndicator } from '../components/HealthIndicator';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
-import { ApiError, apiFetch, type Page } from '../lib/api';
+import { ApiError, apiFetch, apiPatch, apiPost, type Page } from '../lib/api';
 import { EM_DASH, LOG_LEVELS, formatDateTime, type LogLevel, type Measurable } from '../lib/domain';
 import { useApi } from '../lib/useApi';
 import './ProjectDetailPage.css';
@@ -54,6 +54,24 @@ interface UsageBreakdown {
   today_tokens: string;
   month_tokens: string;
   daily: Array<{ date: string; tokens: string }>;
+}
+
+interface GoalsView {
+  content_md: string | null;
+  updated_at: string | null;
+}
+
+interface RemainingItem {
+  title: string;
+  description: string;
+}
+
+interface ProgressView {
+  percent: number;
+  summary: string;
+  remaining_items: RemainingItem[];
+  based_on_commit_sha: string | null;
+  analyzed_at: string;
 }
 
 const LEVEL_LABEL: Record<LogLevel, string> = { error: 'Error', warn: 'Warn', info: 'Info' };
@@ -220,6 +238,164 @@ function DeleteProjectDialog({
   );
 }
 
+/**
+ * 목표/요구사항 + 진행률. GitHub 원본 데이터(커밋·배포·로그)와 달리 이 카드만 해석이다 —
+ * Gemini가 문서·커밋을 읽고 만든 추정치라는 것을 항상 옆에 적어 둔다.
+ *
+ * 편집은 별도 라우트가 아니라 이 카드 안에서 펼쳐진다 — "화면은 넷뿐"이라는 IA 원칙
+ * (DESIGN_DRIFT.md 11번)을 지킨다.
+ */
+function GoalsProgressCard({ projectId }: { projectId: string }) {
+  const goals = useApi<GoalsView>(`/projects/${projectId}/goals`);
+  const progressState = useApi<{ progress: ProgressView | null }>(
+    `/projects/${projectId}/progress`,
+  );
+
+  const [editing, setEditing] = useState(false);
+  const [draftText, setDraftText] = useState('');
+  const [drafting, setDrafting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const progress = progressState.data?.progress ?? null;
+
+  const startEditing = () => {
+    setDraftText(goals.data?.content_md ?? '');
+    setError(null);
+    setEditing(true);
+  };
+
+  const generateDraft = () => {
+    setDrafting(true);
+    setError(null);
+    apiPost<{ content_md: string }>(`/projects/${projectId}/goals/draft`).then(
+      (res) => {
+        setDrafting(false);
+        setDraftText(res.content_md);
+      },
+      (err: unknown) => {
+        setDrafting(false);
+        setError(err instanceof ApiError ? `${err.message} (${err.code})` : String(err));
+      },
+    );
+  };
+
+  const saveGoals = () => {
+    if (draftText.trim() === '') return;
+    setSaving(true);
+    setError(null);
+    apiPatch<GoalsView>(`/projects/${projectId}/goals`, { content_md: draftText }).then(
+      () => {
+        setSaving(false);
+        setEditing(false);
+        goals.reload();
+      },
+      (err: unknown) => {
+        setSaving(false);
+        setError(err instanceof ApiError ? `${err.message} (${err.code})` : String(err));
+      },
+    );
+  };
+
+  const analyze = () => {
+    setAnalyzing(true);
+    setError(null);
+    apiPost<ProgressView>(`/projects/${projectId}/progress/analyze`).then(
+      () => {
+        setAnalyzing(false);
+        progressState.reload();
+      },
+      (err: unknown) => {
+        setAnalyzing(false);
+        if (err instanceof ApiError && err.code === 'CONFLICT') {
+          setError('먼저 목표를 확정해 주세요.');
+          startEditing();
+        } else {
+          setError(err instanceof ApiError ? `${err.message} (${err.code})` : String(err));
+        }
+      },
+    );
+  };
+
+  return (
+    <div className="panel detail__panel--wide">
+      <p className="panel__head">목표 · 진행률</p>
+      <div className="panel__body">
+        {editing ? (
+          <div className="detail__goals-editor">
+            <textarea
+              className="input detail__goals-textarea"
+              value={draftText}
+              disabled={drafting || saving}
+              placeholder="목표/요구사항을 마크다운으로 적는다. 또는 아래 버튼으로 AI 초안을 만든다."
+              onChange={(e) => setDraftText(e.target.value)}
+            />
+            {error !== null && (
+              <p className="error-note" role="alert">
+                {error}
+              </p>
+            )}
+            <div className="detail__goals-actions">
+              <Button type="button" onClick={generateDraft} disabled={drafting || saving}>
+                {drafting ? '만드는 중…' : 'AI 초안 생성'}
+              </Button>
+              <Button type="button" onClick={() => setEditing(false)} disabled={drafting || saving}>
+                취소
+              </Button>
+              <Button
+                type="button"
+                onClick={saveGoals}
+                disabled={drafting || saving || draftText.trim() === ''}
+              >
+                {saving ? '저장하는 중…' : '저장'}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="detail__goals-summary">
+            {goals.loading || progressState.loading ? (
+              <p className="meta">불러오는 중…</p>
+            ) : progress ? (
+              <>
+                <div className="detail__goals-bar" aria-hidden="true">
+                  <div
+                    className="detail__goals-bar-fill"
+                    style={{ width: `${progress.percent}%` }}
+                  />
+                </div>
+                <p className="detail__big">
+                  {progress.percent}% <span className="meta">AI 추정 진행률</span>
+                </p>
+                <p className="meta">{progress.summary}</p>
+                {progress.remaining_items.length > 0 && (
+                  <p className="meta">남은 항목 {progress.remaining_items.length}개</p>
+                )}
+                <p className="meta">{formatDateTime(progress.analyzed_at)} 분석</p>
+              </>
+            ) : (
+              <p className="meta">아직 분석하지 않았다.</p>
+            )}
+            {error !== null && (
+              <p className="error-note" role="alert">
+                {error}
+              </p>
+            )}
+            <div className="detail__goals-actions">
+              <Button type="button" onClick={analyze} disabled={analyzing}>
+                {analyzing ? '분석하는 중…' : '다시 분석'}
+              </Button>
+              <Button type="button" onClick={startEditing}>
+                목표 편집
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [level, setLevel] = useState<LogLevel | null>(null);
@@ -295,6 +471,8 @@ export function ProjectDetailPage() {
       </header>
 
       <div className="detail__grid">
+        <GoalsProgressCard projectId={id} />
+
         <div className="panel">
           <p className="panel__head">최근 커밋</p>
           <div className="panel__body">

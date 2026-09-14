@@ -38,6 +38,18 @@ if [[ -z "${GCS_BUCKET:-}" ]]; then
   echo "주의: GCS_BUCKET이 없어 문서 업로드가 꺼진 채로 배포된다 (scripts/setup-gcs.sh 참조)."
 fi
 
+# Gemini API 키는 선택이다 — 없어도 GCP_PROJECT_ID로 Vertex AI(ADC)를 쓴다
+# (common/llm/llm.module.ts 참조). Secret Manager에 muster-gemini-api-key가 있을 때만
+# 주입한다 — 없는 시크릿을 --set-secrets에 적으면 배포 자체가 실패한다.
+GEMINI_SECRET_FLAG=""
+if gcloud secrets describe muster-gemini-api-key --project "${PROJECT}" &>/dev/null; then
+  GEMINI_SECRET_FLAG=",GEMINI_API_KEY=muster-gemini-api-key:latest"
+  echo "Gemini API 키 시크릿 발견 — 직접 호출 경로를 쓴다(Vertex AI 폴백 대신)."
+else
+  echo "주의: muster-gemini-api-key 시크릿이 없어 Gemini는 Vertex AI(ADC) 경로로 돈다."
+  echo "  직접 키를 쓰려면: printf '%s' '<키>' | gcloud secrets create muster-gemini-api-key --data-file=- (docs/DEPLOY.md 참조)"
+fi
+
 # 커밋 해시를 태그로 쓴다. latest만 쓰면 "지금 도는 것이 어느 커밋인가"에 답할 수 없고,
 # 롤백할 때 되돌릴 대상이 없다.
 #
@@ -86,7 +98,7 @@ gcloud run deploy "${SERVICE}" \
   --timeout 60 \
   --port 8080 \
   --set-env-vars "NODE_ENV=production,SECRETS_BACKEND=gcp,GCP_PROJECT_ID=${PROJECT},FRONTEND_URL=${SERVICE_URL},API_BASE_URL=${API_BASE_URL:-${SERVICE_URL}},GCS_BUCKET=${GCS_BUCKET:-}" \
-  --set-secrets "DATABASE_URL=muster-database-url:latest,GITHUB_OAUTH_CLIENT_ID=muster-github-client-id:latest,GITHUB_OAUTH_CLIENT_SECRET=muster-github-client-secret:latest,OAUTH_STATE_SECRET=muster-oauth-state-secret:latest"
+  --set-secrets "DATABASE_URL=muster-database-url:latest,GITHUB_OAUTH_CLIENT_ID=muster-github-client-id:latest,GITHUB_OAUTH_CLIENT_SECRET=muster-github-client-secret:latest,OAUTH_STATE_SECRET=muster-oauth-state-secret:latest${GEMINI_SECRET_FLAG}"
 
 URL="$(gcloud run services describe "${SERVICE}" --project "${PROJECT}" --region "${REGION}" --format='value(status.url)')"
 echo

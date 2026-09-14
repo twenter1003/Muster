@@ -42,6 +42,16 @@ export interface ListWorkflowRunsParams extends RepoRef {
   limit?: number;
 }
 
+export interface ListDocsParams extends RepoRef {
+  accessToken: string;
+}
+
+/** "목표 초안" 기능이 프롬프트에 이어붙일 문서 하나. */
+export interface RepoDoc {
+  path: string;
+  content: string;
+}
+
 /**
  * DEPLOYMENT_EVENTS 한 행이 될 워크플로 실행 하나. `github-events.ts`의 `workflowRun()`이
  * 웹훅 페이로드에서 뽑는 것과 같은 필드·같은 판정 규칙(success/failure만, 나머지는 버림)이다 —
@@ -66,9 +76,36 @@ export interface GitHubRepoClient {
    * 레포 자체도 삭제"를 나눠 묻는 이유).
    */
   deleteRepo(params: DeleteRepoParams): Promise<void>;
+  /**
+   * "목표 초안" 기능이 읽는 문서. README + 루트 `docs/` 폴더의 `.md` 파일(1단계만) —
+   * 둘 다 없으면 빈 배열이다. 파일 수·크기 제한은 구현체(`listDocs` 주석)에 있다.
+   */
+  listDocs(params: ListDocsParams): Promise<RepoDoc[]>;
 }
 
 export const GITHUB_REPO_CLIENT = Symbol('GITHUB_REPO_CLIENT');
+
+const MAX_DOC_FILES = 20;
+const MAX_DOC_FILE_BYTES = 20_000;
+const MAX_DOC_TOTAL_BYTES = 60_000;
+
+/** 파일당·합계 크기 컷오프. `listDocs`의 의도적 축소 주석 참조. */
+function capDocs(files: RepoDoc[]): RepoDoc[] {
+  const capped: RepoDoc[] = [];
+  let totalBytes = 0;
+
+  for (const doc of files) {
+    const content =
+      doc.content.length > MAX_DOC_FILE_BYTES
+        ? doc.content.slice(0, MAX_DOC_FILE_BYTES)
+        : doc.content;
+    if (totalBytes + content.length > MAX_DOC_TOTAL_BYTES) break;
+    capped.push({ path: doc.path, content });
+    totalBytes += content.length;
+  }
+
+  return capped;
+}
 
 /**
  * 구독할 이벤트.
@@ -227,6 +264,68 @@ export class HttpGitHubRepoClient implements GitHubRepoClient {
         ? 'GitHub 레포 삭제 권한이 없습니다. 레포 소유자인지, delete_repo 권한으로 다시 로그인했는지 확인해 주세요.'
         : undefined,
     );
+  }
+
+  /**
+   * README(전용 엔드포인트라 파일명 대소문자·확장자를 몰라도 된다)와 루트 `docs/`
+   * 폴더의 `.md` 파일(1단계만, 재귀 없음)을 모은다.
+   *
+   * **의도적 축소**: 파일 최대 20개, 파일당 20KB·합계 60KB에서 자른다 — 목표 초안을
+   * 만드는 Gemini 호출의 프롬프트 크기를 예측 가능하게 유지하기 위해서다(전체 레포를
+   * 훑거나 하위 폴더까지 재귀하지 않는다). DESIGN_DRIFT.md 12번 참조.
+   */
+  async listDocs(params: ListDocsParams): Promise<RepoDoc[]> {
+    const { owner, repo, accessToken } = params;
+    const files: RepoDoc[] = [];
+
+    const readme = await this.fetchContentFile(owner, repo, accessToken, 'readme');
+    if (readme) files.push(readme);
+
+    const listRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/docs`, {
+      headers: this.headers(accessToken),
+    });
+    if (listRes.status !== 404) {
+      if (!listRes.ok) throw await this.toApiException(listRes, '문서 목록 조회에 실패했습니다.');
+
+      const entries = (await listRes.json()) as Array<{
+        type?: string;
+        name?: string;
+        path?: string;
+      }>;
+      const mdFiles = Array.isArray(entries)
+        ? entries.filter((e) => e.type === 'file' && e.name?.toLowerCase().endsWith('.md'))
+        : [];
+
+      for (const entry of mdFiles) {
+        if (files.length >= MAX_DOC_FILES || !entry.path) break;
+        const doc = await this.fetchContentFile(owner, repo, accessToken, `contents/${entry.path}`);
+        if (doc) files.push(doc);
+      }
+    }
+
+    return capDocs(files);
+  }
+
+  /** GitHub Contents API에서 파일 하나(README 또는 특정 경로)를 읽는다. 없으면 null. */
+  private async fetchContentFile(
+    owner: string,
+    repo: string,
+    accessToken: string,
+    apiPath: string,
+  ): Promise<RepoDoc | null> {
+    const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/${encodeURI(apiPath)}`, {
+      headers: this.headers(accessToken),
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) throw await this.toApiException(res, '문서 조회에 실패했습니다.');
+
+    const body = (await res.json()) as { path?: string; content?: string; encoding?: string };
+    if (typeof body.content !== 'string' || body.encoding !== 'base64') return null;
+
+    return {
+      path: body.path ?? apiPath,
+      content: Buffer.from(body.content, 'base64').toString('utf-8'),
+    };
   }
 
   private headers(accessToken: string): Record<string, string> {

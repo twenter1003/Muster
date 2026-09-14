@@ -327,4 +327,93 @@ describe('HttpGitHubRepoClient (실제 요청 형태)', () => {
       }
     });
   });
+
+  describe('listDocs', () => {
+    const listParams = { owner: 'octocat', repo: 'hello-world', accessToken: 'gho_tok' };
+
+    const contentFile = (path: string, text: string) => ({
+      path,
+      content: Buffer.from(text, 'utf-8').toString('base64'),
+      encoding: 'base64',
+    });
+
+    it('README 전용 엔드포인트를 먼저 부른다', async () => {
+      fetchMock.mockResolvedValueOnce(respond(200, contentFile('README.md', '# 제목')));
+      fetchMock.mockResolvedValueOnce(respond(404));
+
+      await client.listDocs(listParams);
+
+      expect(fetchMock.mock.calls[0][0]).toBe(
+        'https://api.github.com/repos/octocat/hello-world/readme',
+      );
+    });
+
+    it('README와 docs/ 없으면 빈 배열이다', async () => {
+      fetchMock.mockResolvedValueOnce(respond(404));
+      fetchMock.mockResolvedValueOnce(respond(404));
+
+      await expect(client.listDocs(listParams)).resolves.toEqual([]);
+    });
+
+    it('base64 content를 utf-8 텍스트로 디코드한다', async () => {
+      fetchMock.mockResolvedValueOnce(respond(200, contentFile('README.md', '# 제목입니다')));
+      fetchMock.mockResolvedValueOnce(respond(404));
+
+      const [doc] = await client.listDocs(listParams);
+      expect(doc).toEqual({ path: 'README.md', content: '# 제목입니다' });
+    });
+
+    it('docs/ 폴더에서 .md 파일만 추가로 읽는다 (디렉터리·비-md는 건너뛴다)', async () => {
+      fetchMock.mockResolvedValueOnce(respond(404)); // README 없음
+      fetchMock.mockResolvedValueOnce(
+        respond(200, [
+          { type: 'file', name: 'architecture.md', path: 'docs/architecture.md' },
+          { type: 'dir', name: 'assets', path: 'docs/assets' },
+          { type: 'file', name: 'diagram.png', path: 'docs/diagram.png' },
+        ]),
+      );
+      fetchMock.mockResolvedValueOnce(
+        respond(200, contentFile('docs/architecture.md', '설계 문서')),
+      );
+
+      const docs = await client.listDocs(listParams);
+      expect(docs).toEqual([{ path: 'docs/architecture.md', content: '설계 문서' }]);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    it('docs/ 목록 조회가 404면 README만 남는다', async () => {
+      fetchMock.mockResolvedValueOnce(respond(200, contentFile('README.md', '내용')));
+      fetchMock.mockResolvedValueOnce(respond(404));
+
+      const docs = await client.listDocs(listParams);
+      expect(docs).toEqual([{ path: 'README.md', content: '내용' }]);
+    });
+
+    it('파일 하나가 20KB를 넘으면 잘라낸다', async () => {
+      const huge = 'a'.repeat(25_000);
+      fetchMock.mockResolvedValueOnce(respond(200, contentFile('README.md', huge)));
+      fetchMock.mockResolvedValueOnce(respond(404));
+
+      const [doc] = await client.listDocs(listParams);
+      expect(doc.content.length).toBe(20_000);
+    });
+
+    it('합계가 60KB를 넘기면 그 이후 파일은 버린다', async () => {
+      fetchMock.mockResolvedValueOnce(respond(200, contentFile('README.md', 'a'.repeat(20_000))));
+      fetchMock.mockResolvedValueOnce(
+        respond(200, [
+          { type: 'file', name: 'a.md', path: 'docs/a.md' },
+          { type: 'file', name: 'b.md', path: 'docs/b.md' },
+          { type: 'file', name: 'c.md', path: 'docs/c.md' },
+        ]),
+      );
+      fetchMock.mockResolvedValueOnce(respond(200, contentFile('docs/a.md', 'a'.repeat(20_000))));
+      fetchMock.mockResolvedValueOnce(respond(200, contentFile('docs/b.md', 'a'.repeat(20_000))));
+      fetchMock.mockResolvedValueOnce(respond(200, contentFile('docs/c.md', 'a'.repeat(20_000))));
+
+      const docs = await client.listDocs(listParams);
+      // README + a.md + b.md = 60KB 정확히. c.md를 더하면 넘으므로 버린다.
+      expect(docs.map((d) => d.path)).toEqual(['README.md', 'docs/a.md', 'docs/b.md']);
+    });
+  });
 });

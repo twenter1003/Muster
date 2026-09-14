@@ -19,6 +19,12 @@ Policy Gate가 **실제 LLM 출력에서 진짜 위험을 잡았다**:
 검사 도구는 API 이미지에 넣었다 — Trivy 0.74.0, Conftest 0.69.0. 호스트 설치 불필요.
 커스텀 규칙은 `apps/api/policies/docker.rego` (마운트돼 있어 재빌드 없이 고칠 수 있다).
 
+> **2026-09-14 정정**: 아래 "Gemini API" 항목과 "LLM 경로 구성"의 Interactions API 서술은
+> 근거를 다시 확인할 수 없었다 — `generateContent`가 실제로는 계속 유효한 엔드포인트였고,
+> 그 전제로 짠 코드(`env-catalog/gemini-docker-config.generator.ts`, 이제 삭제)는 존재하지
+> 않는 API 모양을 쓰고 있었다. 아래 "실동작 검증"은 이 기록이 남아 있는 한 신뢰하지 말 것.
+> 바로잡은 내용은 [DESIGN_DRIFT.md](DESIGN_DRIFT.md) 8번 참조.
+
 ## 이번 페이즈에서 크게 데인 것: 낡은 지식
 
 두 번 연속 기억으로 짰다가 틀렸다. **새 기술을 쓸 때는 웹으로 현행을 먼저 확인할 것.**

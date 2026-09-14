@@ -120,5 +120,8 @@ export const AUDIT_ACTIONS = [
   // 유일한 단서다.
   'invite.create',
   'invite.revoke',
+  // 목표/요구사항은 진행률 판정의 근거가 되므로 누가 언제 확정했는지 남긴다.
+  'project_goals.update',
+  'project_progress.analyze',
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

@@ -90,6 +90,19 @@ for s in muster-database-url muster-github-client-id muster-github-client-secret
 done
 ```
 
+**Gemini API 키는 선택이다.** 없어도 `GCP_PROJECT_ID`로 Vertex AI(ADC)를 쓴다
+(`common/llm/llm.module.ts` 참조, DESIGN_DRIFT.md 12번). AI Studio 키를 직접 쓰고
+싶으면(로컬 테스트에서 이미 쓰고 있는 키를 배포본에도 쓰고 싶을 때) 시크릿을 만들고
+같은 방식으로 권한을 준다 — `scripts/deploy-cloudrun.sh`가 이 시크릿이 있으면 자동으로
+집어 넣는다(없으면 조용히 건너뛰고 Vertex로 돈다):
+
+```bash
+printf '%s' '<Gemini API 키>' | gcloud secrets create muster-gemini-api-key --data-file=-
+gcloud secrets add-iam-policy-binding muster-gemini-api-key \
+  --member="serviceAccount:${NUM}-compute@developer.gserviceaccount.com" \
+  --role=roles/secretmanager.secretAccessor
+```
+
 **다음 것은 선택이 아니다.** 위의 `secretAccessor` 부여는 이름을 적어 준 시크릿 넷에만
 걸린다. 그런데 앱은 로그인·레포 연동 과정에서 시크릿을 **스스로 만든다**
 (`github-token-<사용자id>`, `webhook-secret-<프로젝트id>`) — 그것들에는 아무 바인딩도

@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { join } from 'node:path';
 import {
   EnvConfigsController,
@@ -9,62 +8,35 @@ import {
 import { EnvTemplatesService } from './env-templates.service';
 import { EnvConfigsService } from './env-configs.service';
 import { DOCKER_CONFIG_GENERATOR, type DockerConfigGenerator } from './docker-config-generator';
-import { GeminiDockerConfigGenerator } from './gemini-docker-config.generator';
-import { VertexDockerConfigGenerator } from './vertex-docker-config.generator';
+import { GeminiDockerConfigGenerator } from './docker-config.generator';
 import { POLICY_GATE, type PolicyGate } from './policy-gate';
 import { ENV_CONFIG_EXECUTOR } from './env-config-executor';
 import { GitHubActionsExecutor } from './github-actions.executor';
 import { EnvWorkflowInstaller } from './env-workflow-installer';
 import { AuthModule } from '../auth/auth.module';
 import { CliPolicyGate } from './cli-policy-gate';
-import { ApiException } from '../../common/errors/api.exception';
-import { ErrorCode } from '../../common/errors/error-codes';
-
-/**
- * API 키가 없는 환경용 바인딩. 서버는 뜨되 환경 구성 생성만 503을 낸다 —
- * GCS_BUCKET이 없을 때 DocStore만 막는 것과 같은 방식이다.
- */
-class UnconfiguredGenerator implements DockerConfigGenerator {
-  generate(): never {
-    throw new ApiException(
-      ErrorCode.INTERNAL,
-      'GEMINI_API_KEY도 GCP_PROJECT_ID도 없어 도커 설정을 생성할 수 없습니다.',
-      503,
-    );
-  }
-}
+import { LlmModule } from '../../common/llm/llm.module';
+import { GEMINI_CLIENT, type GeminiClient } from '../../common/llm/gemini-client';
 
 /**
  * EnvCatalog — 스택 템플릿, 환경 구성 생성(LLM), Policy Gate.
  * 설계서 Part 1 §3.2 / Part 4 §5.
+ *
+ * Gemini 백엔드 선택(AI Studio API 키 vs Vertex AI ADC vs 미구성)은 `LlmModule`이
+ * 전담한다 — 여기서는 그 결과인 `GeminiClient`만 받아 도커 설정 프롬프트를 씌운다.
  */
 @Module({
   // 실행 어댑터가 사용자의 GitHub 액세스 토큰을 쓴다(만료 시 갱신은 그쪽 책임이다).
-  imports: [AuthModule],
+  imports: [AuthModule, LlmModule],
   controllers: [EnvTemplatesController, ProjectEnvConfigsController, EnvConfigsController],
   providers: [
     EnvTemplatesService,
     EnvConfigsService,
     {
       provide: DOCKER_CONFIG_GENERATOR,
-      inject: [ConfigService],
-      useFactory: (config: ConfigService): DockerConfigGenerator => {
-        const model = config.get<string>('GEMINI_MODEL') ?? 'gemini-3.5-flash';
-
-        // 기본 경로는 Gemini API(Interactions)다.
-        const apiKey = config.get<string>('GEMINI_API_KEY');
-        if (apiKey) return new GeminiDockerConfigGenerator(apiKey, model);
-
-        // 키가 없으면 Vertex AI로 넘어간다. 같은 모델을 ADC로 부르므로 키를 두지 않는
-        // 환경(Cloud Run 등)에서도 동작한다. 모델 가용성이 달라 기본 모델도 다르다.
-        const projectId = config.get<string>('GCP_PROJECT_ID');
-        if (!projectId) return new UnconfiguredGenerator();
-        return new VertexDockerConfigGenerator(
-          projectId,
-          config.get<string>('VERTEX_LOCATION') ?? 'us-central1',
-          config.get<string>('VERTEX_MODEL') ?? 'gemini-2.5-flash',
-        );
-      },
+      inject: [GEMINI_CLIENT],
+      useFactory: (client: GeminiClient): DockerConfigGenerator =>
+        new GeminiDockerConfigGenerator(client),
     },
     // 실행은 사용자 레포의 GitHub Actions가 한다. 근거는 github-actions.executor.ts 주석.
     { provide: ENV_CONFIG_EXECUTOR, useClass: GitHubActionsExecutor },
