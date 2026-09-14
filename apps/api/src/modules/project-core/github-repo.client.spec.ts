@@ -173,4 +173,158 @@ describe('HttpGitHubRepoClient (실제 요청 형태)', () => {
       await expect(client.deleteWebhook(del)).rejects.toMatchObject({ code: 'FORBIDDEN' });
     });
   });
+
+  describe('listCommits', () => {
+    const listParams = { owner: 'octocat', repo: 'hello-world', accessToken: 'gho_tok' };
+
+    it('문서에 명시된 경로로 GET한다 (기본 5개)', async () => {
+      fetchMock.mockResolvedValue(respond(200, []));
+      await client.listCommits(listParams);
+
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toBe('https://api.github.com/repos/octocat/hello-world/commits?per_page=5');
+      expect(init.method).toBeUndefined(); // GET은 method를 생략해도 된다
+    });
+
+    it('limit을 넘기면 per_page에 반영한다', async () => {
+      fetchMock.mockResolvedValue(respond(200, []));
+      await client.listCommits({ ...listParams, limit: 10 });
+
+      expect(fetchMock.mock.calls[0][0]).toContain('per_page=10');
+    });
+
+    it('메시지 첫 줄만 남기고 필요한 필드만 뽑는다', async () => {
+      fetchMock.mockResolvedValue(
+        respond(200, [
+          {
+            sha: 'a3f91c2',
+            html_url: 'https://github.com/octocat/hello-world/commit/a3f91c2',
+            commit: {
+              message: 'fix: 결제 모듈 타임아웃 처리\n\n상세 설명 본문',
+              author: { date: '2026-09-13T10:00:00Z' },
+            },
+          },
+        ]),
+      );
+
+      expect(await client.listCommits(listParams)).toEqual([
+        {
+          sha: 'a3f91c2',
+          message: 'fix: 결제 모듈 타임아웃 처리',
+          authored_at: '2026-09-13T10:00:00Z',
+          url: 'https://github.com/octocat/hello-world/commit/a3f91c2',
+        },
+      ]);
+    });
+
+    it('커밋이 없는 빈 레포(409)는 빈 배열이다', async () => {
+      fetchMock.mockResolvedValue(respond(409, { message: 'Git Repository is empty.' }));
+      expect(await client.listCommits(listParams)).toEqual([]);
+    });
+
+    it('그 외 실패는 502로 변환한다', async () => {
+      fetchMock.mockResolvedValue(respond(500, {}));
+      await expect(client.listCommits(listParams)).rejects.toMatchObject({ status: 502 });
+    });
+  });
+
+  describe('listWorkflowRuns', () => {
+    const listParams = { owner: 'octocat', repo: 'hello-world', accessToken: 'gho_tok' };
+
+    it('완료된 실행만 요청한다 (기본 20개)', async () => {
+      fetchMock.mockResolvedValue(respond(200, { workflow_runs: [] }));
+      await client.listWorkflowRuns(listParams);
+
+      const [url] = fetchMock.mock.calls[0];
+      expect(url).toBe(
+        'https://api.github.com/repos/octocat/hello-world/actions/runs?per_page=20&status=completed',
+      );
+    });
+
+    it('limit을 넘기면 per_page에 반영한다', async () => {
+      fetchMock.mockResolvedValue(respond(200, { workflow_runs: [] }));
+      await client.listWorkflowRuns({ ...listParams, limit: 5 });
+
+      expect(fetchMock.mock.calls[0][0]).toContain('per_page=5');
+    });
+
+    it('success/failure만 남기고 나머지 결론은 버린다', async () => {
+      fetchMock.mockResolvedValue(
+        respond(200, {
+          workflow_runs: [
+            { conclusion: 'success', head_sha: 'a1', updated_at: '2026-09-10T00:00:00Z' },
+            { conclusion: 'timed_out', head_sha: 'a2', updated_at: '2026-09-10T00:00:00Z' },
+            { conclusion: 'cancelled', head_sha: 'a3', updated_at: '2026-09-10T00:00:00Z' },
+            { conclusion: 'skipped', head_sha: 'a4', updated_at: '2026-09-10T00:00:00Z' },
+          ],
+        }),
+      );
+
+      const rows = await client.listWorkflowRuns(listParams);
+      expect(rows.map((r) => [r.commit_sha, r.status])).toEqual([
+        ['a1', 'success'],
+        // timed_out은 failure로 합쳐진다 — 웹훅 인터프리터와 같은 규칙이다.
+        ['a2', 'failure'],
+      ]);
+    });
+
+    it('커밋 시각이 종료 시각보다 늦으면 버린다(지어내지 않는다)', async () => {
+      fetchMock.mockResolvedValue(
+        respond(200, {
+          workflow_runs: [
+            {
+              conclusion: 'success',
+              head_sha: 'a1',
+              updated_at: '2026-09-10T00:00:00Z',
+              head_commit: { timestamp: '2026-09-11T00:00:00Z' },
+            },
+          ],
+        }),
+      );
+
+      const [row] = await client.listWorkflowRuns(listParams);
+      expect(row.committed_at).toBeNull();
+    });
+
+    it('5xx면 502로 변환한다', async () => {
+      fetchMock.mockResolvedValue(respond(500, {}));
+      await expect(client.listWorkflowRuns(listParams)).rejects.toMatchObject({ status: 502 });
+    });
+  });
+
+  describe('deleteRepo', () => {
+    const del = { owner: 'octocat', repo: 'hello-world', accessToken: 'gho_tok' };
+
+    it('문서에 명시된 경로로 DELETE한다', async () => {
+      fetchMock.mockResolvedValue(respond(204));
+      await client.deleteRepo(del);
+
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toBe('https://api.github.com/repos/octocat/hello-world');
+      expect(init.method).toBe('DELETE');
+    });
+
+    it('204면 성공이다', async () => {
+      fetchMock.mockResolvedValue(respond(204));
+      await expect(client.deleteRepo(del)).resolves.toBeUndefined();
+    });
+
+    it('이미 지워진 레포(404)도 성공으로 본다', async () => {
+      fetchMock.mockResolvedValue(respond(404, { message: 'Not Found' }));
+      await expect(client.deleteRepo(del)).resolves.toBeUndefined();
+    });
+
+    it('403이면 delete_repo 권한을 언급하는 메시지로 막는다', async () => {
+      fetchMock.mockResolvedValue(respond(403, { message: 'Resource not accessible' }));
+
+      try {
+        await client.deleteRepo(del);
+        throw new Error('던졌어야 합니다');
+      } catch (e) {
+        expect((e as { code: string }).code).toBe('FORBIDDEN');
+        const body = JSON.stringify((e as { getResponse(): unknown }).getResponse());
+        expect(body).toContain('delete_repo');
+      }
+    });
+  });
 });

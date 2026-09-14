@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import type { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
+import { ApiException } from '../src/common/errors/api.exception';
 import { DATA_SOURCE } from '../src/database/database.module';
 import { Session, User } from '../src/database/entities';
 import { SECRET_STORE, type SecretStore } from '../src/common/secrets/secret-store';
@@ -11,13 +12,19 @@ import {
   GITHUB_OAUTH_CLIENT,
   type GitHubOAuthClient,
   type GitHubProfile,
+  type GitHubRepoSummary,
 } from '../src/modules/auth/github-oauth.client';
 import { serializeTokenSet, type GitHubTokenSet } from '../src/modules/auth/github-token-set';
 import {
   GITHUB_REPO_CLIENT,
+  type CommitSummary,
   type CreateWebhookParams,
+  type DeleteRepoParams,
   type DeleteWebhookParams,
   type GitHubRepoClient,
+  type ListCommitsParams,
+  type ListWorkflowRunsParams,
+  type WorkflowRunSummary,
 } from '../src/modules/project-core/github-repo.client';
 
 /**
@@ -29,6 +36,12 @@ class FakeRepoClient implements GitHubRepoClient {
   deleted: DeleteWebhookParams[] = [];
   nextId = 1000;
   failCreate: Error | null = null;
+  commits: CommitSummary[] = [];
+  lastListCommitsParams: ListCommitsParams | null = null;
+  workflowRuns: WorkflowRunSummary[] = [];
+  lastListWorkflowRunsParams: ListWorkflowRunsParams | null = null;
+  deletedRepos: DeleteRepoParams[] = [];
+  failDeleteRepo: Error | null = null;
 
   async createWebhook(params: CreateWebhookParams): Promise<{ id: number }> {
     if (this.failCreate) throw this.failCreate;
@@ -39,6 +52,21 @@ class FakeRepoClient implements GitHubRepoClient {
   async deleteWebhook(params: DeleteWebhookParams): Promise<void> {
     this.deleted.push(params);
   }
+
+  async listCommits(params: ListCommitsParams): Promise<CommitSummary[]> {
+    this.lastListCommitsParams = params;
+    return this.commits;
+  }
+
+  async listWorkflowRuns(params: ListWorkflowRunsParams): Promise<WorkflowRunSummary[]> {
+    this.lastListWorkflowRunsParams = params;
+    return this.workflowRuns;
+  }
+
+  async deleteRepo(params: DeleteRepoParams): Promise<void> {
+    if (this.failDeleteRepo) throw this.failDeleteRepo;
+    this.deletedRepos.push(params);
+  }
 }
 
 /**
@@ -48,6 +76,7 @@ class FakeOAuthClient implements GitHubOAuthClient {
   refreshed: string[] = [];
   failRefresh = false;
   nextAccessToken = 'gho_refreshed_token';
+  repos: GitHubRepoSummary[] = [];
 
   async exchangeCode(): Promise<GitHubTokenSet> {
     throw new Error('이 테스트는 로그인 콜백을 타지 않는다');
@@ -65,6 +94,10 @@ class FakeOAuthClient implements GitHubOAuthClient {
 
   async fetchProfile(): Promise<GitHubProfile> {
     throw new Error('이 테스트는 프로필 조회를 타지 않는다');
+  }
+
+  async listRepos(): Promise<GitHubRepoSummary[]> {
+    return this.repos;
   }
 }
 
@@ -420,6 +453,372 @@ describe('Phase 3 — GitHub 레포 연동 (e2e)', () => {
     it('인증 없이는 401이다', async () => {
       const target = await newProject('git-unauth');
       await http().get(`/api/v1/projects/${target}/git-integration`).expect(401);
+    });
+  });
+
+  /** 레포 가져오기 화면의 원천. GitHub 응답을 그대로 옮기되 already_imported를 우리가 계산해 얹는다. */
+  describe('GET /github/repos', () => {
+    afterEach(() => {
+      oauth.repos = [];
+    });
+
+    it('GitHub 레포 목록에 이미 가져온 레포 표시를 얹어 돌려준다', async () => {
+      // '등록' describe에서 이미 이 프로젝트에 octocat/hello-world를 연동해 두었다.
+      oauth.repos = [
+        {
+          full_name: 'octocat/hello-world',
+          private: false,
+          default_branch: 'main',
+          pushed_at: '2026-09-01T00:00:00Z',
+          language: 'TypeScript',
+        },
+        {
+          full_name: 'octocat/never-imported',
+          private: true,
+          default_branch: 'main',
+          pushed_at: null,
+          language: null,
+        },
+      ];
+
+      const res = await http().get('/api/v1/github/repos').set(auth()).expect(200);
+
+      expect(res.body.items).toEqual([
+        expect.objectContaining({ full_name: 'octocat/hello-world', already_imported: true }),
+        expect.objectContaining({ full_name: 'octocat/never-imported', already_imported: false }),
+      ]);
+    });
+
+    it('다른 사용자의 연동은 already_imported에 영향을 주지 않는다', async () => {
+      const outsiderRepo = ds.getRepository(User);
+      const outsider = await outsiderRepo.save(
+        outsiderRepo.create({ github_login: `repos-outsider-${Date.now()}`, email: null }),
+      );
+      const outsiderToken = (await app.get(SessionService).issue(outsider.id)).token;
+      const ref = await secrets.put(`github-token-${outsider.id}`, 'gho_outsider_token');
+      await outsiderRepo.update({ id: outsider.id }, { github_token_ref: ref });
+
+      oauth.repos = [
+        {
+          full_name: 'octocat/hello-world',
+          private: false,
+          default_branch: 'main',
+          pushed_at: null,
+          language: null,
+        },
+      ];
+
+      const res = await http()
+        .get('/api/v1/github/repos')
+        .set({ Authorization: `Bearer ${outsiderToken}` })
+        .expect(200);
+
+      expect(res.body.items).toEqual([
+        expect.objectContaining({ full_name: 'octocat/hello-world', already_imported: false }),
+      ]);
+
+      await secrets.delete(ref);
+      await ds.getRepository(Session).delete({ user_id: outsider.id });
+      await outsiderRepo.delete({ id: outsider.id });
+    });
+
+    it('인증 없이는 401이다', async () => {
+      await http().get('/api/v1/github/repos').expect(401);
+    });
+  });
+
+  describe('POST /projects/import', () => {
+    afterEach(() => {
+      github.failCreate = null;
+    });
+
+    it('선택한 레포마다 프로젝트를 만들고 연동한다', async () => {
+      const res = await http()
+        .post('/api/v1/projects/import')
+        .set(auth())
+        .send({ repos: ['octocat/import-a', 'octocat/import-b'] })
+        .expect(200);
+
+      expect(res.body.items).toEqual([
+        expect.objectContaining({ full_name: 'octocat/import-a', status: 'created' }),
+        expect.objectContaining({ full_name: 'octocat/import-b', status: 'created' }),
+      ]);
+
+      const a = await http()
+        .get(`/api/v1/projects/${res.body.items[0].project_id}`)
+        .set(auth())
+        .expect(200);
+      expect(a.body.name).toBe('import-a');
+
+      expect(github.created.map((c) => `${c.owner}/${c.repo}`)).toEqual(
+        expect.arrayContaining(['octocat/import-a', 'octocat/import-b']),
+      );
+    });
+
+    it('한 레포의 웹훅 등록이 실패해도 나머지는 성공한다', async () => {
+      let call = 0;
+      const real = github.createWebhook.bind(github);
+      github.createWebhook = async (params) => {
+        call += 1;
+        if (call === 1) throw new Error('GitHub 다운');
+        return real(params);
+      };
+
+      const res = await http()
+        .post('/api/v1/projects/import')
+        .set(auth())
+        .send({ repos: ['octocat/fails-first', 'octocat/succeeds-second'] })
+        .expect(200);
+
+      expect(res.body.items[0]).toMatchObject({
+        full_name: 'octocat/fails-first',
+        status: 'failed',
+      });
+      expect(res.body.items[0].project_id).toBeDefined();
+      expect(res.body.items[1]).toMatchObject({
+        full_name: 'octocat/succeeds-second',
+        status: 'created',
+      });
+
+      github.createWebhook = real;
+    });
+
+    it('빈 배열은 400이다', async () => {
+      await http().post('/api/v1/projects/import').set(auth()).send({ repos: [] }).expect(400);
+    });
+
+    it('owner/repo 형식이 아니면 400이다', async () => {
+      await http()
+        .post('/api/v1/projects/import')
+        .set(auth())
+        .send({ repos: ['not-a-valid-entry'] })
+        .expect(400);
+    });
+
+    it('인증 없이는 401이다', async () => {
+      await http()
+        .post('/api/v1/projects/import')
+        .send({ repos: ['octocat/x'] })
+        .expect(401);
+    });
+  });
+
+  describe('GET /projects/:id/commits', () => {
+    afterEach(() => {
+      github.commits = [];
+    });
+
+    it('연동된 레포의 최근 커밋을 그대로 돌려준다', async () => {
+      github.commits = [
+        {
+          sha: 'a3f91c2',
+          message: 'fix: 결제 모듈 타임아웃 처리',
+          authored_at: '2026-09-13T10:00:00Z',
+          url: 'https://github.com/octocat/hello-world/commit/a3f91c2',
+        },
+      ];
+
+      const res = await http().get(`/api/v1/projects/${projectId}/commits`).set(auth()).expect(200);
+
+      expect(res.body.items).toEqual(github.commits);
+      expect(github.lastListCommitsParams).toMatchObject({
+        owner: 'octocat',
+        repo: 'hello-world',
+        accessToken: 'gho_user_token',
+      });
+    });
+
+    it('연동이 없으면 빈 배열이다 (GitHub을 부르지 않는다)', async () => {
+      const p = await newProject('commits-no-integration');
+      github.lastListCommitsParams = null;
+
+      const res = await http().get(`/api/v1/projects/${p}/commits`).set(auth()).expect(200);
+
+      expect(res.body.items).toEqual([]);
+      expect(github.lastListCommitsParams).toBeNull();
+    });
+
+    it('인증 없이는 401이다', async () => {
+      await http().get(`/api/v1/projects/${projectId}/commits`).expect(401);
+    });
+  });
+
+  describe('연동 시 워크플로 이력 백필', () => {
+    afterEach(() => {
+      github.workflowRuns = [];
+    });
+
+    it('연동 직후 과거 워크플로 실행을 DEPLOYMENT_EVENTS로 채운다', async () => {
+      github.workflowRuns = [
+        {
+          status: 'success',
+          commit_sha: 'a3f91c2',
+          committed_at: '2026-09-10T09:00:00Z',
+          occurred_at: '2026-09-10T09:05:00Z',
+        },
+        {
+          status: 'failure',
+          commit_sha: 'b1c2d3e',
+          committed_at: null,
+          occurred_at: '2026-09-11T09:05:00Z',
+        },
+      ];
+
+      const p = await newProject('backfill-target');
+      await http()
+        .post(`/api/v1/projects/${p}/git-integration`)
+        .set(auth())
+        .send({ repo_url: 'https://github.com/octocat/backfill-me' })
+        .expect(201);
+
+      expect(github.lastListWorkflowRunsParams).toMatchObject({
+        owner: 'octocat',
+        repo: 'backfill-me',
+        accessToken: 'gho_user_token',
+      });
+
+      const res = await http()
+        .get(`/api/v1/projects/${p}/deployment-events`)
+        .set(auth())
+        .expect(200);
+
+      expect(res.body.items).toEqual([
+        expect.objectContaining({ kind: 'workflow_run', status: 'failure', commit_sha: 'b1c2d3e' }),
+        expect.objectContaining({ kind: 'workflow_run', status: 'success', commit_sha: 'a3f91c2' }),
+      ]);
+    });
+
+    it('백필이 실패해도 연동 자체는 성공한다', async () => {
+      const originalList = github.listWorkflowRuns.bind(github);
+      github.listWorkflowRuns = async () => {
+        throw new Error('GitHub 다운');
+      };
+
+      const p = await newProject('backfill-fails');
+      await http()
+        .post(`/api/v1/projects/${p}/git-integration`)
+        .set(auth())
+        .send({ repo_url: 'https://github.com/octocat/backfill-fails' })
+        .expect(201);
+
+      const res = await http()
+        .get(`/api/v1/projects/${p}/deployment-events`)
+        .set(auth())
+        .expect(200);
+      expect(res.body.items).toEqual([]);
+
+      github.listWorkflowRuns = originalList;
+    });
+
+    it('워크플로 실행이 없으면 조용히 아무것도 넣지 않는다', async () => {
+      const p = await newProject('backfill-empty');
+      await http()
+        .post(`/api/v1/projects/${p}/git-integration`)
+        .set(auth())
+        .send({ repo_url: 'https://github.com/octocat/backfill-empty' })
+        .expect(201);
+
+      const res = await http()
+        .get(`/api/v1/projects/${p}/deployment-events`)
+        .set(auth())
+        .expect(200);
+      expect(res.body.items).toEqual([]);
+    });
+  });
+
+  /**
+   * "레포 가져오기"의 반대 방향 — 프로젝트를 지우면서 연동도 함께 정리되는지.
+   * 안 그러면 GitHub에 웹훅이 고아로 남아 지워진 프로젝트로 이벤트를 계속 보낸다.
+   */
+  describe('DELETE /projects/:id — 연동 정리', () => {
+    it('연동된 레포의 웹훅을 지우고 나서 프로젝트를 삭제한다', async () => {
+      const p = await newProject('delete-with-integration');
+      await http()
+        .post(`/api/v1/projects/${p}/git-integration`)
+        .set(auth())
+        .send({ repo_url: 'https://github.com/octocat/delete-me' })
+        .expect(201);
+
+      const before = (await ds.query(
+        `SELECT webhook_id FROM git_integrations WHERE project_id = $1`,
+        [p],
+      )) as Array<{ webhook_id: string }>;
+      const deletedBefore = github.deleted.length;
+
+      await http().delete(`/api/v1/projects/${p}`).set(auth()).expect(204);
+
+      expect(github.deleted.at(-1)).toMatchObject({
+        owner: 'octocat',
+        repo: 'delete-me',
+        hookId: Number(before[0].webhook_id),
+      });
+      expect(github.deleted.length).toBe(deletedBefore + 1);
+
+      const rows = (await ds.query(`SELECT id FROM git_integrations WHERE project_id = $1`, [
+        p,
+      ])) as unknown[];
+      expect(rows).toHaveLength(0);
+
+      await http().get(`/api/v1/projects/${p}`).set(auth()).expect(404);
+    });
+
+    it('연동이 없는 프로젝트는 GitHub을 부르지 않고 그냥 지워진다', async () => {
+      const p = await newProject('delete-without-integration');
+      const deletedBefore = github.deleted.length;
+
+      await http().delete(`/api/v1/projects/${p}`).set(auth()).expect(204);
+
+      expect(github.deleted.length).toBe(deletedBefore);
+    });
+
+    it('?delete_repo=true면 웹훅 대신 레포 자체를 지운다', async () => {
+      const p = await newProject('delete-repo-itself');
+      await http()
+        .post(`/api/v1/projects/${p}/git-integration`)
+        .set(auth())
+        .send({ repo_url: 'https://github.com/octocat/nuke-me' })
+        .expect(201);
+
+      const deletedWebhooksBefore = github.deleted.length;
+
+      await http().delete(`/api/v1/projects/${p}?delete_repo=true`).set(auth()).expect(204);
+
+      expect(github.deletedRepos.at(-1)).toMatchObject({
+        owner: 'octocat',
+        repo: 'nuke-me',
+        accessToken: 'gho_user_token',
+      });
+      // 레포가 사라지면 웹훅도 GitHub 쪽에서 같이 없어진다 — deleteWebhook은 안 부른다.
+      expect(github.deleted.length).toBe(deletedWebhooksBefore);
+
+      const rows = (await ds.query(`SELECT id FROM git_integrations WHERE project_id = $1`, [
+        p,
+      ])) as unknown[];
+      expect(rows).toHaveLength(0);
+    });
+
+    it('delete_repo 스코프가 없으면 403이고 프로젝트도 지워지지 않는다', async () => {
+      const p = await newProject('delete-repo-forbidden');
+      await http()
+        .post(`/api/v1/projects/${p}/git-integration`)
+        .set(auth())
+        .send({ repo_url: 'https://github.com/octocat/no-scope' })
+        .expect(201);
+
+      github.failDeleteRepo = ApiException.forbidden(
+        'GitHub 레포 삭제 권한이 없습니다. delete_repo 권한으로 다시 로그인해 주세요.',
+      );
+
+      await http().delete(`/api/v1/projects/${p}?delete_repo=true`).set(auth()).expect(403);
+
+      github.failDeleteRepo = null;
+
+      // 실패했으면 연동도 프로젝트도 그대로 남아 있어야 한다 — 반쯤 지워진 상태가 없다.
+      const rows = (await ds.query(`SELECT id FROM git_integrations WHERE project_id = $1`, [
+        p,
+      ])) as unknown[];
+      expect(rows).toHaveLength(1);
+      await http().get(`/api/v1/projects/${p}`).set(auth()).expect(200);
     });
   });
 });

@@ -4,7 +4,11 @@ import { InjectRepository } from '../../database/inject-repository.decorator';
 import { User } from '../../database/entities';
 import { SECRET_STORE, type SecretStore } from '../../common/secrets/secret-store';
 import { ApiException } from '../../common/errors/api.exception';
-import { GITHUB_OAUTH_CLIENT, type GitHubOAuthClient } from './github-oauth.client';
+import {
+  GITHUB_OAUTH_CLIENT,
+  type GitHubOAuthClient,
+  type GitHubRepoSummary,
+} from './github-oauth.client';
 import {
   isExpired,
   parseTokenSet,
@@ -65,6 +69,16 @@ export class GitHubTokenService {
     }
 
     return this.refreshAndStore(user, tokens.refreshToken);
+  }
+
+  /**
+   * 레포 가져오기 화면의 원천. 토큰 해석(만료 시 갱신)을 이 서비스가 도맡는 것과 같은 이유로,
+   * GITHUB_OAUTH_CLIENT를 이 모듈 밖으로 내보내지 않고 호출을 여기로 모은다 — project-core가
+   * 토큰 갱신·재인증 판단까지 직접 하게 두면 그 로직이 두 곳에서 갈라진다.
+   */
+  async listRepos(userId: string): Promise<GitHubRepoSummary[]> {
+    const accessToken = await this.accessTokenFor(userId);
+    return this.github.listRepos(accessToken);
   }
 
   private async refreshAndStore(user: User, refreshToken: string): Promise<string> {

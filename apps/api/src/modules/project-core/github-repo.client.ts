@@ -17,10 +17,55 @@ export interface DeleteWebhookParams extends RepoRef {
   hookId: number;
 }
 
+export interface DeleteRepoParams extends RepoRef {
+  accessToken: string;
+}
+
+export interface ListCommitsParams extends RepoRef {
+  accessToken: string;
+  /** 기본 5 — 프로젝트 상세 화면의 "최근 커밋" 카드가 보여 주는 개수. */
+  limit?: number;
+}
+
+/** 프로젝트 상세 화면의 "최근 커밋" 카드가 쓰는 필드만 남긴다. */
+export interface CommitSummary {
+  sha: string;
+  /** 커밋 메시지 첫 줄만 — 본문까지 보여 주면 카드 한 줄 높이가 무너진다. */
+  message: string;
+  authored_at: string | null;
+  url: string;
+}
+
+export interface ListWorkflowRunsParams extends RepoRef {
+  accessToken: string;
+  /** 기본 20 — 연동 직후 백필에 쓰는 값이라 커밋보다 넉넉하게 잡는다. */
+  limit?: number;
+}
+
+/**
+ * DEPLOYMENT_EVENTS 한 행이 될 워크플로 실행 하나. `github-events.ts`의 `workflowRun()`이
+ * 웹훅 페이로드에서 뽑는 것과 같은 필드·같은 판정 규칙(success/failure만, 나머지는 버림)이다 —
+ * 웹훅으로 들어오는 것과 API로 백필하는 것이 같은 모양이어야 두 경로가 섞여도 안전하다.
+ */
+export interface WorkflowRunSummary {
+  status: 'success' | 'failure';
+  commit_sha: string;
+  committed_at: string | null;
+  occurred_at: string;
+}
+
 /** GitHub 레포 웹훅 관리 계약. 자격증명 없이도 플로우를 검증할 수 있도록 인터페이스로 둔다. */
 export interface GitHubRepoClient {
   createWebhook(params: CreateWebhookParams): Promise<{ id: number }>;
   deleteWebhook(params: DeleteWebhookParams): Promise<void>;
+  listCommits(params: ListCommitsParams): Promise<CommitSummary[]>;
+  listWorkflowRuns(params: ListWorkflowRunsParams): Promise<WorkflowRunSummary[]>;
+  /**
+   * 레포 자체를 GitHub에서 영구히 지운다 — 웹훅 해제와는 차원이 다르다. `delete_repo`
+   * 스코프가 없으면 403이다("가져온 레포 삭제" 화면이 "Muster에서만 제거"와 "GitHub
+   * 레포 자체도 삭제"를 나눠 묻는 이유).
+   */
+  deleteRepo(params: DeleteRepoParams): Promise<void>;
 }
 
 export const GITHUB_REPO_CLIENT = Symbol('GITHUB_REPO_CLIENT');
@@ -90,6 +135,100 @@ export class HttpGitHubRepoClient implements GitHubRepoClient {
     throw await this.toApiException(res, '웹훅 삭제에 실패했습니다.');
   }
 
+  async listCommits(params: ListCommitsParams): Promise<CommitSummary[]> {
+    const perPage = params.limit ?? 5;
+    const res = await fetch(
+      `https://api.github.com/repos/${params.owner}/${params.repo}/commits?per_page=${perPage}`,
+      { headers: this.headers(params.accessToken) },
+    );
+
+    // 커밋이 하나도 없는 빈 레포는 409를 준다 — 실패가 아니라 "아직 없음"이다.
+    if (res.status === 409) return [];
+    if (!res.ok) throw await this.toApiException(res, '커밋 목록 조회에 실패했습니다.');
+
+    const body = (await res.json()) as Array<{
+      sha?: string;
+      html_url?: string;
+      commit?: { message?: string; author?: { date?: string } };
+    }>;
+
+    return body
+      .filter((c): c is Required<Pick<typeof c, 'sha'>> & typeof c => Boolean(c.sha))
+      .map((c) => ({
+        sha: c.sha,
+        message: (c.commit?.message ?? '').split('\n')[0],
+        authored_at: c.commit?.author?.date ?? null,
+        url: c.html_url ?? '',
+      }));
+  }
+
+  /**
+   * 레포를 막 연동했을 때, 그 이후 웹훅만 기다리면 "가져오기 전 이력"이 전부 비어 보인다.
+   * `?status=completed`로 끝난 실행만 받아, 웹훅 인터프리터(`github-events.ts`)와 같은
+   * success/failure 판정만 남기고 나머지(cancelled·skipped 등)는 버린다.
+   */
+  async listWorkflowRuns(params: ListWorkflowRunsParams): Promise<WorkflowRunSummary[]> {
+    const perPage = params.limit ?? 20;
+    const res = await fetch(
+      `https://api.github.com/repos/${params.owner}/${params.repo}/actions/runs` +
+        `?per_page=${perPage}&status=completed`,
+      { headers: this.headers(params.accessToken) },
+    );
+
+    if (!res.ok) throw await this.toApiException(res, '워크플로 이력 조회에 실패했습니다.');
+
+    const body = (await res.json()) as {
+      workflow_runs?: Array<{
+        conclusion?: string | null;
+        head_sha?: string;
+        updated_at?: string;
+        head_commit?: { timestamp?: string } | null;
+      }>;
+    };
+
+    const rows: WorkflowRunSummary[] = [];
+    for (const run of body.workflow_runs ?? []) {
+      const status =
+        run.conclusion === 'success'
+          ? 'success'
+          : run.conclusion === 'failure' || run.conclusion === 'timed_out'
+            ? 'failure'
+            : null;
+      if (!status || !run.head_sha || !run.updated_at) continue;
+
+      const committedRaw = run.head_commit?.timestamp;
+      const committed = committedRaw && committedRaw <= run.updated_at ? committedRaw : null;
+
+      rows.push({
+        status,
+        commit_sha: run.head_sha,
+        committed_at: committed,
+        occurred_at: run.updated_at,
+      });
+    }
+
+    return rows;
+  }
+
+  async deleteRepo(params: DeleteRepoParams): Promise<void> {
+    const res = await fetch(`https://api.github.com/repos/${params.owner}/${params.repo}`, {
+      method: 'DELETE',
+      headers: this.headers(params.accessToken),
+    });
+
+    // 이미 지워진 레포(404)도 성공으로 본다 — 목적(그 레포가 없다)은 이미 달성된 상태다.
+    if (res.status === 204 || res.status === 404) return;
+
+    throw await this.toApiException(
+      res,
+      '레포 삭제에 실패했습니다.',
+      undefined,
+      res.status === 403
+        ? 'GitHub 레포 삭제 권한이 없습니다. 레포 소유자인지, delete_repo 권한으로 다시 로그인했는지 확인해 주세요.'
+        : undefined,
+    );
+  }
+
   private headers(accessToken: string): Record<string, string> {
     return {
       Authorization: `Bearer ${accessToken}`,
@@ -103,13 +242,17 @@ export class HttpGitHubRepoClient implements GitHubRepoClient {
     res: Response,
     message: string,
     invalidRequestMessage?: string,
+    /** 401/403 기본 메시지("다시 로그인해 주세요")가 원인을 다 설명하지 못할 때만 넘긴다. */
+    forbiddenMessage?: string,
   ): Promise<ApiException> {
     // GitHub의 원문 오류는 토큰 범위 등 내부 정보를 담을 수 있어 로그에만 남긴다.
     const detail = await res.text().catch(() => '');
     this.logger.warn(`GitHub API ${res.status}: ${detail.slice(0, 500)}`);
 
     if (res.status === 401 || res.status === 403) {
-      return ApiException.forbidden('GitHub 권한이 부족합니다. 다시 로그인해 주세요.');
+      return ApiException.forbidden(
+        forbiddenMessage ?? 'GitHub 권한이 부족합니다. 다시 로그인해 주세요.',
+      );
     }
     if (res.status === 404) {
       return ApiException.notFound('레포지토리를 찾을 수 없거나 접근 권한이 없습니다.');

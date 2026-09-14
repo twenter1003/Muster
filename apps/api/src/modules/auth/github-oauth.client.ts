@@ -9,6 +9,16 @@ export interface GitHubProfile {
   email: string | null;
 }
 
+/** `GET /user/repos` 응답 한 행 중 레포 가져오기 화면이 쓰는 필드만. */
+export interface GitHubRepoSummary {
+  /** `owner/repo` 형태. `parseRepoUrl`이 받는 owner·repo로 그대로 쪼갤 수 있다. */
+  full_name: string;
+  private: boolean;
+  default_branch: string;
+  pushed_at: string | null;
+  language: string | null;
+}
+
 /**
  * GitHub OAuth 호출 계약.
  *
@@ -35,6 +45,13 @@ export interface GitHubOAuthClient {
 
   /** 액세스 토큰으로 사용자 프로필을 읽는다. */
   fetchProfile(accessToken: string): Promise<GitHubProfile>;
+
+  /**
+   * 사용자가 접근할 수 있는 레포 목록 (레포 가져오기 화면의 원천).
+   * push 최신순으로 받아 온다 — 방금 커밋한 레포가 목록 위쪽에 오는 편이
+   * "무엇을 가져올지"를 고르는 화면에서 더 유용하다.
+   */
+  listRepos(accessToken: string): Promise<GitHubRepoSummary[]>;
 }
 
 export const GITHUB_OAUTH_CLIENT = Symbol('GITHUB_OAUTH_CLIENT');
@@ -56,8 +73,19 @@ export const GITHUB_OAUTH_CLIENT = Symbol('GITHUB_OAUTH_CLIENT');
  * 더 좁은 대안이 없다 — public_repo는 비공개 레포에서 못 쓰고, workflow는 워크플로
  * **파일 수정** 권한이지 실행 권한이 아니다. GitHub App으로 옮기면 actions:write만
  * 따로 받을 수 있지만, 그것은 인증 방식 자체를 바꾸는 일이라 여기서 할 수 없다.
+ *
+ * - delete_repo — "가져온 레포 삭제" 화면에서 "GitHub 레포 자체도 삭제"를 고를 때만 쓴다.
+ *   `repo`에 포함돼 있지 않다(GitHub이 삭제만은 일부러 별도 스코프로 뺐다). 이 스코프가
+ *   추가되기 전에 로그인한 사용자의 저장된 토큰에는 이 권한이 없어서, 그 기능을 처음
+ *   쓰려 하면 403이 나고 다시 로그인해야 한다 — repo/workflow를 추가했을 때와 같은 상황.
  */
-export const GITHUB_OAUTH_SCOPES = ['read:user', 'admin:repo_hook', 'repo', 'workflow'] as const;
+export const GITHUB_OAUTH_SCOPES = [
+  'read:user',
+  'admin:repo_hook',
+  'repo',
+  'workflow',
+  'delete_repo',
+] as const;
 
 /**
  * GitHub REST API 버전. 헤더를 생략하면 GitHub이 2022-11-28로 처리하는데,
@@ -155,5 +183,41 @@ export class HttpGitHubOAuthClient implements GitHubOAuthClient {
     }
 
     return { login: body.login, email: body.email ?? null };
+  }
+
+  async listRepos(accessToken: string): Promise<GitHubRepoSummary[]> {
+    // per_page=100이 GitHub 최대치다. 개인용 규모에서는 첫 페이지로 충분하고,
+    // 더 필요해지면 Link 헤더를 따라가는 페이지네이션을 여기 한 곳에만 추가하면 된다.
+    const res = await fetch('https://api.github.com/user/repos?sort=pushed&per_page=100', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': GITHUB_API_VERSION,
+      },
+    });
+
+    if (!res.ok) {
+      throw new ApiException(ErrorCode.INTERNAL, 'GitHub 레포 목록 조회에 실패했습니다.', 502);
+    }
+
+    const body = (await res.json()) as Array<{
+      full_name?: string;
+      private?: boolean;
+      default_branch?: string;
+      pushed_at?: string | null;
+      language?: string | null;
+    }>;
+
+    // full_name 없는 행은 있을 수 없지만, 있다면 조용히 버린다 — 레포 하나가 이상하다고
+    // 목록 전체를 502로 떨어뜨리는 것은 과하다.
+    return body
+      .filter((r): r is Required<Pick<typeof r, 'full_name'>> & typeof r => Boolean(r.full_name))
+      .map((r) => ({
+        full_name: r.full_name,
+        private: r.private ?? false,
+        default_branch: r.default_branch ?? 'main',
+        pushed_at: r.pushed_at ?? null,
+        language: r.language ?? null,
+      }));
   }
 }

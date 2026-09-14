@@ -1,0 +1,91 @@
+/* 레포 가져오기(온보딩). 다른 목록형 화면보다 좁게 가운데 둔다 — 여기서 할 일은
+   검색하고 체크하고 누르는 것뿐이라, 화면을 다 채울 이유가 없다. */
+
+.import {
+  max-width: 720px;
+}
+
+.import__eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.import__search {
+  height: 40px;
+  padding: 0 var(--space-2);
+  width: 100%;
+}
+
+.import__list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+}
+
+.import__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-rule);
+  cursor: pointer;
+}
+
+.import__row:last-child {
+  border-bottom: none;
+}
+
+.import__row[aria-disabled='true'] {
+  cursor: default;
+  color: var(--color-ink-mid);
+}
+
+.import__checkbox {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+
+.import__row-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.import__row-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.import__name {
+  font-size: var(--font-size-body);
+  font-weight: 600;
+  color: var(--color-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import__failures {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-4);
+}
+
+.import__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-rule);
+}
+
+@media (max-width: 767px) {
+  .import__footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

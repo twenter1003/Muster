@@ -11,6 +11,7 @@ import {
   GITHUB_OAUTH_CLIENT,
   type GitHubOAuthClient,
   type GitHubProfile,
+  type GitHubRepoSummary,
 } from '../src/modules/auth/github-oauth.client';
 import { parseTokenSet, type GitHubTokenSet } from '../src/modules/auth/github-token-set';
 
@@ -45,6 +46,10 @@ class FakeGitHubClient implements GitHubOAuthClient {
 
   async fetchProfile(): Promise<GitHubProfile> {
     return this.profile;
+  }
+
+  async listRepos(): Promise<GitHubRepoSummary[]> {
+    throw new Error('이 테스트는 레포 목록 조회를 타지 않는다');
   }
 }
 
@@ -100,12 +105,15 @@ describe('Phase 3 — GitHub OAuth 플로우 (e2e)', () => {
      *
      * repo가 들어온 경위: 환경 구성 빌드를 사용자 레포의 Actions에서 돌리는데
      * workflow_dispatch가 repo를 요구한다. 더 좁은 대안이 없다(github-oauth.client.ts 주석).
+     * delete_repo가 들어온 경위: "가져온 레포 삭제" 화면의 "GitHub 레포 자체도 삭제"
+     * 옵션 — repo에 포함돼 있지 않아 따로 요청해야 한다(같은 주석 참조).
      */
-    it('요청 스코프는 read:user · admin:repo_hook · repo · workflow 넷뿐이다', async () => {
+    it('요청 스코프는 read:user · admin:repo_hook · repo · workflow · delete_repo 다섯뿐이다', async () => {
       const res = await http().get('/api/v1/auth/github/login').expect(302);
       const scope = new URL(res.headers.location).searchParams.get('scope');
       expect(scope?.split(' ').sort()).toEqual([
         'admin:repo_hook',
+        'delete_repo',
         'read:user',
         'repo',
         'workflow',

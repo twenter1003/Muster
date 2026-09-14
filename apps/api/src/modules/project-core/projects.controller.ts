@@ -32,6 +32,9 @@ import { CreateApiKeyDto } from './dto/create-api-key.dto';
 import { ProjectMemberGuard } from '../../common/auth/project-member.guard';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
+import { ImportReposDto } from './dto/import-repos.dto';
+import { ProjectImportService, type ImportResultItem } from './project-import.service';
+import type { CommitSummary } from './github-repo.client';
 import type { GitIntegration, Project } from '../../database/entities';
 import { ApiException } from '../../common/errors/api.exception';
 import { AuditService } from '../audit/audit.service';
@@ -79,7 +82,24 @@ export class ProjectsController {
     private readonly members: MembersService,
     private readonly invites: InvitesService,
     private readonly audit: AuditService,
+    private readonly imports: ProjectImportService,
   ) {}
+
+  /**
+   * 레포 가져오기(온보딩) — 설계서에는 없다. GitHub 레포를 골라 한 번에
+   * 프로젝트+연동으로 만드는 진입점이 없다는 문제를 이걸로 해결한다.
+   *
+   * 항목별 성공/실패를 담아 200으로 돌려준다(전부 실패해도 500이 아니다) — 부분 성공이
+   * 정상적인 결과이지 예외 상황이 아니기 때문이다.
+   */
+  @Post('import')
+  @HttpCode(HttpStatus.OK)
+  importRepos(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ImportReposDto,
+  ): Promise<{ items: ImportResultItem[] }> {
+    return this.imports.import(user.id, dto.repos).then((items) => ({ items }));
+  }
 
   @Get()
   async list(
@@ -115,10 +135,35 @@ export class ProjectsController {
     return toView(await this.projects.update(id, user.id, dto));
   }
 
+  /**
+   * 프로젝트 삭제. 연동된 레포가 있으면 먼저 해제한다 — 그렇지 않으면 프로젝트는
+   * (소프트) 삭제됐는데 GitHub 웹훅은 그대로 남아 이벤트를 계속 우리 쪽으로 보낸다.
+   * "레포 가져오기"의 반대 방향이므로 가져올 때와 대칭으로 연동부터 정리한다.
+   *
+   * `?delete_repo=true`를 더하면 GitHub 레포 자체까지 지운다 — 되돌릴 수 없는 별개의
+   * 선택이라 기본값이 아니다(화면이 "Muster에서만 제거"와 나눠서 묻는 이유). `delete_repo`
+   * 스코프가 없는 토큰이면 여기서 403이 올라간다.
+   */
   @Delete(':id')
   @UseGuards(ProjectMemberGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser): Promise<void> {
+  async remove(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('delete_repo') deleteRepoFlag?: string,
+  ): Promise<void> {
+    if (await this.gitIntegrations.findByProject(id)) {
+      if (deleteRepoFlag === 'true') {
+        await this.gitIntegrations.disconnectAndDeleteRepo(id, user.id);
+      } else {
+        await this.gitIntegrations.disconnect(id, user.id);
+      }
+      await this.audit.record({
+        user_id: user.id,
+        action: 'git_integration.delete',
+        project_id: id,
+      });
+    }
     await this.projects.softDelete(id, user.id);
   }
 
@@ -156,6 +201,19 @@ export class ProjectsController {
       project_id: id,
     });
     return toGitView(integration);
+  }
+
+  /**
+   * 프로젝트 상세 화면의 "최근 커밋" 카드 — 설계서에 없다. GitHub API를 그때그때
+   * 실시간으로 호출한다(별도 테이블 없음). 연동이 없으면 빈 배열이다.
+   */
+  @Get(':id/commits')
+  @UseGuards(ProjectMemberGuard)
+  listCommits(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ items: CommitSummary[] }> {
+    return this.gitIntegrations.recentCommits(id, user.id).then((items) => ({ items }));
   }
 
   /** 설계서 Part 4 §3 — 연동 해제. GitHub 웹훅과 시크릿도 정리한다. */

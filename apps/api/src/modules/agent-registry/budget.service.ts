@@ -21,6 +21,16 @@ export interface BudgetUsage {
 /** 기본 예산. 레코드가 없어도 조회가 되어야 대시보드가 빈 화면을 안 만든다. */
 const DEFAULT_THRESHOLD_PCT = '80';
 
+/** 프로젝트 상세·목록 화면의 "토큰 사용량" 카드가 쓰는 하루 단위 집계. */
+export interface UsageBreakdown {
+  today_tokens: string;
+  month_tokens: string;
+  /** 오래된 날짜부터 오늘까지, 값이 없는 날도 '0'으로 채워서 스파크라인이 끊기지 않게 한다. */
+  daily: Array<{ date: string; tokens: string }>;
+}
+
+const DAILY_WINDOW_DAYS = 7;
+
 @Injectable()
 export class BudgetService {
   constructor(
@@ -122,6 +132,56 @@ export class BudgetService {
   }
 
   /**
+   * 오늘 사용량·이번 달 누적·최근 며칠간의 하루 단위 사용량.
+   * 목록 카드는 today_tokens만, 상세 화면은 daily까지 써서 스파크라인을 그린다.
+   *
+   * 날짜 경계는 UTC 기준이다(date_trunc의 기본 세션 타임존). 사용자별 시간대를 반영하지
+   * 않는 근사치이지만, "오늘 얼마나 썼는지" 감을 주는 용도라 이 정도 오차는 감수한다.
+   */
+  async dailyUsage(projectId: string): Promise<UsageBreakdown> {
+    const since = new Date();
+    since.setUTCDate(since.getUTCDate() - (DAILY_WINDOW_DAYS - 1));
+    since.setUTCHours(0, 0, 0, 0);
+
+    const monthStart = new Date();
+    monthStart.setUTCDate(1);
+    monthStart.setUTCHours(0, 0, 0, 0);
+
+    const [rows, monthRow] = await Promise.all([
+      this.runs
+        .createQueryBuilder('r')
+        .innerJoin(Agent, 'a', 'a.id = r.agent_id')
+        .where('a.project_id = :projectId', { projectId })
+        .andWhere('r.started_at >= :since', { since })
+        .select("date_trunc('day', r.started_at)", 'day')
+        .addSelect('COALESCE(SUM(r.tokens_used), 0)', 'tokens')
+        .groupBy('day')
+        .getRawMany<{ day: Date; tokens: string }>(),
+      this.runs
+        .createQueryBuilder('r')
+        .innerJoin(Agent, 'a', 'a.id = r.agent_id')
+        .where('a.project_id = :projectId', { projectId })
+        .andWhere('r.started_at >= :monthStart', { monthStart })
+        .select('COALESCE(SUM(r.tokens_used), 0)', 'tokens')
+        .getRawOne<{ tokens: string }>(),
+    ]);
+
+    const byDay = new Map(rows.map((r) => [toDateKey(r.day), r.tokens]));
+    const daily = Array.from({ length: DAILY_WINDOW_DAYS }, (_, i) => {
+      const day = new Date(since);
+      day.setUTCDate(day.getUTCDate() + i);
+      const date = toDateKey(day);
+      return { date, tokens: byDay.get(date) ?? '0' };
+    });
+
+    return {
+      today_tokens: daily.at(-1)?.tokens ?? '0',
+      month_tokens: String(monthRow?.tokens ?? '0'),
+      daily,
+    };
+  }
+
+  /**
    * 프로젝트 전체 사용량. 합계는 JS가 아니라 SQL의 SUM()으로 낸다 —
    * numeric을 JS number로 옮기면 금액에 반올림 오차가 생긴다.
    */
@@ -136,6 +196,12 @@ export class BudgetService {
 
     return { tokens: String(row?.tokens ?? '0'), cost: String(row?.cost ?? '0') };
   }
+}
+
+/** raw 쿼리 결과의 날짜를 'YYYY-MM-DD' 키로 정규화한다. pg 드라이버가 Date로 주지 않을 수도 있다. */
+function toDateKey(value: Date | string): string {
+  const d = value instanceof Date ? value : new Date(value);
+  return d.toISOString().slice(0, 10);
 }
 
 /**

@@ -3,13 +3,17 @@ import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'node:crypto';
 import { DataSource, Repository } from 'typeorm';
 import { InjectRepository } from '../../database/inject-repository.decorator';
-import { GitIntegration } from '../../database/entities';
+import { DeploymentEvent, GitIntegration, ProjectMember } from '../../database/entities';
 import { SECRET_STORE, type SecretStore } from '../../common/secrets/secret-store';
 import { ApiException } from '../../common/errors/api.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { GitHubTokenService } from '../auth/github-token.service';
-import { GITHUB_REPO_CLIENT, type GitHubRepoClient } from './github-repo.client';
-import { parseRepoUrl } from './repo-url';
+import {
+  GITHUB_REPO_CLIENT,
+  type CommitSummary,
+  type GitHubRepoClient,
+} from './github-repo.client';
+import { parseRepoUrl, repoUrlOf } from './repo-url';
 
 @Injectable()
 export class GitIntegrationService {
@@ -17,6 +21,8 @@ export class GitIntegrationService {
 
   constructor(
     @InjectRepository(GitIntegration) private readonly integrations: Repository<GitIntegration>,
+    @InjectRepository(DeploymentEvent)
+    private readonly deploymentEvents: Repository<DeploymentEvent>,
     @Inject(GITHUB_REPO_CLIENT) private readonly github: GitHubRepoClient,
     private readonly githubTokens: GitHubTokenService,
     @Inject(SECRET_STORE) private readonly secrets: SecretStore,
@@ -56,11 +62,12 @@ export class GitIntegrationService {
     // 웹훅이 만들어진 뒤에야 시크릿을 보관하고 레코드를 남긴다.
     const secretRef = await this.secrets.put(`webhook-secret-${projectId}`, secret);
 
+    let saved: GitIntegration;
     try {
-      return await this.integrations.save(
+      saved = await this.integrations.save(
         this.integrations.create({
           project_id: projectId,
-          repo_url: `https://github.com/${owner}/${repo}`,
+          repo_url: repoUrlOf(`${owner}/${repo}`),
           webhook_secret_ref: secretRef,
           webhook_id: String(hook.id),
         }),
@@ -75,6 +82,44 @@ export class GitIntegrationService {
       await this.secrets.delete(secretRef).catch(() => undefined);
       throw error;
     }
+
+    // 연동 성공 자체를 막으면 안 되는 부가 작업이다 — 실패해도 로그만 남기고 넘어간다.
+    // 웹훅은 지금부터의 이벤트만 받으므로, 이게 없으면 "방금 가져온 프로젝트"의 배포·워크플로
+    // 카드가 다음 push/Actions 실행 전까지 계속 비어 보인다.
+    await this.backfillWorkflowHistory(projectId, owner, repo, accessToken).catch(
+      (error: unknown) =>
+        this.logger.warn(`워크플로 이력 백필 실패 (project ${projectId}): ${String(error)}`),
+    );
+
+    return saved;
+  }
+
+  /**
+   * `listWorkflowRuns`가 웹훅과 같은 판정 규칙으로 골라낸 완료 실행들을 DEPLOYMENT_EVENTS에
+   * 그대로 적재한다. 헬스 스냅샷은 여기서 다시 계산하지 않는다 — Ingest가 자기 트랜잭션
+   * 안에서만 재계산하도록 되어 있고(Part 2 §8), 그 경계를 여기서 넘으면 "Ingest를 분리해도
+   * 이 파일이 메시지 스키마"라는 전제가 깨진다. 다음 실제 웹훅이 오면 이 백필 행까지 포함해
+   * 자연스럽게 계산된다.
+   */
+  private async backfillWorkflowHistory(
+    projectId: string,
+    owner: string,
+    repo: string,
+    accessToken: string,
+  ): Promise<void> {
+    const runs = await this.github.listWorkflowRuns({ owner, repo, accessToken });
+    if (runs.length === 0) return;
+
+    await this.deploymentEvents.insert(
+      runs.map((r) => ({
+        project_id: projectId,
+        kind: 'workflow_run' as const,
+        status: r.status,
+        commit_sha: r.commit_sha,
+        committed_at: r.committed_at ? new Date(r.committed_at) : null,
+        occurred_at: new Date(r.occurred_at),
+      })),
+    );
   }
 
   /** 설계서 Part 4 §3 — 연동 해제. GitHub 웹훅과 시크릿도 함께 정리한다. */
@@ -94,6 +139,28 @@ export class GitIntegrationService {
       });
     }
 
+    await this.removeIntegrationRecord(integration);
+  }
+
+  /**
+   * 연동 해제 + GitHub 레포 자체 삭제. "가져오기"의 완전한 반대 방향이다 — 되돌릴 수 없다.
+   * 레포가 사라지면 그 레포의 웹훅도 GitHub 쪽에서 함께 없어지므로 deleteWebhook은 따로
+   * 부르지 않는다. `delete_repo` 스코프가 없는 토큰(이 기능이 생기기 전에 로그인한 사용자)은
+   * 403으로 막히고, 컨트롤러가 그 오류를 그대로 화면에 전달해 재로그인을 안내한다.
+   */
+  async disconnectAndDeleteRepo(projectId: string, userId: string): Promise<void> {
+    const integration = await this.integrations.findOneBy({ project_id: projectId });
+    if (!integration) throw ApiException.notFound('연동된 레포지토리가 없습니다.');
+
+    const { owner, repo } = parseRepoUrl(integration.repo_url);
+    const accessToken = await this.githubTokenOf(userId);
+
+    await this.github.deleteRepo({ owner, repo, accessToken });
+    await this.removeIntegrationRecord(integration);
+  }
+
+  /** `disconnect`·`disconnectAndDeleteRepo`가 공유하는 뒷정리 — DB 레코드, 그 다음 시크릿. */
+  private async removeIntegrationRecord(integration: GitIntegration): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
       await manager.delete(GitIntegration, { id: integration.id });
     });
@@ -104,6 +171,35 @@ export class GitIntegrationService {
 
   async findByProject(projectId: string): Promise<GitIntegration | null> {
     return this.integrations.findOneBy({ project_id: projectId });
+  }
+
+  /**
+   * 사용자가 멤버인 프로젝트가 이미 연동해 둔 repo_url 집합.
+   * 레포 가져오기 화면이 "이미 가져온 레포"를 걸러 체크박스를 미리 꺼 두는 데 쓴다.
+   */
+  async importedRepoUrls(userId: string): Promise<Set<string>> {
+    const rows = await this.integrations
+      .createQueryBuilder('gi')
+      .innerJoin(ProjectMember, 'pm', 'pm.project_id = gi.project_id AND pm.user_id = :userId', {
+        userId,
+      })
+      .select('gi.repo_url', 'repo_url')
+      .getRawMany<{ repo_url: string }>();
+
+    return new Set(rows.map((r) => r.repo_url));
+  }
+
+  /**
+   * 프로젝트 상세 화면의 "최근 커밋" 카드. 연동이 없으면 빈 배열이다 —
+   * 이 화면은 연동이 있다는 것을 전제하지 않는다(README 필터 화면과 다른 점).
+   */
+  async recentCommits(projectId: string, userId: string): Promise<CommitSummary[]> {
+    const integration = await this.findByProject(projectId);
+    if (!integration) return [];
+
+    const { owner, repo } = parseRepoUrl(integration.repo_url);
+    const accessToken = await this.githubTokenOf(userId);
+    return this.github.listCommits({ owner, repo, accessToken });
   }
 
   /**

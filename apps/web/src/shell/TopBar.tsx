@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { EM_DASH } from '../lib/domain';
 import { useTheme } from './useTheme';
@@ -64,6 +65,10 @@ export function TopBar({ crumbs, sse = 'unknown', userName = null }: TopBarProps
 
   return (
     <header className="shell__topbar">
+      {/* 사이드바를 없앤 뒤 홈으로 돌아가는 유일한 길이라, 브랜드가 곧 링크다. */}
+      <Link to="/" className="brand topbar__brand">
+        Muster
+      </Link>
       <span className="topbar__crumb">{crumbs.join(' / ')}</span>
       <SearchBox />
       <div className="topbar__right">
