@@ -354,6 +354,13 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
           </div>
         ) : (
           <div className="detail__goals-summary">
+            {!goals.loading && (
+              <p className="meta">
+                {goals.data?.content_md
+                  ? `목표 확정됨 · ${formatDateTime(goals.data.updated_at!)}`
+                  : '아직 목표를 확정하지 않았다.'}
+              </p>
+            )}
             {goals.loading || progressState.loading ? (
               <p className="meta">불러오는 중…</p>
             ) : progress ? (
@@ -369,7 +376,14 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
                 </p>
                 <p className="meta">{progress.summary}</p>
                 {progress.remaining_items.length > 0 && (
-                  <p className="meta">남은 항목 {progress.remaining_items.length}개</p>
+                  <ul className="detail__goals-remaining">
+                    {progress.remaining_items.map((item, i) => (
+                      <li key={i}>
+                        <strong>{item.title}</strong>
+                        {item.description && <span className="meta"> — {item.description}</span>}
+                      </li>
+                    ))}
+                  </ul>
                 )}
                 <p className="meta">{formatDateTime(progress.analyzed_at)} 분석</p>
               </>

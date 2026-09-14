@@ -55,11 +55,13 @@ export const envSchema = z.object({
    * 키가 없으면 Vertex AI로 넘어간다 — ADC로 인증하므로 키를 둘 수 없는 환경에서도 돈다.
    * 둘 다 없으면 LLM을 쓰는 기능만 503을 낸다. 벤더 근거는 DESIGN_DRIFT.md 4·8번.
    *
-   * 모델 기본값은 배포 시점의 실제 가용 모델과 어긋날 수 있다 — 필요하면 이 값을
-   * 바꿔서 덮어쓴다(Google AI Studio에서 현재 사용 가능한 모델을 확인할 것).
+   * `gemini-2.5-flash`는 실제 배포에서 404로 막혔다 — Gemini API가 직접
+   * "models/gemini-3.6-flash를 쓰라"고 응답해 그 값으로 바꿨다(DESIGN_DRIFT.md 12번,
+   * 2026-09-14 실측). 그래도 배포 시점의 실제 가용 모델과 다시 어긋날 수 있으니, 404가
+   * 나면 이 값을 덮어쓴다.
    */
   GEMINI_API_KEY: z.string().optional(),
-  GEMINI_MODEL: z.string().default('gemini-2.5-flash'),
+  GEMINI_MODEL: z.string().default('gemini-3.6-flash'),
   VERTEX_LOCATION: z.string().default('us-central1'),
   VERTEX_MODEL: z.string().default('gemini-2.5-flash'),
 });
