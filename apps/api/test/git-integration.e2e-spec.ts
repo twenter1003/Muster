@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import type { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
+import { ApiException } from '../src/common/errors/api.exception';
 import { DATA_SOURCE } from '../src/database/database.module';
 import { Session, User } from '../src/database/entities';
 import { SECRET_STORE, type SecretStore } from '../src/common/secrets/secret-store';
@@ -18,6 +19,7 @@ import {
   GITHUB_REPO_CLIENT,
   type CommitSummary,
   type CreateWebhookParams,
+  type DeleteRepoParams,
   type DeleteWebhookParams,
   type GitHubRepoClient,
   type ListCommitsParams,
@@ -38,6 +40,8 @@ class FakeRepoClient implements GitHubRepoClient {
   lastListCommitsParams: ListCommitsParams | null = null;
   workflowRuns: WorkflowRunSummary[] = [];
   lastListWorkflowRunsParams: ListWorkflowRunsParams | null = null;
+  deletedRepos: DeleteRepoParams[] = [];
+  failDeleteRepo: Error | null = null;
 
   async createWebhook(params: CreateWebhookParams): Promise<{ id: number }> {
     if (this.failCreate) throw this.failCreate;
@@ -57,6 +61,11 @@ class FakeRepoClient implements GitHubRepoClient {
   async listWorkflowRuns(params: ListWorkflowRunsParams): Promise<WorkflowRunSummary[]> {
     this.lastListWorkflowRunsParams = params;
     return this.workflowRuns;
+  }
+
+  async deleteRepo(params: DeleteRepoParams): Promise<void> {
+    if (this.failDeleteRepo) throw this.failDeleteRepo;
+    this.deletedRepos.push(params);
   }
 }
 
@@ -760,6 +769,56 @@ describe('Phase 3 — GitHub 레포 연동 (e2e)', () => {
       await http().delete(`/api/v1/projects/${p}`).set(auth()).expect(204);
 
       expect(github.deleted.length).toBe(deletedBefore);
+    });
+
+    it('?delete_repo=true면 웹훅 대신 레포 자체를 지운다', async () => {
+      const p = await newProject('delete-repo-itself');
+      await http()
+        .post(`/api/v1/projects/${p}/git-integration`)
+        .set(auth())
+        .send({ repo_url: 'https://github.com/octocat/nuke-me' })
+        .expect(201);
+
+      const deletedWebhooksBefore = github.deleted.length;
+
+      await http().delete(`/api/v1/projects/${p}?delete_repo=true`).set(auth()).expect(204);
+
+      expect(github.deletedRepos.at(-1)).toMatchObject({
+        owner: 'octocat',
+        repo: 'nuke-me',
+        accessToken: 'gho_user_token',
+      });
+      // 레포가 사라지면 웹훅도 GitHub 쪽에서 같이 없어진다 — deleteWebhook은 안 부른다.
+      expect(github.deleted.length).toBe(deletedWebhooksBefore);
+
+      const rows = (await ds.query(`SELECT id FROM git_integrations WHERE project_id = $1`, [
+        p,
+      ])) as unknown[];
+      expect(rows).toHaveLength(0);
+    });
+
+    it('delete_repo 스코프가 없으면 403이고 프로젝트도 지워지지 않는다', async () => {
+      const p = await newProject('delete-repo-forbidden');
+      await http()
+        .post(`/api/v1/projects/${p}/git-integration`)
+        .set(auth())
+        .send({ repo_url: 'https://github.com/octocat/no-scope' })
+        .expect(201);
+
+      github.failDeleteRepo = ApiException.forbidden(
+        'GitHub 레포 삭제 권한이 없습니다. delete_repo 권한으로 다시 로그인해 주세요.',
+      );
+
+      await http().delete(`/api/v1/projects/${p}?delete_repo=true`).set(auth()).expect(403);
+
+      github.failDeleteRepo = null;
+
+      // 실패했으면 연동도 프로젝트도 그대로 남아 있어야 한다 — 반쯤 지워진 상태가 없다.
+      const rows = (await ds.query(`SELECT id FROM git_integrations WHERE project_id = $1`, [
+        p,
+      ])) as unknown[];
+      expect(rows).toHaveLength(1);
+      await http().get(`/api/v1/projects/${p}`).set(auth()).expect(200);
     });
   });
 });

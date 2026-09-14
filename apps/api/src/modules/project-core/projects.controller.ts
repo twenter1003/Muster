@@ -139,13 +139,25 @@ export class ProjectsController {
    * 프로젝트 삭제. 연동된 레포가 있으면 먼저 해제한다 — 그렇지 않으면 프로젝트는
    * (소프트) 삭제됐는데 GitHub 웹훅은 그대로 남아 이벤트를 계속 우리 쪽으로 보낸다.
    * "레포 가져오기"의 반대 방향이므로 가져올 때와 대칭으로 연동부터 정리한다.
+   *
+   * `?delete_repo=true`를 더하면 GitHub 레포 자체까지 지운다 — 되돌릴 수 없는 별개의
+   * 선택이라 기본값이 아니다(화면이 "Muster에서만 제거"와 나눠서 묻는 이유). `delete_repo`
+   * 스코프가 없는 토큰이면 여기서 403이 올라간다.
    */
   @Delete(':id')
   @UseGuards(ProjectMemberGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser): Promise<void> {
+  async remove(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('delete_repo') deleteRepoFlag?: string,
+  ): Promise<void> {
     if (await this.gitIntegrations.findByProject(id)) {
-      await this.gitIntegrations.disconnect(id, user.id);
+      if (deleteRepoFlag === 'true') {
+        await this.gitIntegrations.disconnectAndDeleteRepo(id, user.id);
+      } else {
+        await this.gitIntegrations.disconnect(id, user.id);
+      }
       await this.audit.record({
         user_id: user.id,
         action: 'git_integration.delete',

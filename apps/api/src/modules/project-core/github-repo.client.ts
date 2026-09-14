@@ -17,6 +17,10 @@ export interface DeleteWebhookParams extends RepoRef {
   hookId: number;
 }
 
+export interface DeleteRepoParams extends RepoRef {
+  accessToken: string;
+}
+
 export interface ListCommitsParams extends RepoRef {
   accessToken: string;
   /** 기본 5 — 프로젝트 상세 화면의 "최근 커밋" 카드가 보여 주는 개수. */
@@ -56,6 +60,12 @@ export interface GitHubRepoClient {
   deleteWebhook(params: DeleteWebhookParams): Promise<void>;
   listCommits(params: ListCommitsParams): Promise<CommitSummary[]>;
   listWorkflowRuns(params: ListWorkflowRunsParams): Promise<WorkflowRunSummary[]>;
+  /**
+   * 레포 자체를 GitHub에서 영구히 지운다 — 웹훅 해제와는 차원이 다르다. `delete_repo`
+   * 스코프가 없으면 403이다("가져온 레포 삭제" 화면이 "Muster에서만 제거"와 "GitHub
+   * 레포 자체도 삭제"를 나눠 묻는 이유).
+   */
+  deleteRepo(params: DeleteRepoParams): Promise<void>;
 }
 
 export const GITHUB_REPO_CLIENT = Symbol('GITHUB_REPO_CLIENT');
@@ -200,6 +210,25 @@ export class HttpGitHubRepoClient implements GitHubRepoClient {
     return rows;
   }
 
+  async deleteRepo(params: DeleteRepoParams): Promise<void> {
+    const res = await fetch(`https://api.github.com/repos/${params.owner}/${params.repo}`, {
+      method: 'DELETE',
+      headers: this.headers(params.accessToken),
+    });
+
+    // 이미 지워진 레포(404)도 성공으로 본다 — 목적(그 레포가 없다)은 이미 달성된 상태다.
+    if (res.status === 204 || res.status === 404) return;
+
+    throw await this.toApiException(
+      res,
+      '레포 삭제에 실패했습니다.',
+      undefined,
+      res.status === 403
+        ? 'GitHub 레포 삭제 권한이 없습니다. 레포 소유자인지, delete_repo 권한으로 다시 로그인했는지 확인해 주세요.'
+        : undefined,
+    );
+  }
+
   private headers(accessToken: string): Record<string, string> {
     return {
       Authorization: `Bearer ${accessToken}`,
@@ -213,13 +242,17 @@ export class HttpGitHubRepoClient implements GitHubRepoClient {
     res: Response,
     message: string,
     invalidRequestMessage?: string,
+    /** 401/403 기본 메시지("다시 로그인해 주세요")가 원인을 다 설명하지 못할 때만 넘긴다. */
+    forbiddenMessage?: string,
   ): Promise<ApiException> {
     // GitHub의 원문 오류는 토큰 범위 등 내부 정보를 담을 수 있어 로그에만 남긴다.
     const detail = await res.text().catch(() => '');
     this.logger.warn(`GitHub API ${res.status}: ${detail.slice(0, 500)}`);
 
     if (res.status === 401 || res.status === 403) {
-      return ApiException.forbidden('GitHub 권한이 부족합니다. 다시 로그인해 주세요.');
+      return ApiException.forbidden(
+        forbiddenMessage ?? 'GitHub 권한이 부족합니다. 다시 로그인해 주세요.',
+      );
     }
     if (res.status === 404) {
       return ApiException.notFound('레포지토리를 찾을 수 없거나 접근 권한이 없습니다.');

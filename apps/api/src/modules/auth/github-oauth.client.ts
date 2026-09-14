@@ -73,8 +73,19 @@ export const GITHUB_OAUTH_CLIENT = Symbol('GITHUB_OAUTH_CLIENT');
  * 더 좁은 대안이 없다 — public_repo는 비공개 레포에서 못 쓰고, workflow는 워크플로
  * **파일 수정** 권한이지 실행 권한이 아니다. GitHub App으로 옮기면 actions:write만
  * 따로 받을 수 있지만, 그것은 인증 방식 자체를 바꾸는 일이라 여기서 할 수 없다.
+ *
+ * - delete_repo — "가져온 레포 삭제" 화면에서 "GitHub 레포 자체도 삭제"를 고를 때만 쓴다.
+ *   `repo`에 포함돼 있지 않다(GitHub이 삭제만은 일부러 별도 스코프로 뺐다). 이 스코프가
+ *   추가되기 전에 로그인한 사용자의 저장된 토큰에는 이 권한이 없어서, 그 기능을 처음
+ *   쓰려 하면 403이 나고 다시 로그인해야 한다 — repo/workflow를 추가했을 때와 같은 상황.
  */
-export const GITHUB_OAUTH_SCOPES = ['read:user', 'admin:repo_hook', 'repo', 'workflow'] as const;
+export const GITHUB_OAUTH_SCOPES = [
+  'read:user',
+  'admin:repo_hook',
+  'repo',
+  'workflow',
+  'delete_repo',
+] as const;
 
 /**
  * GitHub REST API 버전. 헤더를 생략하면 GitHub이 2022-11-28로 처리하는데,

@@ -139,6 +139,28 @@ export class GitIntegrationService {
       });
     }
 
+    await this.removeIntegrationRecord(integration);
+  }
+
+  /**
+   * 연동 해제 + GitHub 레포 자체 삭제. "가져오기"의 완전한 반대 방향이다 — 되돌릴 수 없다.
+   * 레포가 사라지면 그 레포의 웹훅도 GitHub 쪽에서 함께 없어지므로 deleteWebhook은 따로
+   * 부르지 않는다. `delete_repo` 스코프가 없는 토큰(이 기능이 생기기 전에 로그인한 사용자)은
+   * 403으로 막히고, 컨트롤러가 그 오류를 그대로 화면에 전달해 재로그인을 안내한다.
+   */
+  async disconnectAndDeleteRepo(projectId: string, userId: string): Promise<void> {
+    const integration = await this.integrations.findOneBy({ project_id: projectId });
+    if (!integration) throw ApiException.notFound('연동된 레포지토리가 없습니다.');
+
+    const { owner, repo } = parseRepoUrl(integration.repo_url);
+    const accessToken = await this.githubTokenOf(userId);
+
+    await this.github.deleteRepo({ owner, repo, accessToken });
+    await this.removeIntegrationRecord(integration);
+  }
+
+  /** `disconnect`·`disconnectAndDeleteRepo`가 공유하는 뒷정리 — DB 레코드, 그 다음 시크릿. */
+  private async removeIntegrationRecord(integration: GitIntegration): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
       await manager.delete(GitIntegration, { id: integration.id });
     });

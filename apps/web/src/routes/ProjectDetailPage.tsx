@@ -87,34 +87,52 @@ function Sparkline({ daily }: { daily: Array<{ date: string; tokens: string }> }
   );
 }
 
+type DeleteMode = 'site' | 'repo';
+
 /**
  * 확인을 이름 입력으로 받는다 — 삭제는 레포 연동(웹훅)까지 함께 해제되는 되돌릴 수 없는
  * 동작이라, 버튼 한 번으로 끝나면 무엇이 사라지는지 읽지 않고 누르게 된다.
+ *
+ * 연동된 레포가 있으면 "Muster에서만 제거"와 "GitHub 레포 자체도 삭제"를 나눠 묻는다.
+ * 후자는 완전히 다른 무게의 동작(실제 GitHub 데이터가 영구히 사라짐)이라 기본값이 아니다.
  */
 function DeleteProjectDialog({
   projectId,
   projectName,
+  repoFullName,
   open,
   onClose,
 }: {
   projectId: string;
   projectName: string;
+  /** 연동된 레포가 없으면 null — 그때는 "GitHub 레포도 삭제" 선택지 자체를 안 보여준다. */
+  repoFullName: string | null;
   open: boolean;
   onClose: () => void;
 }) {
   const navigate = useNavigate();
+  const [mode, setMode] = useState<DeleteMode>('site');
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const matches = typed.trim() === projectName;
+  const confirmTarget = mode === 'repo' && repoFullName !== null ? repoFullName : projectName;
+  const matches = typed.trim() === confirmTarget;
+
+  const changeMode = (next: DeleteMode) => {
+    setMode(next);
+    setTyped(''); // 확인 대상이 바뀌므로 이전에 입력해 둔 것은 더 이상 맞지 않는다.
+  };
 
   const remove = () => {
     if (!matches || busy) return;
     setBusy(true);
     setError(null);
 
-    apiFetch<void>(`/projects/${projectId}`, { method: 'DELETE' }).then(
+    const path =
+      mode === 'repo' ? `/projects/${projectId}?delete_repo=true` : `/projects/${projectId}`;
+
+    apiFetch<void>(path, { method: 'DELETE' }).then(
       // 지운 프로젝트에 머물면 다음 조회가 전부 404다. 목록으로 돌려보낸다.
       () => navigate('/', { replace: true }),
       (err: unknown) => {
@@ -127,19 +145,61 @@ function DeleteProjectDialog({
   return (
     <Modal open={open} title="프로젝트 삭제" onClose={busy ? () => undefined : onClose}>
       <div className="modal__form">
+        {repoFullName !== null && (
+          <div className="detail__delete-modes" role="radiogroup" aria-label="삭제 범위">
+            <label className="detail__delete-mode">
+              <input
+                type="radio"
+                name="delete-mode"
+                checked={mode === 'site'}
+                disabled={busy}
+                onChange={() => changeMode('site')}
+              />
+              <span>
+                <strong>Muster에서만 제거</strong>
+                <span className="meta"> — GitHub 레포는 그대로 둔다. 웹훅 연동만 해제한다.</span>
+              </span>
+            </label>
+            <label className="detail__delete-mode">
+              <input
+                type="radio"
+                name="delete-mode"
+                checked={mode === 'repo'}
+                disabled={busy}
+                onChange={() => changeMode('repo')}
+              />
+              <span>
+                <strong>GitHub 레포 자체도 삭제</strong>
+                <span className="meta">
+                  {' '}
+                  — {repoFullName}의 코드·이슈·PR이 GitHub에서 영구히 사라진다. 되돌릴 수 없다.
+                </span>
+              </span>
+            </label>
+          </div>
+        )}
+
+        {mode === 'repo' ? (
+          <p className="meta">
+            GitHub 레포 삭제 권한(<code>delete_repo</code>)이 로그인 토큰에 없으면 실패한다 — 그러면
+            로그아웃 후 다시 로그인해야 한다.
+          </p>
+        ) : (
+          <p className="meta">
+            레포 연동(웹훅)과 이 프로젝트의 문서·에이전트·로그·감사 기록이 함께 사라진다. 되돌릴 수
+            없다.
+          </p>
+        )}
         <p className="meta">
-          레포 연동(웹훅)과 이 프로젝트의 문서·에이전트·로그·감사 기록이 함께 사라진다. 되돌릴 수
-          없다.
-        </p>
-        <p className="meta">
-          지우려면 프로젝트 이름 <strong>{projectName}</strong>을(를) 그대로 입력한다.
+          지우려면 {mode === 'repo' ? 'GitHub 레포 이름' : '프로젝트 이름'}{' '}
+          <strong>{confirmTarget}</strong>을(를) 그대로 입력한다.
         </p>
         <input
           className="input modal__input"
-          aria-label="확인을 위한 프로젝트 이름"
+          aria-label={mode === 'repo' ? '확인을 위한 레포 이름' : '확인을 위한 프로젝트 이름'}
           value={typed}
           disabled={busy}
-          placeholder={projectName}
+          placeholder={confirmTarget}
           onChange={(e) => setTyped(e.target.value)}
         />
         {error !== null && (
@@ -200,6 +260,11 @@ export function ProjectDetailPage() {
         <DeleteProjectDialog
           projectId={id}
           projectName={project.data.name}
+          repoFullName={
+            git.data?.integration
+              ? git.data.integration.repo_url.replace('https://github.com/', '')
+              : null
+          }
           open={deleting}
           onClose={() => setDeleting(false)}
         />

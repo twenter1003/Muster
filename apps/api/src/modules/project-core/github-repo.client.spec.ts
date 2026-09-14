@@ -291,4 +291,40 @@ describe('HttpGitHubRepoClient (실제 요청 형태)', () => {
       await expect(client.listWorkflowRuns(listParams)).rejects.toMatchObject({ status: 502 });
     });
   });
+
+  describe('deleteRepo', () => {
+    const del = { owner: 'octocat', repo: 'hello-world', accessToken: 'gho_tok' };
+
+    it('문서에 명시된 경로로 DELETE한다', async () => {
+      fetchMock.mockResolvedValue(respond(204));
+      await client.deleteRepo(del);
+
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toBe('https://api.github.com/repos/octocat/hello-world');
+      expect(init.method).toBe('DELETE');
+    });
+
+    it('204면 성공이다', async () => {
+      fetchMock.mockResolvedValue(respond(204));
+      await expect(client.deleteRepo(del)).resolves.toBeUndefined();
+    });
+
+    it('이미 지워진 레포(404)도 성공으로 본다', async () => {
+      fetchMock.mockResolvedValue(respond(404, { message: 'Not Found' }));
+      await expect(client.deleteRepo(del)).resolves.toBeUndefined();
+    });
+
+    it('403이면 delete_repo 권한을 언급하는 메시지로 막는다', async () => {
+      fetchMock.mockResolvedValue(respond(403, { message: 'Resource not accessible' }));
+
+      try {
+        await client.deleteRepo(del);
+        throw new Error('던졌어야 합니다');
+      } catch (e) {
+        expect((e as { code: string }).code).toBe('FORBIDDEN');
+        const body = JSON.stringify((e as { getResponse(): unknown }).getResponse());
+        expect(body).toContain('delete_repo');
+      }
+    });
+  });
 });
