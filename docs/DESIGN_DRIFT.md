@@ -191,6 +191,15 @@ generateContent와 다른 점 — 옮길 때 걸린 것들:
 - "오늘/이번 달 토큰 사용량"은 `BudgetService.dailyUsage`(신규, `GET
   /projects/:id/token-usage`)가 낸다. 기존 `budget` 엔드포인트는 한도 대비 누적만 주고
   "오늘"을 못 물어서 나눴다.
+- **연동 시 과거 워크플로 이력 백필** — 실제로 레포를 가져와 써 보니(사용자 확인), 웹훅은
+  등록 이후의 이벤트만 받아서 막 가져온 프로젝트는 배포·워크플로·헬스 카드가 전부
+  비어 보였다. `GitHubRepoClient.listWorkflowRuns`(`GET .../actions/runs?status=completed`)를
+  추가해 `GitIntegrationService.connect()` 안에서 과거 실행을 DEPLOYMENT_EVENTS로 한 번
+  적재한다 — 웹훅 인터프리터(`github-events.ts`)와 같은 success/failure 판정만 남긴다.
+  헬스 스냅샷은 여기서 재계산하지 않는다(Ingest가 자기 트랜잭션 안에서만 재계산하는
+  경계를 넘지 않으려는 것) — 다음 실제 웹훅이 오면 백필된 행까지 포함해 계산된다.
+  배포(`deployment_status`) 이력은 백필하지 않는다 — GitHub Deployments API를 따로 쓰지
+  않는 레포가 대부분이라 대체로 비어 있어, Actions 이력만으로 이득이 더 크다고 봤다.
 
 새 마이그레이션은 없다 — `Project`·`GitIntegration`·`DeploymentEvent`·`HealthSnapshot`·
 `LogEntry`·`Document`·`AgentRun` 기존 엔티티로 전부 충당된다.
