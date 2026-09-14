@@ -236,10 +236,14 @@ project-goals(목표 초안·진행률 분석) 둘 다 이 모듈을 통해서�
   Docker 설정 생성이 존재하지 않는 API 모양(`/v1beta/interactions`)을 쓰고 있었다.
   올바른 `generateContent` 클라이언트(`common/llm/`)를 공용으로 만들어 env-catalog와
   이 기능이 함께 쓰게 했다.
-- **모델 이름은 불확실하다.** 공식 문서(`ai.google.dev`)를 이 세션의 네트워크 정책상
-  직접 열람하지 못해 정확한 현재 모델 ID를 검증하지 못했다. 기존에 Vertex 경로에서
-  실제로 쓰여 온 `gemini-2.5-flash`를 공통 기본값으로 뒀다 — `GEMINI_MODEL`/
-  `VERTEX_MODEL` 환경변수로 배포 시점에 덮어쓸 수 있다.
+- **모델 이름 — 실배포에서 확인됨(2026-09-14).** 공식 문서를 직접 열람하지 못해
+  `gemini-2.5-flash`를 잠정 기본값으로 두고 배포했는데, 실제 Cloud Run에서 첫 호출이
+  404로 막혔다: `"This model models/gemini-2.5-flash is no longer available to new
+  users. Please update your code to use models/gemini-3.6-flash"`(Gemini API 응답
+  원문). `GEMINI_MODEL` 기본값을 `gemini-3.6-flash`로 바꿨다 — 이건 추측이 아니라
+  API가 직접 알려준 값이다. `VERTEX_MODEL`은 같은 방식으로 확인하지 못해
+  `gemini-2.5-flash`로 남겨 뒀다(Vertex 쪽에서 404가 나면 마찬가지로 바꿔야 한다).
+  둘 다 환경변수로 배포 시점에 덮어쓸 수 있다.
 
 새 테이블 둘: `PROJECT_GOALS`(프로젝트당 1행, 확정된 목표), `PROJECT_PROGRESS_SNAPSHOTS`
 (insert-only 이력). `GEMINI_API_KEY`/`GCP_PROJECT_ID` 둘 다 없으면 이 기능도 env-catalog와
