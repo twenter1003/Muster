@@ -156,8 +156,7 @@ https://aistudio.google.com/apikey 에서 발급해 `apps/api/.env`의 `GEMINI_A
 gcloud services enable aiplatform.googleapis.com --project=<프로젝트ID>
 ```
 
-호출 방식은 [DESIGN_DRIFT.md](DESIGN_DRIFT.md) 8번 참조 — generateContent가 아니라
-Interactions API를 쓴다.
+호출 방식은 [DESIGN_DRIFT.md](DESIGN_DRIFT.md) 8번 참조 — `generateContent`를 쓴다.
 
 ## 6. Trivy / Conftest — Phase 5 (Policy Gate)
 

@@ -12,6 +12,7 @@ import {
   GITHUB_REPO_CLIENT,
   type CommitSummary,
   type GitHubRepoClient,
+  type RepoDoc,
 } from './github-repo.client';
 import { parseRepoUrl, repoUrlOf } from './repo-url';
 
@@ -200,6 +201,19 @@ export class GitIntegrationService {
     const { owner, repo } = parseRepoUrl(integration.repo_url);
     const accessToken = await this.githubTokenOf(userId);
     return this.github.listCommits({ owner, repo, accessToken });
+  }
+
+  /**
+   * "목표 초안" 기능(project-goals)이 읽는 레포 문서. 연동이 없으면 빈 배열이다 —
+   * `recentCommits`와 같은 이유로, 이 화면도 연동이 있다는 것을 전제하지 않는다.
+   */
+  async repoDocs(projectId: string, userId: string): Promise<RepoDoc[]> {
+    const integration = await this.findByProject(projectId);
+    if (!integration) return [];
+
+    const { owner, repo } = parseRepoUrl(integration.repo_url);
+    const accessToken = await this.githubTokenOf(userId);
+    return this.github.listDocs({ owner, repo, accessToken });
   }
 
   /**

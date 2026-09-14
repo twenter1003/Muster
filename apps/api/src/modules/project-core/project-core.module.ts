@@ -27,6 +27,8 @@ import { GITHUB_REPO_CLIENT, HttpGitHubRepoClient } from './github-repo.client';
     ProjectImportService,
     { provide: GITHUB_REPO_CLIENT, useClass: HttpGitHubRepoClient },
   ],
-  exports: [ProjectsService, ApiKeysService],
+  // GitIntegrationService도 export한다 — project-goals가 repoDocs()/recentCommits()를
+  // 재사용해 GitHubRepoClient 배선을 중복하지 않는다.
+  exports: [ProjectsService, ApiKeysService, GitIntegrationService],
 })
 export class ProjectCoreModule {}

@@ -1,0 +1,105 @@
+import { ApiException } from '../../common/errors/api.exception';
+import { ErrorCode } from '../../common/errors/error-codes';
+import type { GeminiClient } from '../../common/llm/gemini-client';
+import type {
+  DockerConfigGenerator,
+  GeneratedDockerConfig,
+  GenerateParams,
+} from './docker-config-generator';
+
+/**
+ * LLM에 넘길 지시. Policy Gate가 뒤에서 막아주지만, 애초에 위험한 설정을 덜 만들게
+ * 유도하는 편이 낫다 — 막힌 구성은 사용자에게 그냥 실패로 보인다.
+ */
+const SYSTEM_INSTRUCTION = `당신은 도커 설정을 생성한다.
+
+지켜야 할 규칙:
+- privileged 모드, 호스트 루트 마운트(/:), --net=host 를 쓰지 않는다.
+- 베이스 이미지는 태그를 고정한다. latest 를 쓰지 않는다.
+- 컨테이너를 root로 실행하지 않는다. USER 를 지정한다.
+- compose 서비스에는 메모리·CPU 제한을 명시한다.
+- 잘 알려진 관리 포트(22, 5432, 6379 등)를 호스트에 노출하지 않는다.
+- 시크릿을 이미지에 굽지 않는다.
+- rationale은 도커를 모르는 사람도 이해할 수 있는 한국어로 쓴다.`;
+
+/**
+ * 출력 스키마를 서버에 넘겨 형식을 강제한다.
+ *
+ * 우리가 자유 텍스트를 잘라내면 그 잘라내는 규칙이 곧 파서가 되고, 모델이 형식을
+ * 조금 바꿀 때마다 조용히 깨진다. 형식 보증은 API 쪽에 맡긴다(`GeminiClient`의
+ * `responseSchema`).
+ */
+const RESPONSE_SCHEMA = {
+  type: 'object',
+  properties: {
+    dockerfile: { type: 'string' },
+    compose: { type: 'string' },
+    rationale: { type: 'string' },
+  },
+  required: ['dockerfile', 'rationale'],
+} as const;
+
+/**
+ * `GeminiClient` 위에서 Docker 설정을 생성한다. 백엔드(AI Studio API 직접 호출 vs
+ * Vertex AI)는 `LlmModule`이 고른 `GeminiClient` 구현이 결정하며, 이 클래스는 그
+ * 선택을 모른다 — 도커 설정에 특화된 프롬프트·스키마·응답 검증만 안다.
+ */
+export class GeminiDockerConfigGenerator implements DockerConfigGenerator {
+  constructor(private readonly client: GeminiClient) {}
+
+  async generate(params: GenerateParams): Promise<GeneratedDockerConfig> {
+    const text = await this.client.generate({
+      systemInstruction: SYSTEM_INSTRUCTION,
+      prompt: buildPrompt(params),
+      responseSchema: RESPONSE_SCHEMA,
+      // 도커 설정은 창의성이 필요한 산출물이 아니다. 같은 입력에는 같은 출력이 낫다.
+      temperature: 0.1,
+    });
+
+    return parseDockerConfig(text);
+  }
+}
+
+function buildPrompt(params: GenerateParams): string {
+  const lines = [
+    params.inputMode === 'natural_language'
+      ? '사용자가 자연어로 기술스택을 설명했다:'
+      : '사용자가 UI 폼으로 기술스택을 지정했다:',
+    JSON.stringify(params.stackInput, null, 2),
+  ];
+
+  if (params.templatePreset) {
+    lines.push(
+      '',
+      '이 템플릿 프리셋을 출발점으로 삼는다:',
+      JSON.stringify(params.templatePreset, null, 2),
+    );
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * 스키마를 강제했더라도 필수 필드를 다시 확인한다. 여기서 통과시키면 dockerfile이
+ * 비어 있는 채로 Policy Gate에 넘어가고, 검사 도구는 빈 파일을 보고 "위반 없음"이라
+ * 답한다 — 아무것도 검사하지 않은 구성이 policy_passed가 되는 경로다.
+ */
+export function parseDockerConfig(text: string): GeneratedDockerConfig {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new ApiException(ErrorCode.INTERNAL, 'LLM 응답을 해석할 수 없습니다.', 502);
+  }
+
+  const obj = parsed as Record<string, unknown>;
+  if (typeof obj.dockerfile !== 'string' || !obj.dockerfile.trim()) {
+    throw new ApiException(ErrorCode.INTERNAL, 'LLM 응답에 Dockerfile이 없습니다.', 502);
+  }
+
+  return {
+    dockerfile: obj.dockerfile,
+    compose: typeof obj.compose === 'string' && obj.compose.trim() ? obj.compose : null,
+    rationale: typeof obj.rationale === 'string' ? obj.rationale : '',
+  };
+}

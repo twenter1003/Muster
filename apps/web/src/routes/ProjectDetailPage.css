@@ -97,6 +97,43 @@
   gap: var(--space-1);
 }
 
+.detail__panel--wide {
+  grid-column: 1 / -1;
+}
+
+.detail__goals-summary,
+.detail__goals-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.detail__goals-bar {
+  height: 8px;
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.detail__goals-bar-fill {
+  height: 100%;
+  background: var(--color-ink);
+}
+
+.detail__goals-textarea {
+  min-height: 220px;
+  padding: var(--space-2);
+  resize: vertical;
+  font-family: inherit;
+  font-size: var(--font-size-body);
+}
+
+.detail__goals-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
 @media (max-width: 900px) {
   .detail__grid {
     grid-template-columns: 1fr;

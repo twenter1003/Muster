@@ -51,13 +51,15 @@ export const envSchema = z.object({
   GCS_SIGNER_SERVICE_ACCOUNT: z.string().optional(),
 
   /**
-   * LLM. 기본 경로는 Gemini API(Interactions, 2026-06 GA)다.
+   * LLM. 기본 경로는 Gemini API(`generateContent`)를 키로 직접 부르는 것이다.
    * 키가 없으면 Vertex AI로 넘어간다 — ADC로 인증하므로 키를 둘 수 없는 환경에서도 돈다.
-   * 둘 다 없으면 환경 구성 생성만 503을 낸다. 벤더 근거는 DESIGN_DRIFT.md 4·8번.
+   * 둘 다 없으면 LLM을 쓰는 기능만 503을 낸다. 벤더 근거는 DESIGN_DRIFT.md 4·8번.
+   *
+   * 모델 기본값은 배포 시점의 실제 가용 모델과 어긋날 수 있다 — 필요하면 이 값을
+   * 바꿔서 덮어쓴다(Google AI Studio에서 현재 사용 가능한 모델을 확인할 것).
    */
   GEMINI_API_KEY: z.string().optional(),
-  GEMINI_MODEL: z.string().default('gemini-3.5-flash'),
-  /** Vertex 폴백용. Vertex는 3.x가 아직 안 나와 모델을 따로 둔다. */
+  GEMINI_MODEL: z.string().default('gemini-2.5-flash'),
   VERTEX_LOCATION: z.string().default('us-central1'),
   VERTEX_MODEL: z.string().default('gemini-2.5-flash'),
 });
