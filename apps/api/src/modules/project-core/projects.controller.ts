@@ -135,10 +135,23 @@ export class ProjectsController {
     return toView(await this.projects.update(id, user.id, dto));
   }
 
+  /**
+   * 프로젝트 삭제. 연동된 레포가 있으면 먼저 해제한다 — 그렇지 않으면 프로젝트는
+   * (소프트) 삭제됐는데 GitHub 웹훅은 그대로 남아 이벤트를 계속 우리 쪽으로 보낸다.
+   * "레포 가져오기"의 반대 방향이므로 가져올 때와 대칭으로 연동부터 정리한다.
+   */
   @Delete(':id')
   @UseGuards(ProjectMemberGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser): Promise<void> {
+    if (await this.gitIntegrations.findByProject(id)) {
+      await this.gitIntegrations.disconnect(id, user.id);
+      await this.audit.record({
+        user_id: user.id,
+        action: 'git_integration.delete',
+        project_id: id,
+      });
+    }
     await this.projects.softDelete(id, user.id);
   }
 

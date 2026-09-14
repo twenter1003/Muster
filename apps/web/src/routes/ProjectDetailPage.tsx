@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { HealthIndicator } from '../components/HealthIndicator';
-import { type Page } from '../lib/api';
+import { Button } from '../components/Button';
+import { Modal } from '../components/Modal';
+import { ApiError, apiFetch, type Page } from '../lib/api';
 import { EM_DASH, LOG_LEVELS, formatDateTime, type LogLevel, type Measurable } from '../lib/domain';
 import { useApi } from '../lib/useApi';
 import './ProjectDetailPage.css';
@@ -85,9 +87,83 @@ function Sparkline({ daily }: { daily: Array<{ date: string; tokens: string }> }
   );
 }
 
+/**
+ * 확인을 이름 입력으로 받는다 — 삭제는 레포 연동(웹훅)까지 함께 해제되는 되돌릴 수 없는
+ * 동작이라, 버튼 한 번으로 끝나면 무엇이 사라지는지 읽지 않고 누르게 된다.
+ */
+function DeleteProjectDialog({
+  projectId,
+  projectName,
+  open,
+  onClose,
+}: {
+  projectId: string;
+  projectName: string;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const navigate = useNavigate();
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const matches = typed.trim() === projectName;
+
+  const remove = () => {
+    if (!matches || busy) return;
+    setBusy(true);
+    setError(null);
+
+    apiFetch<void>(`/projects/${projectId}`, { method: 'DELETE' }).then(
+      // 지운 프로젝트에 머물면 다음 조회가 전부 404다. 목록으로 돌려보낸다.
+      () => navigate('/', { replace: true }),
+      (err: unknown) => {
+        setBusy(false);
+        setError(err instanceof ApiError ? `${err.message} (${err.code})` : String(err));
+      },
+    );
+  };
+
+  return (
+    <Modal open={open} title="프로젝트 삭제" onClose={busy ? () => undefined : onClose}>
+      <div className="modal__form">
+        <p className="meta">
+          레포 연동(웹훅)과 이 프로젝트의 문서·에이전트·로그·감사 기록이 함께 사라진다. 되돌릴 수
+          없다.
+        </p>
+        <p className="meta">
+          지우려면 프로젝트 이름 <strong>{projectName}</strong>을(를) 그대로 입력한다.
+        </p>
+        <input
+          className="input modal__input"
+          aria-label="확인을 위한 프로젝트 이름"
+          value={typed}
+          disabled={busy}
+          placeholder={projectName}
+          onChange={(e) => setTyped(e.target.value)}
+        />
+        {error !== null && (
+          <p className="error-note" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="modal__actions">
+          <Button type="button" onClick={onClose} disabled={busy}>
+            취소
+          </Button>
+          <Button type="button" onClick={remove} disabled={!matches || busy}>
+            {busy ? '지우는 중…' : '삭제'}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 export function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [level, setLevel] = useState<LogLevel | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const project = useApi<ProjectView>(id ? `/projects/${id}` : null);
   const git = useApi<{ integration: GitIntegrationView | null }>(
@@ -120,9 +196,23 @@ export function ProjectDetailPage() {
 
   return (
     <section className="page detail">
-      <Link to="/" className="meta">
-        ← 프로젝트 목록
-      </Link>
+      {project.data && (
+        <DeleteProjectDialog
+          projectId={id}
+          projectName={project.data.name}
+          open={deleting}
+          onClose={() => setDeleting(false)}
+        />
+      )}
+
+      <div className="detail__toprow">
+        <Link to="/" className="meta">
+          ← 프로젝트 목록
+        </Link>
+        <Button onClick={() => setDeleting(true)} disabled={!project.data}>
+          프로젝트 삭제
+        </Button>
+      </div>
 
       <header className="detail__head">
         <div className="detail__head-row">

@@ -4,6 +4,13 @@
   gap: var(--space-3);
 }
 
+.detail__toprow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
 .detail__head {
   display: flex;
   flex-direction: column;

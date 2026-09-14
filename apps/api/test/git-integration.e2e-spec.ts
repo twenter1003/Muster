@@ -716,4 +716,50 @@ describe('Phase 3 — GitHub 레포 연동 (e2e)', () => {
       expect(res.body.items).toEqual([]);
     });
   });
+
+  /**
+   * "레포 가져오기"의 반대 방향 — 프로젝트를 지우면서 연동도 함께 정리되는지.
+   * 안 그러면 GitHub에 웹훅이 고아로 남아 지워진 프로젝트로 이벤트를 계속 보낸다.
+   */
+  describe('DELETE /projects/:id — 연동 정리', () => {
+    it('연동된 레포의 웹훅을 지우고 나서 프로젝트를 삭제한다', async () => {
+      const p = await newProject('delete-with-integration');
+      await http()
+        .post(`/api/v1/projects/${p}/git-integration`)
+        .set(auth())
+        .send({ repo_url: 'https://github.com/octocat/delete-me' })
+        .expect(201);
+
+      const before = (await ds.query(
+        `SELECT webhook_id FROM git_integrations WHERE project_id = $1`,
+        [p],
+      )) as Array<{ webhook_id: string }>;
+      const deletedBefore = github.deleted.length;
+
+      await http().delete(`/api/v1/projects/${p}`).set(auth()).expect(204);
+
+      expect(github.deleted.at(-1)).toMatchObject({
+        owner: 'octocat',
+        repo: 'delete-me',
+        hookId: Number(before[0].webhook_id),
+      });
+      expect(github.deleted.length).toBe(deletedBefore + 1);
+
+      const rows = (await ds.query(`SELECT id FROM git_integrations WHERE project_id = $1`, [
+        p,
+      ])) as unknown[];
+      expect(rows).toHaveLength(0);
+
+      await http().get(`/api/v1/projects/${p}`).set(auth()).expect(404);
+    });
+
+    it('연동이 없는 프로젝트는 GitHub을 부르지 않고 그냥 지워진다', async () => {
+      const p = await newProject('delete-without-integration');
+      const deletedBefore = github.deleted.length;
+
+      await http().delete(`/api/v1/projects/${p}`).set(auth()).expect(204);
+
+      expect(github.deleted.length).toBe(deletedBefore);
+    });
+  });
 });
