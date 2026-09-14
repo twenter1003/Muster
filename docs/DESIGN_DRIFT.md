@@ -161,6 +161,42 @@ generateContent와 다른 점 — 옮길 때 걸린 것들:
 
 ---
 
+## 11. 프론트엔드 IA 경량화 — 레포 가져오기 중심으로 재편 (개선 채택)
+
+설계서 02장은 고정 사이드바(1a)에 프로젝트·DocStore·EnvCatalog·AgentRegistry·로그·헬스·
+리포트·감사 로그·설정 9개 목적지를 건다. 실제로 써 보니 로그인 직후 사용자가 "뭐부터
+해야 하나"를 못 찾는 문제가 있었다 — 진입 경로가 "빈 프로젝트를 이름으로 만들고 레포
+연동은 설정에 숨어 있다"였고, 원래 의도("GitHub 레포를 가져오면 커밋·배포·에러·토큰
+사용량을 한 곳에서 본다")와 화면이 어긋나 있었다.
+
+**채택**: 핵심 루프만 남기고 나머지는 라우트에서 뺐다.
+
+- 남긴 것: 로그인 → **레포 가져오기**(`/import`, 신규) → 프로젝트 목록(`/`) → 프로젝트
+  상세(`/projects/:id`, 모니터링). 고정 사이드바를 없애고 상단바(브랜드=홈 링크 +
+  "레포 더 가져오기")만 남겼다 — 목적지가 셋뿐이라 224px 사이드바를 띄워 둘 이유가 없다.
+- 뺀 것(라우트만 — 파일은 지우지 않았다): DocStore·EnvCatalog·AgentRegistry·로그·헬스·
+  리포트·감사 로그·알림(Inbox)·설정. `DashboardPage`·`ProjectOverviewPage`도 더 이상
+  어떤 라우트도 가리키지 않지만 파일은 남아 있다 — 다시 필요해지면 라우트 한 줄만
+  되살리면 된다.
+- **레포 가져오기**(`POST /projects/import`)가 새 진입점이다. 레포마다 "프로젝트 생성 +
+  Git 연동 + 웹훅 등록"을 한 번에 묶고, 레포 하나의 웹훅 등록 실패가 나머지를 막지 않는다
+  (`{ items: [{ full_name, status, project_id?, error? }] }`로 부분 성공을 그대로 보고한다).
+  레포 목록은 `GET /github/repos`(신규, `GitHubOAuthClient.listRepos`) — 이미 저장된
+  OAuth 스코프에 `repo`가 있어 재로그인 없이 된다.
+- 프로젝트 상세의 "커밋" 카드는 새 테이블을 만들지 않고 GitHub API를 그때그때 호출한다
+  (`GitHubRepoClient.listCommits`, `GET /projects/:id/commits`). "빌드·테스트 워크플로"
+  카드는 개별 테스트 통과/실패 개수가 아니라 CI 성공/실패만 보여준다 — 그 이상은 워크플로
+  아티팩트에서 테스트 리포트를 파싱하는 별도 수집이 필요해 이번 범위에서는 뺐다(문서
+  누락이 아니라 의도적 축소).
+- "오늘/이번 달 토큰 사용량"은 `BudgetService.dailyUsage`(신규, `GET
+  /projects/:id/token-usage`)가 낸다. 기존 `budget` 엔드포인트는 한도 대비 누적만 주고
+  "오늘"을 못 물어서 나눴다.
+
+새 마이그레이션은 없다 — `Project`·`GitIntegration`·`DeploymentEvent`·`HealthSnapshot`·
+`LogEntry`·`Document`·`AgentRun` 기존 엔티티로 전부 충당된다.
+
+---
+
 ## 경미한 추가 (보고용)
 
 | 컬럼 | 이유 |

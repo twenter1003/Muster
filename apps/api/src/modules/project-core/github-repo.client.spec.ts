@@ -173,4 +173,58 @@ describe('HttpGitHubRepoClient (실제 요청 형태)', () => {
       await expect(client.deleteWebhook(del)).rejects.toMatchObject({ code: 'FORBIDDEN' });
     });
   });
+
+  describe('listCommits', () => {
+    const listParams = { owner: 'octocat', repo: 'hello-world', accessToken: 'gho_tok' };
+
+    it('문서에 명시된 경로로 GET한다 (기본 5개)', async () => {
+      fetchMock.mockResolvedValue(respond(200, []));
+      await client.listCommits(listParams);
+
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toBe('https://api.github.com/repos/octocat/hello-world/commits?per_page=5');
+      expect(init.method).toBeUndefined(); // GET은 method를 생략해도 된다
+    });
+
+    it('limit을 넘기면 per_page에 반영한다', async () => {
+      fetchMock.mockResolvedValue(respond(200, []));
+      await client.listCommits({ ...listParams, limit: 10 });
+
+      expect(fetchMock.mock.calls[0][0]).toContain('per_page=10');
+    });
+
+    it('메시지 첫 줄만 남기고 필요한 필드만 뽑는다', async () => {
+      fetchMock.mockResolvedValue(
+        respond(200, [
+          {
+            sha: 'a3f91c2',
+            html_url: 'https://github.com/octocat/hello-world/commit/a3f91c2',
+            commit: {
+              message: 'fix: 결제 모듈 타임아웃 처리\n\n상세 설명 본문',
+              author: { date: '2026-09-13T10:00:00Z' },
+            },
+          },
+        ]),
+      );
+
+      expect(await client.listCommits(listParams)).toEqual([
+        {
+          sha: 'a3f91c2',
+          message: 'fix: 결제 모듈 타임아웃 처리',
+          authored_at: '2026-09-13T10:00:00Z',
+          url: 'https://github.com/octocat/hello-world/commit/a3f91c2',
+        },
+      ]);
+    });
+
+    it('커밋이 없는 빈 레포(409)는 빈 배열이다', async () => {
+      fetchMock.mockResolvedValue(respond(409, { message: 'Git Repository is empty.' }));
+      expect(await client.listCommits(listParams)).toEqual([]);
+    });
+
+    it('그 외 실패는 502로 변환한다', async () => {
+      fetchMock.mockResolvedValue(respond(500, {}));
+      await expect(client.listCommits(listParams)).rejects.toMatchObject({ status: 502 });
+    });
+  });
 });

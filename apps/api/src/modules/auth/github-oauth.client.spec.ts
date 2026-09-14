@@ -182,4 +182,55 @@ describe('HttpGitHubOAuthClient (실제 요청 형태)', () => {
       await expect(client.fetchProfile('t')).rejects.toMatchObject({ status: 502 });
     });
   });
+
+  describe('listRepos', () => {
+    it('Bearer 토큰과 API 버전 헤더를 붙여 /user/repos를 호출한다', async () => {
+      fetchMock.mockResolvedValue(respond([]));
+      await client.listRepos('gho_tok');
+
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toBe('https://api.github.com/user/repos?sort=pushed&per_page=100');
+      expect(init.headers).toMatchObject({
+        Authorization: 'Bearer gho_tok',
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': GITHUB_API_VERSION,
+      });
+    });
+
+    it('필요한 필드만 뽑아 돌려준다', async () => {
+      fetchMock.mockResolvedValue(
+        respond([
+          {
+            full_name: 'octocat/hello-world',
+            private: false,
+            default_branch: 'main',
+            pushed_at: '2026-09-01T00:00:00Z',
+            language: 'TypeScript',
+            id: 1,
+            html_url: 'https://github.com/octocat/hello-world',
+          },
+        ]),
+      );
+
+      expect(await client.listRepos('t')).toEqual([
+        {
+          full_name: 'octocat/hello-world',
+          private: false,
+          default_branch: 'main',
+          pushed_at: '2026-09-01T00:00:00Z',
+          language: 'TypeScript',
+        },
+      ]);
+    });
+
+    it('full_name이 없는 행은 버린다', async () => {
+      fetchMock.mockResolvedValue(respond([{ private: true }]));
+      expect(await client.listRepos('t')).toEqual([]);
+    });
+
+    it('5xx면 502로 변환한다', async () => {
+      fetchMock.mockResolvedValue(respond({}, { status: 500 }));
+      await expect(client.listRepos('t')).rejects.toMatchObject({ status: 502 });
+    });
+  });
 });

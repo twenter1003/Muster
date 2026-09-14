@@ -9,6 +9,16 @@ export interface GitHubProfile {
   email: string | null;
 }
 
+/** `GET /user/repos` 응답 한 행 중 레포 가져오기 화면이 쓰는 필드만. */
+export interface GitHubRepoSummary {
+  /** `owner/repo` 형태. `parseRepoUrl`이 받는 owner·repo로 그대로 쪼갤 수 있다. */
+  full_name: string;
+  private: boolean;
+  default_branch: string;
+  pushed_at: string | null;
+  language: string | null;
+}
+
 /**
  * GitHub OAuth 호출 계약.
  *
@@ -35,6 +45,13 @@ export interface GitHubOAuthClient {
 
   /** 액세스 토큰으로 사용자 프로필을 읽는다. */
   fetchProfile(accessToken: string): Promise<GitHubProfile>;
+
+  /**
+   * 사용자가 접근할 수 있는 레포 목록 (레포 가져오기 화면의 원천).
+   * push 최신순으로 받아 온다 — 방금 커밋한 레포가 목록 위쪽에 오는 편이
+   * "무엇을 가져올지"를 고르는 화면에서 더 유용하다.
+   */
+  listRepos(accessToken: string): Promise<GitHubRepoSummary[]>;
 }
 
 export const GITHUB_OAUTH_CLIENT = Symbol('GITHUB_OAUTH_CLIENT');
@@ -155,5 +172,41 @@ export class HttpGitHubOAuthClient implements GitHubOAuthClient {
     }
 
     return { login: body.login, email: body.email ?? null };
+  }
+
+  async listRepos(accessToken: string): Promise<GitHubRepoSummary[]> {
+    // per_page=100이 GitHub 최대치다. 개인용 규모에서는 첫 페이지로 충분하고,
+    // 더 필요해지면 Link 헤더를 따라가는 페이지네이션을 여기 한 곳에만 추가하면 된다.
+    const res = await fetch('https://api.github.com/user/repos?sort=pushed&per_page=100', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': GITHUB_API_VERSION,
+      },
+    });
+
+    if (!res.ok) {
+      throw new ApiException(ErrorCode.INTERNAL, 'GitHub 레포 목록 조회에 실패했습니다.', 502);
+    }
+
+    const body = (await res.json()) as Array<{
+      full_name?: string;
+      private?: boolean;
+      default_branch?: string;
+      pushed_at?: string | null;
+      language?: string | null;
+    }>;
+
+    // full_name 없는 행은 있을 수 없지만, 있다면 조용히 버린다 — 레포 하나가 이상하다고
+    // 목록 전체를 502로 떨어뜨리는 것은 과하다.
+    return body
+      .filter((r): r is Required<Pick<typeof r, 'full_name'>> & typeof r => Boolean(r.full_name))
+      .map((r) => ({
+        full_name: r.full_name,
+        private: r.private ?? false,
+        default_branch: r.default_branch ?? 'main',
+        pushed_at: r.pushed_at ?? null,
+        language: r.language ?? null,
+      }));
   }
 }

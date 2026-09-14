@@ -43,3 +43,12 @@ export function parseRepoUrl(input: string): RepoRef {
 
   return { owner, repo };
 }
+
+/**
+ * `owner/repo` 형태(GitHub API의 `full_name`)를 우리가 저장하는 정규 형태로 되돌린다.
+ * `GitIntegrationService.connect`가 저장하는 값과 항상 같은 형식이어야
+ * "이미 가져온 레포"를 문자열 비교로 판정할 수 있다.
+ */
+export function repoUrlOf(fullName: string): string {
+  return `https://github.com/${fullName}`;
+}

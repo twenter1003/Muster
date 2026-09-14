@@ -1,120 +1,63 @@
 /*
- * 프로젝트 목록 — 구조·정보 밀도는 목업 1c에서, 색·타이포는 토큰에서 온다.
- * 목업의 보라 액센트(Nocturne)는 설계서가 폐기했으므로 여기에는 hex가 하나도 없다.
+ * 프로젝트 목록 — 재설계 후. 필터 레일·표/보드 전환·커서 페이지네이션을 걷어냈다.
+ * 가져온 프로젝트가 몇 개 안 되는 지금 단계에서는 카드 그리드 하나면 충분하고,
+ * 늘어나면 그때 다시 필요한 만큼만 덧붙인다.
  */
 
-/* 표기 자체가 장치라서 코드처럼 보여야 한다 — "지운 항목은 목록에서 빠졌을 뿐 남아 있다". */
-.plist__mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+.plist__import-cta {
+  margin-left: auto;
 }
 
-.plist__actions {
-  margin-left: auto;
+.plist__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-4);
+}
+
+.plist__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-card-padding);
+  background: var(--color-surface);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  color: var(--color-ink);
+  text-decoration: none;
+  min-width: 0;
+}
+
+.plist__card-head {
   display: flex;
   align-items: center;
   gap: var(--space-2);
 }
 
-.plist__views {
-  display: flex;
-  gap: var(--space-1);
-}
-
-.plist__body {
-  display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
-  gap: var(--space-4);
-  min-width: 0;
-}
-
-.plist__rail {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  padding-right: var(--space-3);
-  border-right: 1px solid var(--color-rule);
-}
-
-.plist__rail-group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.plist__rail-label {
-  margin: 0;
-  font-size: var(--font-size-badge);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--color-ink-mid);
-}
-
-/* .chip 위에 크기만. 선택 표시(테두리·굵기)는 공용 규칙 그대로 쓴다. */
-.plist__chip {
-  padding: var(--space-1) var(--space-2);
-  font-size: var(--font-size-badge);
-}
-
-/*
- * 필터 칩만 선택을 채움으로 그린다. 여러 개를 동시에 켤 수 있는 칩이라, 테두리만으로는
- * 켜진 것과 꺼진 것이 나란히 있을 때 구별이 약하다.
- */
-.plist__chip[aria-pressed='true'] {
-  background: var(--color-ink);
-  border-color: var(--color-ink);
-  color: var(--color-bg);
-}
-
-.plist__chip-count {
-  color: inherit;
-  opacity: 0.7;
-}
-
-.plist__reset {
-  margin-top: auto;
-}
-
-/* .table 위에 이 표만의 밀도(두 줄 행)와 최소 너비를 얹는다. */
-.plist__table {
-  min-width: 720px;
-}
-
-.plist__table th {
-  padding: var(--space-2);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.plist__table td {
-  height: var(--row-height-two-line);
-  padding: var(--space-2);
-  vertical-align: middle;
-}
-
 .plist__name {
-  font-weight: 500;
-  color: var(--color-ink);
-}
-
-.plist__num {
-  font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-section);
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.plist__dash {
-  color: var(--color-ink-mid);
+.plist__card-log {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-rule);
 }
 
-/*
- * 표·페이저가 쌓이는 본문 칸. .card__body와 선언이 같지만 카드가 아니라서 그 이름을
- * 빌리지 않는다 — 이름이 자리를 말하지 않으면 다음 사람이 카드를 찾으러 간다.
- */
-.plist__content {
+.plist__card-foot {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--space-2);
-  min-width: 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-rule);
 }
 
 /* 아직 안 온 값. —(측정 불가)와 다른 모양이어야 둘이 섞이지 않는다. */
@@ -124,76 +67,12 @@
   letter-spacing: 0.1em;
 }
 
-.plist__board {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 220px;
-  gap: var(--space-2);
-  align-items: start;
+.plist__dash {
+  color: var(--color-ink-mid);
 }
 
-.plist__column {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-2);
-  border: 1px solid var(--color-rule);
-  border-radius: var(--radius);
-  background: var(--color-surface);
-}
-
-.plist__column-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.plist__card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-card-padding);
-  border: 1px solid var(--color-rule);
-  border-radius: var(--radius);
-  background: var(--color-bg);
-  color: var(--color-ink);
-  text-decoration: none;
-}
-
-.plist__card-foot {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-}
-
-/* 768–1279: 스택(두 번째 줄)과 문서 컬럼을 접는다(설계서 반응형 기준). */
-@media (max-width: 1279px) {
-  .plist__col-docs,
-  .plist__sub {
-    display: none;
-  }
-
-  .plist__table {
-    min-width: 600px;
-  }
-}
-
-/* <768: 필터 레일을 표 위로 눕힌다. 좁은 화면에서 200px 레일은 표를 먹는다. */
 @media (max-width: 767px) {
-  .plist__body {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .plist__rail {
-    padding-right: 0;
-    border-right: none;
-    border-bottom: 1px solid var(--color-rule);
-    padding-bottom: var(--space-3);
-  }
-
-  .plist__reset {
-    margin-top: 0;
-    align-self: flex-start;
+  .plist__grid {
+    grid-template-columns: 1fr;
   }
 }

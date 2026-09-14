@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
 import { ApiKeysController, InvitesController, ProjectsController } from './projects.controller';
+import { GithubController } from './github.controller';
 import { ProjectsService } from './projects.service';
 import { GitIntegrationService } from './git-integration.service';
 import { ApiKeysService } from './api-keys.service';
 import { MembersService } from './members.service';
 import { InvitesService } from './invites.service';
+import { ProjectImportService } from './project-import.service';
 import { GITHUB_REPO_CLIENT, HttpGitHubRepoClient } from './github-repo.client';
 
 /**
@@ -15,13 +17,14 @@ import { GITHUB_REPO_CLIENT, HttpGitHubRepoClient } from './github-repo.client';
  * 플로우 전체를 fake로 검증할 수 있다.
  */
 @Module({
-  controllers: [ProjectsController, ApiKeysController, InvitesController],
+  controllers: [ProjectsController, ApiKeysController, InvitesController, GithubController],
   providers: [
     ProjectsService,
     GitIntegrationService,
     ApiKeysService,
     MembersService,
     InvitesService,
+    ProjectImportService,
     { provide: GITHUB_REPO_CLIENT, useClass: HttpGitHubRepoClient },
   ],
   exports: [ProjectsService, ApiKeysService],

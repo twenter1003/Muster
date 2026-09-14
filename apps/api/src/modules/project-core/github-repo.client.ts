@@ -17,10 +17,26 @@ export interface DeleteWebhookParams extends RepoRef {
   hookId: number;
 }
 
+export interface ListCommitsParams extends RepoRef {
+  accessToken: string;
+  /** 기본 5 — 프로젝트 상세 화면의 "최근 커밋" 카드가 보여 주는 개수. */
+  limit?: number;
+}
+
+/** 프로젝트 상세 화면의 "최근 커밋" 카드가 쓰는 필드만 남긴다. */
+export interface CommitSummary {
+  sha: string;
+  /** 커밋 메시지 첫 줄만 — 본문까지 보여 주면 카드 한 줄 높이가 무너진다. */
+  message: string;
+  authored_at: string | null;
+  url: string;
+}
+
 /** GitHub 레포 웹훅 관리 계약. 자격증명 없이도 플로우를 검증할 수 있도록 인터페이스로 둔다. */
 export interface GitHubRepoClient {
   createWebhook(params: CreateWebhookParams): Promise<{ id: number }>;
   deleteWebhook(params: DeleteWebhookParams): Promise<void>;
+  listCommits(params: ListCommitsParams): Promise<CommitSummary[]>;
 }
 
 export const GITHUB_REPO_CLIENT = Symbol('GITHUB_REPO_CLIENT');
@@ -88,6 +104,33 @@ export class HttpGitHubRepoClient implements GitHubRepoClient {
     if (res.status === 204 || res.status === 404) return;
 
     throw await this.toApiException(res, '웹훅 삭제에 실패했습니다.');
+  }
+
+  async listCommits(params: ListCommitsParams): Promise<CommitSummary[]> {
+    const perPage = params.limit ?? 5;
+    const res = await fetch(
+      `https://api.github.com/repos/${params.owner}/${params.repo}/commits?per_page=${perPage}`,
+      { headers: this.headers(params.accessToken) },
+    );
+
+    // 커밋이 하나도 없는 빈 레포는 409를 준다 — 실패가 아니라 "아직 없음"이다.
+    if (res.status === 409) return [];
+    if (!res.ok) throw await this.toApiException(res, '커밋 목록 조회에 실패했습니다.');
+
+    const body = (await res.json()) as Array<{
+      sha?: string;
+      html_url?: string;
+      commit?: { message?: string; author?: { date?: string } };
+    }>;
+
+    return body
+      .filter((c): c is Required<Pick<typeof c, 'sha'>> & typeof c => Boolean(c.sha))
+      .map((c) => ({
+        sha: c.sha,
+        message: (c.commit?.message ?? '').split('\n')[0],
+        authored_at: c.commit?.author?.date ?? null,
+        url: c.html_url ?? '',
+      }));
   }
 
   private headers(accessToken: string): Record<string, string> {

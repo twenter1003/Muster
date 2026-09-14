@@ -4,7 +4,7 @@ import { GitHubTokenService } from './github-token.service';
 import { ApiException } from '../../common/errors/api.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import type { SecretStore } from '../../common/secrets/secret-store';
-import type { GitHubOAuthClient, GitHubProfile } from './github-oauth.client';
+import type { GitHubOAuthClient, GitHubProfile, GitHubRepoSummary } from './github-oauth.client';
 import { parseTokenSet, serializeTokenSet, type GitHubTokenSet } from './github-token-set';
 import type { User } from '../../database/entities';
 
@@ -54,6 +54,14 @@ class FakeOAuth implements GitHubOAuthClient {
 
   async fetchProfile(): Promise<GitHubProfile> {
     throw new Error('이 테스트는 프로필 경로를 타지 않는다');
+  }
+
+  repos: GitHubRepoSummary[] = [];
+  lastReposAccessToken: string | null = null;
+
+  async listRepos(accessToken: string): Promise<GitHubRepoSummary[]> {
+    this.lastReposAccessToken = accessToken;
+    return this.repos;
   }
 }
 
@@ -189,6 +197,40 @@ describe('GitHubTokenService.accessTokenFor', () => {
 
     await expect(service.accessTokenFor(USER_ID)).rejects.toMatchObject({
       response: { error: { code: ErrorCode.GITHUB_REAUTH_REQUIRED } },
+    });
+  });
+
+  describe('listRepos', () => {
+    it('accessTokenFor가 낸 토큰으로 GitHub을 호출한다', async () => {
+      await given({ accessToken: 'gho_live', refreshToken: null, expiresAt: null });
+      oauth.repos = [
+        {
+          full_name: 'octocat/hello-world',
+          private: false,
+          default_branch: 'main',
+          pushed_at: null,
+          language: null,
+        },
+      ];
+
+      expect(await service.listRepos(USER_ID)).toEqual(oauth.repos);
+      expect(oauth.lastReposAccessToken).toBe('gho_live');
+    });
+
+    it('만료된 토큰이면 먼저 갱신한 뒤 그 토큰으로 호출한다', async () => {
+      await given({ accessToken: 'gho_dead', refreshToken: 'ghr_1', expiresAt: Date.now() - 1 });
+
+      await service.listRepos(USER_ID);
+
+      expect(oauth.calls).toEqual(['ghr_1']);
+      expect(oauth.lastReposAccessToken).toBe('gho_new');
+    });
+
+    it('토큰이 없으면 재인증을 요구하고 GitHub을 호출하지 않는다', async () => {
+      await expect(service.listRepos(USER_ID)).rejects.toMatchObject({
+        response: { error: { code: ErrorCode.GITHUB_REAUTH_REQUIRED } },
+      });
+      expect(oauth.lastReposAccessToken).toBeNull();
     });
   });
 });

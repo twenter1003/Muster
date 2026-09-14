@@ -11,13 +11,16 @@ import {
   GITHUB_OAUTH_CLIENT,
   type GitHubOAuthClient,
   type GitHubProfile,
+  type GitHubRepoSummary,
 } from '../src/modules/auth/github-oauth.client';
 import { serializeTokenSet, type GitHubTokenSet } from '../src/modules/auth/github-token-set';
 import {
   GITHUB_REPO_CLIENT,
+  type CommitSummary,
   type CreateWebhookParams,
   type DeleteWebhookParams,
   type GitHubRepoClient,
+  type ListCommitsParams,
 } from '../src/modules/project-core/github-repo.client';
 
 /**
@@ -29,6 +32,8 @@ class FakeRepoClient implements GitHubRepoClient {
   deleted: DeleteWebhookParams[] = [];
   nextId = 1000;
   failCreate: Error | null = null;
+  commits: CommitSummary[] = [];
+  lastListCommitsParams: ListCommitsParams | null = null;
 
   async createWebhook(params: CreateWebhookParams): Promise<{ id: number }> {
     if (this.failCreate) throw this.failCreate;
@@ -39,6 +44,11 @@ class FakeRepoClient implements GitHubRepoClient {
   async deleteWebhook(params: DeleteWebhookParams): Promise<void> {
     this.deleted.push(params);
   }
+
+  async listCommits(params: ListCommitsParams): Promise<CommitSummary[]> {
+    this.lastListCommitsParams = params;
+    return this.commits;
+  }
 }
 
 /**
@@ -48,6 +58,7 @@ class FakeOAuthClient implements GitHubOAuthClient {
   refreshed: string[] = [];
   failRefresh = false;
   nextAccessToken = 'gho_refreshed_token';
+  repos: GitHubRepoSummary[] = [];
 
   async exchangeCode(): Promise<GitHubTokenSet> {
     throw new Error('이 테스트는 로그인 콜백을 타지 않는다');
@@ -65,6 +76,10 @@ class FakeOAuthClient implements GitHubOAuthClient {
 
   async fetchProfile(): Promise<GitHubProfile> {
     throw new Error('이 테스트는 프로필 조회를 타지 않는다');
+  }
+
+  async listRepos(): Promise<GitHubRepoSummary[]> {
+    return this.repos;
   }
 }
 
@@ -420,6 +435,193 @@ describe('Phase 3 — GitHub 레포 연동 (e2e)', () => {
     it('인증 없이는 401이다', async () => {
       const target = await newProject('git-unauth');
       await http().get(`/api/v1/projects/${target}/git-integration`).expect(401);
+    });
+  });
+
+  /** 레포 가져오기 화면의 원천. GitHub 응답을 그대로 옮기되 already_imported를 우리가 계산해 얹는다. */
+  describe('GET /github/repos', () => {
+    afterEach(() => {
+      oauth.repos = [];
+    });
+
+    it('GitHub 레포 목록에 이미 가져온 레포 표시를 얹어 돌려준다', async () => {
+      // '등록' describe에서 이미 이 프로젝트에 octocat/hello-world를 연동해 두었다.
+      oauth.repos = [
+        {
+          full_name: 'octocat/hello-world',
+          private: false,
+          default_branch: 'main',
+          pushed_at: '2026-09-01T00:00:00Z',
+          language: 'TypeScript',
+        },
+        {
+          full_name: 'octocat/never-imported',
+          private: true,
+          default_branch: 'main',
+          pushed_at: null,
+          language: null,
+        },
+      ];
+
+      const res = await http().get('/api/v1/github/repos').set(auth()).expect(200);
+
+      expect(res.body.items).toEqual([
+        expect.objectContaining({ full_name: 'octocat/hello-world', already_imported: true }),
+        expect.objectContaining({ full_name: 'octocat/never-imported', already_imported: false }),
+      ]);
+    });
+
+    it('다른 사용자의 연동은 already_imported에 영향을 주지 않는다', async () => {
+      const outsiderRepo = ds.getRepository(User);
+      const outsider = await outsiderRepo.save(
+        outsiderRepo.create({ github_login: `repos-outsider-${Date.now()}`, email: null }),
+      );
+      const outsiderToken = (await app.get(SessionService).issue(outsider.id)).token;
+      const ref = await secrets.put(`github-token-${outsider.id}`, 'gho_outsider_token');
+      await outsiderRepo.update({ id: outsider.id }, { github_token_ref: ref });
+
+      oauth.repos = [
+        {
+          full_name: 'octocat/hello-world',
+          private: false,
+          default_branch: 'main',
+          pushed_at: null,
+          language: null,
+        },
+      ];
+
+      const res = await http()
+        .get('/api/v1/github/repos')
+        .set({ Authorization: `Bearer ${outsiderToken}` })
+        .expect(200);
+
+      expect(res.body.items).toEqual([
+        expect.objectContaining({ full_name: 'octocat/hello-world', already_imported: false }),
+      ]);
+
+      await secrets.delete(ref);
+      await ds.getRepository(Session).delete({ user_id: outsider.id });
+      await outsiderRepo.delete({ id: outsider.id });
+    });
+
+    it('인증 없이는 401이다', async () => {
+      await http().get('/api/v1/github/repos').expect(401);
+    });
+  });
+
+  describe('POST /projects/import', () => {
+    afterEach(() => {
+      github.failCreate = null;
+    });
+
+    it('선택한 레포마다 프로젝트를 만들고 연동한다', async () => {
+      const res = await http()
+        .post('/api/v1/projects/import')
+        .set(auth())
+        .send({ repos: ['octocat/import-a', 'octocat/import-b'] })
+        .expect(200);
+
+      expect(res.body.items).toEqual([
+        expect.objectContaining({ full_name: 'octocat/import-a', status: 'created' }),
+        expect.objectContaining({ full_name: 'octocat/import-b', status: 'created' }),
+      ]);
+
+      const a = await http()
+        .get(`/api/v1/projects/${res.body.items[0].project_id}`)
+        .set(auth())
+        .expect(200);
+      expect(a.body.name).toBe('import-a');
+
+      expect(github.created.map((c) => `${c.owner}/${c.repo}`)).toEqual(
+        expect.arrayContaining(['octocat/import-a', 'octocat/import-b']),
+      );
+    });
+
+    it('한 레포의 웹훅 등록이 실패해도 나머지는 성공한다', async () => {
+      let call = 0;
+      const real = github.createWebhook.bind(github);
+      github.createWebhook = async (params) => {
+        call += 1;
+        if (call === 1) throw new Error('GitHub 다운');
+        return real(params);
+      };
+
+      const res = await http()
+        .post('/api/v1/projects/import')
+        .set(auth())
+        .send({ repos: ['octocat/fails-first', 'octocat/succeeds-second'] })
+        .expect(200);
+
+      expect(res.body.items[0]).toMatchObject({
+        full_name: 'octocat/fails-first',
+        status: 'failed',
+      });
+      expect(res.body.items[0].project_id).toBeDefined();
+      expect(res.body.items[1]).toMatchObject({
+        full_name: 'octocat/succeeds-second',
+        status: 'created',
+      });
+
+      github.createWebhook = real;
+    });
+
+    it('빈 배열은 400이다', async () => {
+      await http().post('/api/v1/projects/import').set(auth()).send({ repos: [] }).expect(400);
+    });
+
+    it('owner/repo 형식이 아니면 400이다', async () => {
+      await http()
+        .post('/api/v1/projects/import')
+        .set(auth())
+        .send({ repos: ['not-a-valid-entry'] })
+        .expect(400);
+    });
+
+    it('인증 없이는 401이다', async () => {
+      await http()
+        .post('/api/v1/projects/import')
+        .send({ repos: ['octocat/x'] })
+        .expect(401);
+    });
+  });
+
+  describe('GET /projects/:id/commits', () => {
+    afterEach(() => {
+      github.commits = [];
+    });
+
+    it('연동된 레포의 최근 커밋을 그대로 돌려준다', async () => {
+      github.commits = [
+        {
+          sha: 'a3f91c2',
+          message: 'fix: 결제 모듈 타임아웃 처리',
+          authored_at: '2026-09-13T10:00:00Z',
+          url: 'https://github.com/octocat/hello-world/commit/a3f91c2',
+        },
+      ];
+
+      const res = await http().get(`/api/v1/projects/${projectId}/commits`).set(auth()).expect(200);
+
+      expect(res.body.items).toEqual(github.commits);
+      expect(github.lastListCommitsParams).toMatchObject({
+        owner: 'octocat',
+        repo: 'hello-world',
+        accessToken: 'gho_user_token',
+      });
+    });
+
+    it('연동이 없으면 빈 배열이다 (GitHub을 부르지 않는다)', async () => {
+      const p = await newProject('commits-no-integration');
+      github.lastListCommitsParams = null;
+
+      const res = await http().get(`/api/v1/projects/${p}/commits`).set(auth()).expect(200);
+
+      expect(res.body.items).toEqual([]);
+      expect(github.lastListCommitsParams).toBeNull();
+    });
+
+    it('인증 없이는 401이다', async () => {
+      await http().get(`/api/v1/projects/${projectId}/commits`).expect(401);
     });
   });
 });

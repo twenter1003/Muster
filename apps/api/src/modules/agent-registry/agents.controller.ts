@@ -22,7 +22,7 @@ import { toPageRequest, withProjectName, type Page } from '../../common/paginati
 import { ProjectMemberGuard } from '../../common/auth/project-member.guard';
 import { AgentsService } from './agents.service';
 import { AgentRunsService } from './agent-runs.service';
-import { BudgetService, type BudgetUsage } from './budget.service';
+import { BudgetService, type BudgetUsage, type UsageBreakdown } from './budget.service';
 import { ApiKeyOrSessionGuard } from '../../common/auth/api-key-or-session.guard';
 import { CreateAgentDto } from './dto/create-agent.dto';
 import { UpdateAgentDto } from './dto/update-agent.dto';
@@ -105,6 +105,16 @@ export class ProjectAgentsController {
   @UseGuards(ProjectMemberGuard)
   async getBudget(@Param('id') projectId: string): Promise<BudgetUsage> {
     return this.budget.get(projectId);
+  }
+
+  /**
+   * 프로젝트 목록·상세 화면의 "토큰 사용량" 카드 — 설계서에 없다. `budget`이 누적치만
+   * 주는 것과 달리 "오늘"·"최근 며칠"을 따로 봐야 하는 화면이 둘 생겨서 나눴다.
+   */
+  @Get(':id/token-usage')
+  @UseGuards(ProjectMemberGuard)
+  async getTokenUsage(@Param('id') projectId: string): Promise<UsageBreakdown> {
+    return this.budget.dailyUsage(projectId);
   }
 
   /**

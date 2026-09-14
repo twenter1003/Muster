@@ -1,10 +1,9 @@
 import { useEffect } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useSession } from '../lib/session';
 import { takeRememberedInvite } from '../routes/InvitePage';
-import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
-import { BOTTOM_TABS, NAV_GROUPS } from './nav';
+import { NAV_GROUPS } from './nav';
 
 /**
  * 현재 경로에 해당하는 상단바 경로 표기를 만든다.
@@ -29,8 +28,11 @@ function useCrumbs(): string[] {
 
 /**
  * 셸. 라우트는 이 안의 <Outlet/>에 렌더된다.
- * 반응형 3단(≥1280 고정 / 768–1279 아이콘 / <768 하단 탭)은 전부 CSS 미디어쿼리로 처리한다 —
- * JS로 폭을 재면 첫 페인트가 한 번 틀린 레이아웃으로 나갔다가 튀기 때문이다.
+ *
+ * 사이드바가 없다 — 경량 재설계로 남은 목적지가 프로젝트 목록(/)·상세(/projects/:id)·
+ * 레포 가져오기(/import) 셋뿐이라, 그걸 가리키려고 224px 고정 사이드바를 띄워 둘 이유가
+ * 없다. 이동은 상단바(로고=홈, "레포 더 가져오기" 버튼)와 카드 클릭만으로 충분하다.
+ * Sidebar.tsx·nav.ts는 지우지 않고 남겨 둔다 — 화면이 다시 늘어나면 그때 되살린다.
  */
 export function AppShell() {
   const crumbs = useCrumbs();
@@ -56,19 +58,10 @@ export function AppShell() {
 
   return (
     <div className="shell">
-      <Sidebar />
       <TopBar crumbs={crumbs} userName={user?.github_login ?? null} />
       <main className="shell__main">
         <Outlet />
       </main>
-      <nav className="shell__bottom-tabs" aria-label="모바일 메뉴">
-        {BOTTOM_TABS.map((tab) => (
-          <NavLink key={tab.to} to={tab.to} end={tab.to === '/'} className="bottom-tab">
-            <span aria-hidden="true">{tab.icon}</span>
-            <span>{tab.label}</span>
-          </NavLink>
-        ))}
-      </nav>
     </div>
   );
 }

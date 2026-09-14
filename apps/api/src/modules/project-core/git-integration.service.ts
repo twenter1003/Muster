@@ -3,13 +3,17 @@ import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'node:crypto';
 import { DataSource, Repository } from 'typeorm';
 import { InjectRepository } from '../../database/inject-repository.decorator';
-import { GitIntegration } from '../../database/entities';
+import { GitIntegration, ProjectMember } from '../../database/entities';
 import { SECRET_STORE, type SecretStore } from '../../common/secrets/secret-store';
 import { ApiException } from '../../common/errors/api.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { GitHubTokenService } from '../auth/github-token.service';
-import { GITHUB_REPO_CLIENT, type GitHubRepoClient } from './github-repo.client';
-import { parseRepoUrl } from './repo-url';
+import {
+  GITHUB_REPO_CLIENT,
+  type CommitSummary,
+  type GitHubRepoClient,
+} from './github-repo.client';
+import { parseRepoUrl, repoUrlOf } from './repo-url';
 
 @Injectable()
 export class GitIntegrationService {
@@ -60,7 +64,7 @@ export class GitIntegrationService {
       return await this.integrations.save(
         this.integrations.create({
           project_id: projectId,
-          repo_url: `https://github.com/${owner}/${repo}`,
+          repo_url: repoUrlOf(`${owner}/${repo}`),
           webhook_secret_ref: secretRef,
           webhook_id: String(hook.id),
         }),
@@ -104,6 +108,35 @@ export class GitIntegrationService {
 
   async findByProject(projectId: string): Promise<GitIntegration | null> {
     return this.integrations.findOneBy({ project_id: projectId });
+  }
+
+  /**
+   * 사용자가 멤버인 프로젝트가 이미 연동해 둔 repo_url 집합.
+   * 레포 가져오기 화면이 "이미 가져온 레포"를 걸러 체크박스를 미리 꺼 두는 데 쓴다.
+   */
+  async importedRepoUrls(userId: string): Promise<Set<string>> {
+    const rows = await this.integrations
+      .createQueryBuilder('gi')
+      .innerJoin(ProjectMember, 'pm', 'pm.project_id = gi.project_id AND pm.user_id = :userId', {
+        userId,
+      })
+      .select('gi.repo_url', 'repo_url')
+      .getRawMany<{ repo_url: string }>();
+
+    return new Set(rows.map((r) => r.repo_url));
+  }
+
+  /**
+   * 프로젝트 상세 화면의 "최근 커밋" 카드. 연동이 없으면 빈 배열이다 —
+   * 이 화면은 연동이 있다는 것을 전제하지 않는다(README 필터 화면과 다른 점).
+   */
+  async recentCommits(projectId: string, userId: string): Promise<CommitSummary[]> {
+    const integration = await this.findByProject(projectId);
+    if (!integration) return [];
+
+    const { owner, repo } = parseRepoUrl(integration.repo_url);
+    const accessToken = await this.githubTokenOf(userId);
+    return this.github.listCommits({ owner, repo, accessToken });
   }
 
   /**

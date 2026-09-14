@@ -11,6 +11,7 @@ import {
   GITHUB_OAUTH_CLIENT,
   type GitHubOAuthClient,
   type GitHubProfile,
+  type GitHubRepoSummary,
 } from '../src/modules/auth/github-oauth.client';
 import { parseTokenSet, type GitHubTokenSet } from '../src/modules/auth/github-token-set';
 
@@ -45,6 +46,10 @@ class FakeGitHubClient implements GitHubOAuthClient {
 
   async fetchProfile(): Promise<GitHubProfile> {
     return this.profile;
+  }
+
+  async listRepos(): Promise<GitHubRepoSummary[]> {
+    throw new Error('이 테스트는 레포 목록 조회를 타지 않는다');
   }
 }
 
