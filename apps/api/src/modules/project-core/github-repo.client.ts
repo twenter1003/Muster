@@ -32,11 +32,30 @@ export interface CommitSummary {
   url: string;
 }
 
+export interface ListWorkflowRunsParams extends RepoRef {
+  accessToken: string;
+  /** 기본 20 — 연동 직후 백필에 쓰는 값이라 커밋보다 넉넉하게 잡는다. */
+  limit?: number;
+}
+
+/**
+ * DEPLOYMENT_EVENTS 한 행이 될 워크플로 실행 하나. `github-events.ts`의 `workflowRun()`이
+ * 웹훅 페이로드에서 뽑는 것과 같은 필드·같은 판정 규칙(success/failure만, 나머지는 버림)이다 —
+ * 웹훅으로 들어오는 것과 API로 백필하는 것이 같은 모양이어야 두 경로가 섞여도 안전하다.
+ */
+export interface WorkflowRunSummary {
+  status: 'success' | 'failure';
+  commit_sha: string;
+  committed_at: string | null;
+  occurred_at: string;
+}
+
 /** GitHub 레포 웹훅 관리 계약. 자격증명 없이도 플로우를 검증할 수 있도록 인터페이스로 둔다. */
 export interface GitHubRepoClient {
   createWebhook(params: CreateWebhookParams): Promise<{ id: number }>;
   deleteWebhook(params: DeleteWebhookParams): Promise<void>;
   listCommits(params: ListCommitsParams): Promise<CommitSummary[]>;
+  listWorkflowRuns(params: ListWorkflowRunsParams): Promise<WorkflowRunSummary[]>;
 }
 
 export const GITHUB_REPO_CLIENT = Symbol('GITHUB_REPO_CLIENT');
@@ -131,6 +150,54 @@ export class HttpGitHubRepoClient implements GitHubRepoClient {
         authored_at: c.commit?.author?.date ?? null,
         url: c.html_url ?? '',
       }));
+  }
+
+  /**
+   * 레포를 막 연동했을 때, 그 이후 웹훅만 기다리면 "가져오기 전 이력"이 전부 비어 보인다.
+   * `?status=completed`로 끝난 실행만 받아, 웹훅 인터프리터(`github-events.ts`)와 같은
+   * success/failure 판정만 남기고 나머지(cancelled·skipped 등)는 버린다.
+   */
+  async listWorkflowRuns(params: ListWorkflowRunsParams): Promise<WorkflowRunSummary[]> {
+    const perPage = params.limit ?? 20;
+    const res = await fetch(
+      `https://api.github.com/repos/${params.owner}/${params.repo}/actions/runs` +
+        `?per_page=${perPage}&status=completed`,
+      { headers: this.headers(params.accessToken) },
+    );
+
+    if (!res.ok) throw await this.toApiException(res, '워크플로 이력 조회에 실패했습니다.');
+
+    const body = (await res.json()) as {
+      workflow_runs?: Array<{
+        conclusion?: string | null;
+        head_sha?: string;
+        updated_at?: string;
+        head_commit?: { timestamp?: string } | null;
+      }>;
+    };
+
+    const rows: WorkflowRunSummary[] = [];
+    for (const run of body.workflow_runs ?? []) {
+      const status =
+        run.conclusion === 'success'
+          ? 'success'
+          : run.conclusion === 'failure' || run.conclusion === 'timed_out'
+            ? 'failure'
+            : null;
+      if (!status || !run.head_sha || !run.updated_at) continue;
+
+      const committedRaw = run.head_commit?.timestamp;
+      const committed = committedRaw && committedRaw <= run.updated_at ? committedRaw : null;
+
+      rows.push({
+        status,
+        commit_sha: run.head_sha,
+        committed_at: committed,
+        occurred_at: run.updated_at,
+      });
+    }
+
+    return rows;
   }
 
   private headers(accessToken: string): Record<string, string> {

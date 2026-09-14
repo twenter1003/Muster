@@ -227,4 +227,68 @@ describe('HttpGitHubRepoClient (실제 요청 형태)', () => {
       await expect(client.listCommits(listParams)).rejects.toMatchObject({ status: 502 });
     });
   });
+
+  describe('listWorkflowRuns', () => {
+    const listParams = { owner: 'octocat', repo: 'hello-world', accessToken: 'gho_tok' };
+
+    it('완료된 실행만 요청한다 (기본 20개)', async () => {
+      fetchMock.mockResolvedValue(respond(200, { workflow_runs: [] }));
+      await client.listWorkflowRuns(listParams);
+
+      const [url] = fetchMock.mock.calls[0];
+      expect(url).toBe(
+        'https://api.github.com/repos/octocat/hello-world/actions/runs?per_page=20&status=completed',
+      );
+    });
+
+    it('limit을 넘기면 per_page에 반영한다', async () => {
+      fetchMock.mockResolvedValue(respond(200, { workflow_runs: [] }));
+      await client.listWorkflowRuns({ ...listParams, limit: 5 });
+
+      expect(fetchMock.mock.calls[0][0]).toContain('per_page=5');
+    });
+
+    it('success/failure만 남기고 나머지 결론은 버린다', async () => {
+      fetchMock.mockResolvedValue(
+        respond(200, {
+          workflow_runs: [
+            { conclusion: 'success', head_sha: 'a1', updated_at: '2026-09-10T00:00:00Z' },
+            { conclusion: 'timed_out', head_sha: 'a2', updated_at: '2026-09-10T00:00:00Z' },
+            { conclusion: 'cancelled', head_sha: 'a3', updated_at: '2026-09-10T00:00:00Z' },
+            { conclusion: 'skipped', head_sha: 'a4', updated_at: '2026-09-10T00:00:00Z' },
+          ],
+        }),
+      );
+
+      const rows = await client.listWorkflowRuns(listParams);
+      expect(rows.map((r) => [r.commit_sha, r.status])).toEqual([
+        ['a1', 'success'],
+        // timed_out은 failure로 합쳐진다 — 웹훅 인터프리터와 같은 규칙이다.
+        ['a2', 'failure'],
+      ]);
+    });
+
+    it('커밋 시각이 종료 시각보다 늦으면 버린다(지어내지 않는다)', async () => {
+      fetchMock.mockResolvedValue(
+        respond(200, {
+          workflow_runs: [
+            {
+              conclusion: 'success',
+              head_sha: 'a1',
+              updated_at: '2026-09-10T00:00:00Z',
+              head_commit: { timestamp: '2026-09-11T00:00:00Z' },
+            },
+          ],
+        }),
+      );
+
+      const [row] = await client.listWorkflowRuns(listParams);
+      expect(row.committed_at).toBeNull();
+    });
+
+    it('5xx면 502로 변환한다', async () => {
+      fetchMock.mockResolvedValue(respond(500, {}));
+      await expect(client.listWorkflowRuns(listParams)).rejects.toMatchObject({ status: 502 });
+    });
+  });
 });

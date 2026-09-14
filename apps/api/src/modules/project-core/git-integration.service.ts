@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'node:crypto';
 import { DataSource, Repository } from 'typeorm';
 import { InjectRepository } from '../../database/inject-repository.decorator';
-import { GitIntegration, ProjectMember } from '../../database/entities';
+import { DeploymentEvent, GitIntegration, ProjectMember } from '../../database/entities';
 import { SECRET_STORE, type SecretStore } from '../../common/secrets/secret-store';
 import { ApiException } from '../../common/errors/api.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
@@ -21,6 +21,8 @@ export class GitIntegrationService {
 
   constructor(
     @InjectRepository(GitIntegration) private readonly integrations: Repository<GitIntegration>,
+    @InjectRepository(DeploymentEvent)
+    private readonly deploymentEvents: Repository<DeploymentEvent>,
     @Inject(GITHUB_REPO_CLIENT) private readonly github: GitHubRepoClient,
     private readonly githubTokens: GitHubTokenService,
     @Inject(SECRET_STORE) private readonly secrets: SecretStore,
@@ -60,8 +62,9 @@ export class GitIntegrationService {
     // 웹훅이 만들어진 뒤에야 시크릿을 보관하고 레코드를 남긴다.
     const secretRef = await this.secrets.put(`webhook-secret-${projectId}`, secret);
 
+    let saved: GitIntegration;
     try {
-      return await this.integrations.save(
+      saved = await this.integrations.save(
         this.integrations.create({
           project_id: projectId,
           repo_url: repoUrlOf(`${owner}/${repo}`),
@@ -79,6 +82,44 @@ export class GitIntegrationService {
       await this.secrets.delete(secretRef).catch(() => undefined);
       throw error;
     }
+
+    // 연동 성공 자체를 막으면 안 되는 부가 작업이다 — 실패해도 로그만 남기고 넘어간다.
+    // 웹훅은 지금부터의 이벤트만 받으므로, 이게 없으면 "방금 가져온 프로젝트"의 배포·워크플로
+    // 카드가 다음 push/Actions 실행 전까지 계속 비어 보인다.
+    await this.backfillWorkflowHistory(projectId, owner, repo, accessToken).catch(
+      (error: unknown) =>
+        this.logger.warn(`워크플로 이력 백필 실패 (project ${projectId}): ${String(error)}`),
+    );
+
+    return saved;
+  }
+
+  /**
+   * `listWorkflowRuns`가 웹훅과 같은 판정 규칙으로 골라낸 완료 실행들을 DEPLOYMENT_EVENTS에
+   * 그대로 적재한다. 헬스 스냅샷은 여기서 다시 계산하지 않는다 — Ingest가 자기 트랜잭션
+   * 안에서만 재계산하도록 되어 있고(Part 2 §8), 그 경계를 여기서 넘으면 "Ingest를 분리해도
+   * 이 파일이 메시지 스키마"라는 전제가 깨진다. 다음 실제 웹훅이 오면 이 백필 행까지 포함해
+   * 자연스럽게 계산된다.
+   */
+  private async backfillWorkflowHistory(
+    projectId: string,
+    owner: string,
+    repo: string,
+    accessToken: string,
+  ): Promise<void> {
+    const runs = await this.github.listWorkflowRuns({ owner, repo, accessToken });
+    if (runs.length === 0) return;
+
+    await this.deploymentEvents.insert(
+      runs.map((r) => ({
+        project_id: projectId,
+        kind: 'workflow_run' as const,
+        status: r.status,
+        commit_sha: r.commit_sha,
+        committed_at: r.committed_at ? new Date(r.committed_at) : null,
+        occurred_at: new Date(r.occurred_at),
+      })),
+    );
   }
 
   /** 설계서 Part 4 §3 — 연동 해제. GitHub 웹훅과 시크릿도 함께 정리한다. */

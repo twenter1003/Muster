@@ -21,6 +21,8 @@ import {
   type DeleteWebhookParams,
   type GitHubRepoClient,
   type ListCommitsParams,
+  type ListWorkflowRunsParams,
+  type WorkflowRunSummary,
 } from '../src/modules/project-core/github-repo.client';
 
 /**
@@ -34,6 +36,8 @@ class FakeRepoClient implements GitHubRepoClient {
   failCreate: Error | null = null;
   commits: CommitSummary[] = [];
   lastListCommitsParams: ListCommitsParams | null = null;
+  workflowRuns: WorkflowRunSummary[] = [];
+  lastListWorkflowRunsParams: ListWorkflowRunsParams | null = null;
 
   async createWebhook(params: CreateWebhookParams): Promise<{ id: number }> {
     if (this.failCreate) throw this.failCreate;
@@ -48,6 +52,11 @@ class FakeRepoClient implements GitHubRepoClient {
   async listCommits(params: ListCommitsParams): Promise<CommitSummary[]> {
     this.lastListCommitsParams = params;
     return this.commits;
+  }
+
+  async listWorkflowRuns(params: ListWorkflowRunsParams): Promise<WorkflowRunSummary[]> {
+    this.lastListWorkflowRunsParams = params;
+    return this.workflowRuns;
   }
 }
 
@@ -622,6 +631,89 @@ describe('Phase 3 — GitHub 레포 연동 (e2e)', () => {
 
     it('인증 없이는 401이다', async () => {
       await http().get(`/api/v1/projects/${projectId}/commits`).expect(401);
+    });
+  });
+
+  describe('연동 시 워크플로 이력 백필', () => {
+    afterEach(() => {
+      github.workflowRuns = [];
+    });
+
+    it('연동 직후 과거 워크플로 실행을 DEPLOYMENT_EVENTS로 채운다', async () => {
+      github.workflowRuns = [
+        {
+          status: 'success',
+          commit_sha: 'a3f91c2',
+          committed_at: '2026-09-10T09:00:00Z',
+          occurred_at: '2026-09-10T09:05:00Z',
+        },
+        {
+          status: 'failure',
+          commit_sha: 'b1c2d3e',
+          committed_at: null,
+          occurred_at: '2026-09-11T09:05:00Z',
+        },
+      ];
+
+      const p = await newProject('backfill-target');
+      await http()
+        .post(`/api/v1/projects/${p}/git-integration`)
+        .set(auth())
+        .send({ repo_url: 'https://github.com/octocat/backfill-me' })
+        .expect(201);
+
+      expect(github.lastListWorkflowRunsParams).toMatchObject({
+        owner: 'octocat',
+        repo: 'backfill-me',
+        accessToken: 'gho_user_token',
+      });
+
+      const res = await http()
+        .get(`/api/v1/projects/${p}/deployment-events`)
+        .set(auth())
+        .expect(200);
+
+      expect(res.body.items).toEqual([
+        expect.objectContaining({ kind: 'workflow_run', status: 'failure', commit_sha: 'b1c2d3e' }),
+        expect.objectContaining({ kind: 'workflow_run', status: 'success', commit_sha: 'a3f91c2' }),
+      ]);
+    });
+
+    it('백필이 실패해도 연동 자체는 성공한다', async () => {
+      const originalList = github.listWorkflowRuns.bind(github);
+      github.listWorkflowRuns = async () => {
+        throw new Error('GitHub 다운');
+      };
+
+      const p = await newProject('backfill-fails');
+      await http()
+        .post(`/api/v1/projects/${p}/git-integration`)
+        .set(auth())
+        .send({ repo_url: 'https://github.com/octocat/backfill-fails' })
+        .expect(201);
+
+      const res = await http()
+        .get(`/api/v1/projects/${p}/deployment-events`)
+        .set(auth())
+        .expect(200);
+      expect(res.body.items).toEqual([]);
+
+      github.listWorkflowRuns = originalList;
+    });
+
+    it('워크플로 실행이 없으면 조용히 아무것도 넣지 않는다', async () => {
+      const p = await newProject('backfill-empty');
+      await http()
+        .post(`/api/v1/projects/${p}/git-integration`)
+        .set(auth())
+        .send({ repo_url: 'https://github.com/octocat/backfill-empty' })
+        .expect(201);
+
+      const res = await http()
+        .get(`/api/v1/projects/${p}/deployment-events`)
+        .set(auth())
+        .expect(200);
+      expect(res.body.items).toEqual([]);
     });
   });
 });
