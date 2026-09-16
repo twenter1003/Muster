@@ -1,9 +1,13 @@
+.modal:has(.akm__container) {
+  max-width: min(600px, calc(100vw - var(--space-4)));
+}
+
 .akm__container {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  max-width: 540px;
   width: 100%;
+  box-sizing: border-box;
 }
 
 .akm__issued-card {
@@ -40,6 +44,7 @@
   padding: var(--space-2);
   border-radius: var(--radius);
   border: 1px dashed var(--color-rule);
+  min-width: 0;
 }
 
 .akm__key-code {
@@ -47,6 +52,7 @@
   font-size: 13px;
   color: var(--color-ink);
   word-break: break-all;
+  min-width: 0;
   flex: 1;
 }
 
@@ -69,6 +75,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  min-width: 0;
 }
 
 .akm__cmd-item {
@@ -79,6 +86,7 @@
   background: var(--color-bg);
   border: 1px solid var(--color-rule);
   border-radius: var(--radius);
+  min-width: 0;
 }
 
 .akm__cmd-desc {
@@ -108,6 +116,7 @@
   color: var(--color-ink);
   white-space: pre-wrap;
   word-break: break-all;
+  min-width: 0;
 }
 
 .akm__tip-box {
