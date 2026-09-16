@@ -127,11 +127,11 @@ export function ApiKeyModal({
       : 'https://muster-54275961665.asia-northeast3.run.app';
 
   const globalCmd = issued
-    ? `node scripts/muster-connect.mjs --global --url="${apiOrigin}" --key="${issued.key}" --tools=both --yes`
+    ? `cd ~/Muster && node scripts/muster-connect.mjs --global --url="${apiOrigin}" --key="${issued.key}" --tools=both --yes`
     : '';
 
   const projectCmd = issued
-    ? `node scripts/muster-connect.mjs --project="${projectId}" --url="${apiOrigin}" --key="${issued.key}" --tools=both --yes`
+    ? `cd ~/Muster && node scripts/muster-connect.mjs --project="${projectId}" --url="${apiOrigin}" --key="${issued.key}" --tools=both --yes`
     : '';
 
   return (

@@ -33,7 +33,11 @@ export function getGitRemoteUrl(cwd) {
 }
 
 /** 프로젝트 로컬 설정(.muster/config.json), 환경변수, 또는 전역 설정(~/.muster/config.json) 로드 */
-export function loadConfig(cwd, env) {
+export function loadConfig(
+  cwd,
+  env = process.env,
+  globalPath = join(homedir(), '.muster', 'config.json'),
+) {
   if (cwd) {
     const localPath = join(cwd, '.muster', 'config.json');
     if (existsSync(localPath)) {
@@ -55,12 +59,16 @@ export function loadConfig(cwd, env) {
   }
 
   // 3순위: 전역 설정 (~/.muster/config.json) — git remote 기반 자동 라우팅
-  const globalPath = join(homedir(), '.muster', 'config.json');
-  if (existsSync(globalPath)) {
+  if (globalPath && existsSync(globalPath)) {
     try {
       const parsed = JSON.parse(readFileSync(globalPath, 'utf8'));
       if (parsed.apiUrl && parsed.apiKey) {
-        return { apiUrl: parsed.apiUrl, apiKey: parsed.apiKey, agentId: parsed.agentId || null, isGlobal: true };
+        return {
+          apiUrl: parsed.apiUrl,
+          apiKey: parsed.apiKey,
+          agentId: parsed.agentId || null,
+          isGlobal: true,
+        };
       }
     } catch {}
   }

@@ -65,7 +65,7 @@ test('Antigravity 훅: 설정 로더', async (t) => {
   });
 
   await t.test('둘 다 없으면 null을 반환한다', () => {
-    const loaded = loadConfig('/nonexistent', {});
+    const loaded = loadConfig('/nonexistent', {}, '/nonexistent/config.json');
     assert.equal(loaded, null);
   });
 });
@@ -115,4 +115,3 @@ test('Antigravity 훅: git remote 추출', async (t) => {
     assert.equal(url, null);
   });
 });
-
