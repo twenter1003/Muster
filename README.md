@@ -77,10 +77,12 @@ Ingest를 별도 서비스로 분리할 때 이 파일이 그대로 메시지 �
 설계서를 기계적으로 따르지 않는다 — 구현 세부에서 더 나은 선택이 있으면 그쪽을 택하되,
 갈라진 지점은 전부 [docs/DESIGN_DRIFT.md](docs/DESIGN_DRIFT.md)에 기록한다.
 
-## 데스크톱에서 해야 하는 설정
+## 관련 기술 문서
 
-OAuth 자격증명·GCS·배포 리소스 등 사람이 직접 해야 하는 작업은
-[docs/DESKTOP_SETUP.md](docs/DESKTOP_SETUP.md)에 정리해 두었다.
+- [docs/LLM_ECOSYSTEM_GUIDE.md](docs/LLM_ECOSYSTEM_GUIDE.md) — 2026 최신 LLM 모델(Gemini 3.x, Claude Sonnet 5 등) 라인업, 단가표, 캐싱 가이드
+- [docs/AGENT_TOKEN_REPORTING.md](docs/AGENT_TOKEN_REPORTING.md) — 1줄 연동 CLI(`npx muster-connect`) 및 에이전트 세션 토큰 실측 수집법
+- [docs/DESKTOP_SETUP.md](docs/DESKTOP_SETUP.md) — OAuth 자격증명·GCS·배포 리소스 등 사람이 직접 해야 하는 데스크톱 설정
+- [docs/DEPLOY.md](docs/DEPLOY.md) — Cloud Run + Supabase $0 무과금 배포 절차 및 주의사항
 
 ## 로컬 실행
 
