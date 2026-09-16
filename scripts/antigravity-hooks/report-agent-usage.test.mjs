@@ -7,6 +7,7 @@ import {
   parseProto,
   loadConfig,
   sumUsageFromTranscript,
+  getGitRemoteUrl,
 } from './report-agent-usage.mjs';
 
 test('Antigravity 훅: Protobuf 디코더', async (t) => {
@@ -101,3 +102,17 @@ test('Antigravity 훅: transcript 폴백 합산', async (t) => {
     }
   });
 });
+
+test('Antigravity 훅: git remote 추출', async (t) => {
+  await t.test('현재 프로젝트 레포에서 git remote origin URL을 성공적으로 가져온다', () => {
+    const url = getGitRemoteUrl(process.cwd());
+    assert.ok(url);
+    assert.match(url, /github\.com/);
+  });
+
+  await t.test('git 저장소가 아닌 디렉터리에서는 null을 반환한다', () => {
+    const url = getGitRemoteUrl(tmpdir());
+    assert.equal(url, null);
+  });
+});
+

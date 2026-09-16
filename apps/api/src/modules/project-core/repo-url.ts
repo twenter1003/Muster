@@ -52,3 +52,21 @@ export function parseRepoUrl(input: string): RepoRef {
 export function repoUrlOf(fullName: string): string {
   return `https://github.com/${fullName}`;
 }
+
+/**
+ * git remote 주소(HTTPS, SSH, git:// 등)를 우리 DB의 표준 repo_url(`https://github.com/<owner>/<repo>`)로 정규화한다.
+ */
+export function normalizeGitRepoUrl(input: string): string {
+  const trimmed = input.trim();
+  // git@github.com:owner/repo.git or ssh://git@github.com/owner/repo.git
+  const sshMatch = trimmed.match(
+    /^(?:ssh:\/\/)?git@github\.com[:/]([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+?)(?:\.git)?$/,
+  );
+  if (sshMatch) {
+    return `https://github.com/${sshMatch[1]}/${sshMatch[2]}`;
+  }
+
+  const { owner, repo } = parseRepoUrl(trimmed);
+  return repoUrlOf(`${owner}/${repo}`);
+}
+

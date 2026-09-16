@@ -28,7 +28,7 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
 export const DEFAULT_MUSTER_URL = 'https://muster-xcswvn6m2q-du.a.run.app';
 
-/** CLI 인자 파싱 (--url=..., --key=..., --project=..., --tools=..., --yes, --no-backfill) */
+/** CLI 인자 파싱 (--url=..., --key=..., --project=..., --tools=..., --yes, --no-backfill, --global) */
 export function parseArgs(argv) {
   const result = {
     url: null,
@@ -37,12 +37,14 @@ export function parseArgs(argv) {
     tools: null, // 'claude' | 'antigravity' | 'both'
     yes: false,
     noBackfill: false,
+    global: false,
     help: false,
   };
 
   for (const arg of argv) {
     if (arg === '--help' || arg === '-h') result.help = true;
     else if (arg === '--yes' || arg === '-y') result.yes = true;
+    else if (arg === '--global' || arg === '-g') result.global = true;
     else if (arg === '--no-backfill') result.noBackfill = true;
     else if (arg.startsWith('--url=')) result.url = arg.slice(6);
     else if (arg.startsWith('--key=')) result.key = arg.slice(6);
@@ -51,6 +53,19 @@ export function parseArgs(argv) {
   }
 
   return result;
+}
+
+/** ~/.muster/config.json 전역 설정 저장 (Git remote 기반 자동 라우팅용) */
+export function saveGlobalMusterConfig({ apiUrl, apiKey }) {
+  const musterDir = join(homedir(), '.muster');
+  mkdirSync(musterDir, { recursive: true });
+
+  const config = {
+    apiUrl,
+    apiKey,
+  };
+
+  writeFileSync(join(musterDir, 'config.json'), JSON.stringify(config, null, 2) + '\n', 'utf8');
 }
 
 /** .muster/config.json 생성 및 .gitignore 갱신 */
@@ -370,6 +385,27 @@ export async function runInteractive(args) {
       process.exit(1);
     }
     console.log(`✓ 인증 성공! 프로젝트 연결됨 (Project ID: ${projectId})`);
+
+    // 4.1 전역 설정 모드 (--global)
+    if (args.global) {
+      saveGlobalMusterConfig({ apiUrl, apiKey });
+      console.log(`✓ ~/.muster/config.json 전역 설정 저장 완료`);
+
+      const claudeHookScript = resolve(__dirname, 'claude-code-hooks', 'report-agent-usage.mjs');
+      registerClaudeHooks(claudeHookScript);
+      console.log(`✓ Claude Code 전역 훅 등록 완료 (~/.claude/settings.json)`);
+
+      const antigravityHookScript = resolve(__dirname, 'antigravity-hooks', 'report-agent-usage.mjs');
+      registerAntigravityHooks(antigravityHookScript);
+      console.log(`✓ Antigravity 전역 훅 등록 완료 (~/.gemini/config/hooks.json)`);
+
+      console.log(`\n🎉 전역 1회 자동 라우팅 연동이 완료되었습니다!`);
+      console.log(`   앞으로 어떤 Git 레포지토리에서든 Claude Code 또는 Antigravity로 작업하시면`);
+      console.log(`   Git remote 주소를 통해 해당 Muster 프로젝트 대시보드로 토큰이 자동 집계됩니다.`);
+      console.log(`   (개별 레포 폴더마다 muster-connect를 실행할 필요가 없습니다)\n`);
+      rl.close();
+      return;
+    }
 
     // 5. 연동 대상 도구 선택
     console.log('\n연동할 AI 코딩 에이전트를 선택하세요:');

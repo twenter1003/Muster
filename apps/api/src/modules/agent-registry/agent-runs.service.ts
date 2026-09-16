@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '../../database/inject-repository.decorator';
-import { Agent, AgentRun, ProjectMember } from '../../database/entities';
+import { Agent, AgentRun, GitIntegration, ProjectMember } from '../../database/entities';
 import { ApiException } from '../../common/errors/api.exception';
 import { buildPage, type Page, type PageRequest } from '../../common/pagination/paginate';
+import { normalizeGitRepoUrl } from '../project-core/repo-url';
 import { BudgetService } from './budget.service';
 import type { CreateRunDto } from './dto/create-run.dto';
+import type { RecordRunByRepoDto } from './dto/record-run-by-repo.dto';
 import type { UpdateRunDto } from './dto/update-run.dto';
 
 /** 실행 종료를 요청한 신원 — 사람(세션) 또는 에이전트(API 키) 중 하나. */
@@ -18,6 +20,7 @@ export class AgentRunsService {
     @InjectRepository(AgentRun) private readonly runs: Repository<AgentRun>,
     @InjectRepository(Agent) private readonly agents: Repository<Agent>,
     @InjectRepository(ProjectMember) private readonly members: Repository<ProjectMember>,
+    @InjectRepository(GitIntegration) private readonly gitIntegrations: Repository<GitIntegration>,
     private readonly budget: BudgetService,
   ) {}
 
@@ -55,6 +58,66 @@ export class AgentRunsService {
     }
 
     return run;
+  }
+
+  /**
+   * Git repository URL 기반 에이전트 실행 기록 자동 라우팅.
+   *
+   * 1. 요청에 사용된 API 키의 소유 프로젝트(keyProjectId)로부터 해당 프로젝트의 owner user를 찾는다.
+   * 2. dto.repo_url을 정규화한다 (HTTPS/SSH → https://github.com/<owner>/<repo>).
+   * 3. 해당 사용자가 속한 프로젝트들 중 GitIntegration.repo_url이 일치하는 타겟 프로젝트를 찾는다.
+   * 4. 타겟 프로젝트 내에서 agent_name(예: 'antigravity', 'claude-code') 에이전트를 조회하고, 없으면 자동 생성한다.
+   * 5. AgentRun을 생성/저장하고 예산 알림을 점검한다.
+   */
+  async recordByRepo(keyProjectId: string, dto: RecordRunByRepoDto): Promise<AgentRun> {
+    const members = await this.members.find({
+      where: { project_id: keyProjectId },
+      order: { role: 'ASC' },
+    });
+    if (members.length === 0) {
+      throw ApiException.notFound('프로젝트 소유자를 찾을 수 없습니다.');
+    }
+    const userId = members[0].user_id;
+
+    const normalizedUrl = normalizeGitRepoUrl(dto.repo_url);
+
+    const integration = await this.gitIntegrations
+      .createQueryBuilder('gi')
+      .innerJoin('project_members', 'pm', 'pm.project_id = gi.project_id')
+      .where('pm.user_id = :userId', { userId })
+      .andWhere('LOWER(gi.repo_url) = LOWER(:repoUrl)', { repoUrl: normalizedUrl })
+      .getOne();
+
+    if (!integration) {
+      throw ApiException.notFound(
+        `Muster에 연동되지 않은 레포지토리입니다: ${normalizedUrl}. Muster 대시보드에서 레포지토리를 먼저 Import 해주세요.`,
+      );
+    }
+
+    const targetProjectId = integration.project_id;
+
+    let agent = await this.agents.findOneBy({
+      project_id: targetProjectId,
+      name: dto.agent_name,
+    });
+
+    if (!agent) {
+      agent = await this.agents.save(
+        this.agents.create({
+          project_id: targetProjectId,
+          name: dto.agent_name,
+          config_md: `# ${dto.agent_name} 에이전트\n\nMuster 자동 라우팅에 의해 자동 등록된 에이전트입니다.`,
+        }),
+      );
+    }
+
+    return this.start(agent.id, {
+      status: dto.status ?? 'succeeded',
+      tokens_used: dto.tokens_used,
+      cost: dto.cost ?? '0',
+      started_at: dto.started_at,
+      ended_at: dto.ended_at,
+    });
   }
 
   /**

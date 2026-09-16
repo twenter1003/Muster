@@ -11,12 +11,28 @@
 // 실패해도 세션을 방해하지 않도록 항상 exit code 0을 보장하고,
 // stdout으로 {}를 출력한다.
 
+import { execFileSync } from 'node:child_process';
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 const require = createRequire(import.meta.url);
+
+/** 현재 작업 디렉터리의 git remote origin URL을 추출한다 (실패 시 null). */
+export function getGitRemoteUrl(cwd) {
+  try {
+    const out = execFileSync('git', ['remote', 'get-url', 'origin'], {
+      cwd,
+      encoding: 'utf8',
+      timeout: 3000,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    return out.trim() || null;
+  } catch {
+    return null;
+  }
+}
 
 /** Protobuf varint 및 length-delimited 디코더 */
 export function parseProto(buf) {
@@ -67,7 +83,7 @@ export function parseProto(buf) {
   return fields;
 }
 
-/** 프로젝트 로컬 설정(.muster/config.json) 또는 환경변수 로드 */
+/** 프로젝트 로컬 설정(.muster/config.json), 환경변수, 또는 전역 설정(~/.muster/config.json) 로드 */
 export function loadConfig(cwd, env = process.env) {
   if (cwd) {
     const localPath = join(cwd, '.muster', 'config.json');
@@ -87,6 +103,17 @@ export function loadConfig(cwd, env = process.env) {
   const { MUSTER_API_URL, MUSTER_API_KEY, MUSTER_AGENT_ID } = env;
   if (MUSTER_API_URL && MUSTER_API_KEY && MUSTER_AGENT_ID) {
     return { apiUrl: MUSTER_API_URL, apiKey: MUSTER_API_KEY, agentId: MUSTER_AGENT_ID };
+  }
+
+  // 3순위: 전역 설정 (~/.muster/config.json) — git remote 기반 자동 라우팅에 사용
+  const globalPath = join(homedir(), '.muster', 'config.json');
+  if (existsSync(globalPath)) {
+    try {
+      const parsed = JSON.parse(readFileSync(globalPath, 'utf8'));
+      if (parsed.apiUrl && parsed.apiKey) {
+        return { apiUrl: parsed.apiUrl, apiKey: parsed.apiKey, agentId: parsed.agentId || null, isGlobal: true };
+      }
+    } catch {}
   }
 
   return null;
@@ -227,13 +254,33 @@ export async function handleStop(hook, env = process.env) {
   }
 
   if (!runId) {
-    const run = await apiCall(config, 'POST', `/agents/${config.agentId}/runs`, {
-      status: 'succeeded',
-      tokens_used: usage.tokens_used,
-      cost: '0',
-      started_at: usage.started_at,
-      ended_at: usage.ended_at,
-    });
+    let run;
+    if (config.isGlobal) {
+      const gitRemote = getGitRemoteUrl(cwd);
+      if (!gitRemote) return; // git 레포가 아니면 리포팅하지 않음
+      try {
+        run = await apiCall(config, 'POST', `/agent-runs/by-repo`, {
+          repo_url: gitRemote,
+          agent_name: 'antigravity',
+          status: 'succeeded',
+          tokens_used: usage.tokens_used,
+          cost: '0',
+          started_at: usage.started_at,
+          ended_at: usage.ended_at,
+        });
+      } catch (err) {
+        process.stderr.write(`[Muster] Git 자동 라우팅 리포팅 건너뜀: ${err.message}\n`);
+        return;
+      }
+    } else {
+      run = await apiCall(config, 'POST', `/agents/${config.agentId}/runs`, {
+        status: 'succeeded',
+        tokens_used: usage.tokens_used,
+        cost: '0',
+        started_at: usage.started_at,
+        ended_at: usage.ended_at,
+      });
+    }
     writeFileSync(
       statePath,
       JSON.stringify({ run_id: run.id, tokens_used: usage.tokens_used, cwd }),

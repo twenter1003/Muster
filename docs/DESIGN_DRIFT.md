@@ -325,10 +325,33 @@ report-agent-usage.mjs`, 설치는 `docs/AGENT_TOKEN_REPORTING.md`):
 
 ---
 
+## 15. 프로젝트 상세 화면 API 키 발급 UI 복원 및 Git 주소 기반 에이전트 토큰 자동 라우팅 (개선 채택)
+
+11번(화면 통폐합)으로 `SettingsPage` 라우트가 제거된 후, 프로젝트 상세 화면(`ProjectOverviewPage`) 헤더에 `API 키 {개수}`라는 텍스트만 남고 실제 API 키를 발급/확인/복사할 수 있는 경로가 사라졌었다. 또한 레포지토리마다 매번 터미널을 열어 `npx muster-connect`를 수동 설정해야 해서 다중 레포를 다루는 사용자의 설정 비용이 컸다.
+
+**채택된 개선 사항**:
+
+1. **프로젝트 상세 화면 API 키 관리 모달 (`ApiKeyModal.tsx`) 신설**:
+   - 상단 헤더 메타 링크 및 액션 버튼(`[API 키 관리]`), 에이전트 탭 헤더에 직관적인 모달 진입점 배치.
+   - 1클릭 신규 API 키 발급, 1회성 원문 키 복사, 등록 키 목록 조회 및 폐기 기능.
+   - **완성형 1줄 연동 명령어 복사 버튼**:
+     - 🚀 전역 1회 자동 라우팅 연동 (가장 추천): `npx muster-connect --global --key=... --tools=both --yes`
+     - 📁 현재 레포 전용 연동: `npx muster-connect --project=... --key=... --tools=both --yes`
+
+2. **Git Remote URL 기반 에이전트 토큰 자동 라우팅 (`POST /api/v1/agent-runs/by-repo`)**:
+   - 백엔드에서 `repo_url`과 `agent_name`, 토큰 사용량을 수신하면, API Key 소유자(`user_id`)가 관리하는 프로젝트 중 `GitIntegration.repo_url`이 일치하는 대상 프로젝트를 찾아 실행 이력을 자동 적재.
+   - `normalizeGitRepoUrl`: HTTPS, SSH(`git@github.com:owner/repo.git`), git:// 등 다양한 형태의 git remote 주소를 우리 DB의 표준 `https://github.com/<owner>/<repo>`로 안정적으로 정규화.
+   - 타겟 프로젝트에 해당 에이전트가 없으면 기본 설정으로 자동 생성하여 즉시 적재 지원.
+
+3. **에이전트 훅 자동 라우팅 및 `muster-connect --global` 지원**:
+   - 맥북 전역 `~/.muster/config.json` 1회 등록 지원 (`npx muster-connect --global`).
+   - Antigravity 및 Claude Code 훅이 로컬 설정이 없는 레포에서도 `git remote get-url origin`을 자동 감지하여 Muster 프로젝트로 토큰 자동 리포팅 (Zero-config 관제 실현).
+
+---
+
 ## 경미한 추가 (보고용)
 
 | 컬럼 | 이유 |
 |---|---|
 | `SESSIONS.created_at` | 세션 목록·이상 로그인 추적 |
 | `AGENTS.created_at` | 커서 페이지네이션 정렬 기준 |
-

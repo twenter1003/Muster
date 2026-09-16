@@ -24,8 +24,10 @@ import { AgentsService } from './agents.service';
 import { AgentRunsService } from './agent-runs.service';
 import { BudgetService, type BudgetUsage, type UsageBreakdown } from './budget.service';
 import { ApiKeyOrSessionGuard } from '../../common/auth/api-key-or-session.guard';
+import { ApiKeyGuard } from '../../common/auth/api-key.guard';
 import { CreateAgentDto } from './dto/create-agent.dto';
 import { CreateRunDto } from './dto/create-run.dto';
+import { RecordRunByRepoDto } from './dto/record-run-by-repo.dto';
 import { UpdateAgentDto } from './dto/update-agent.dto';
 import { UpdateRunDto } from './dto/update-run.dto';
 import { PutBudgetDto } from './dto/put-budget.dto';
@@ -266,5 +268,22 @@ export class AgentRunsController {
         ? { apiKeyProjectId: req.apiKeyProjectId }
         : { userId: req.user!.id };
     return toRunView(await this.runs.finish(id, identity, dto));
+  }
+
+  /**
+   * Git repository URL 기반 에이전트 실행 기록 자동 라우팅.
+   * 외부 에이전트 훅(Stop, SessionEnd 등)이 X-API-Key 헤더와 repo_url을 보내면,
+   * 해당 유저의 프로젝트 중 일치하는 레포를 찾아 에이전트 실행을 적재한다.
+   */
+  @Post('by-repo')
+  @Public()
+  @UseGuards(ApiKeyGuard)
+  @HttpCode(HttpStatus.CREATED)
+  async recordByRepo(
+    @Req() req: Request,
+    @Body() dto: RecordRunByRepoDto,
+  ): Promise<RunView> {
+    const run = await this.runs.recordByRepo(req.apiKeyProjectId!, dto);
+    return toRunView(run);
   }
 }

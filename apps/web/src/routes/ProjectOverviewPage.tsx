@@ -7,6 +7,7 @@ import { StageBadge } from '../components/StageBadge';
 import { StatusBadge } from '../components/StatusBadge';
 import { ApiError, apiFetch, apiPatch, apiPost, type Page as ApiPage } from '../lib/api';
 import { Modal } from '../components/Modal';
+import { ApiKeyModal } from '../components/ApiKeyModal';
 import { useApi } from '../lib/useApi';
 import { browserUploadDeps, uploadDocument } from '../lib/uploadDocument';
 import { buildRunPatch } from '../lib/runCorrection';
@@ -391,6 +392,7 @@ export function ProjectOverviewPage() {
   const projectPath = id === undefined ? null : `/projects/${id}`;
   const project = useApi<ProjectView>(projectPath);
   const [editing, setEditing] = useState(false);
+  const [managingKeys, setManagingKeys] = useState(false);
 
   /*
    * ── 지연 로딩 ──
@@ -528,10 +530,20 @@ export function ProjectOverviewPage() {
             <span>
               최근 변경 {project.data === null ? EM_DASH : formatDateTime(project.data.updated_at)}
             </span>
-            <span>API 키 {countOf(apiKeys.data) ?? EM_DASH}</span>
+            <button
+              type="button"
+              className="po__meta-link"
+              onClick={() => setManagingKeys(true)}
+              title="API 키 관리 열기"
+            >
+              API 키 {countOf(apiKeys.data) ?? EM_DASH} ⚙️
+            </button>
           </div>
         </div>
         <div className="po__actions">
+          <Button onClick={() => setManagingKeys(true)} disabled={project.data === null}>
+            API 키 관리
+          </Button>
           <Button onClick={() => setEditing(true)} disabled={project.data === null}>
             수정
           </Button>
@@ -545,17 +557,26 @@ export function ProjectOverviewPage() {
       </header>
 
       {project.data !== null && (
-        <EditProjectDialog
-          open={editing}
-          project={project.data}
-          onClose={() => setEditing(false)}
-          onSaved={() => {
-            setEditing(false);
-            // 저장된 값을 화면 상태에 직접 써넣지 않고 다시 읽는다. 서버가 updated_at 같은
-            // 파생 값을 함께 바꾸므로, 응답만 믿고 일부만 갈아 끼우면 화면이 반쯤 낡는다.
-            project.reload();
-          }}
-        />
+        <>
+          <EditProjectDialog
+            open={editing}
+            project={project.data}
+            onClose={() => setEditing(false)}
+            onSaved={() => {
+              setEditing(false);
+              // 저장된 값을 화면 상태에 직접 써넣지 않고 다시 읽는다. 서버가 updated_at 같은
+              // 파생 값을 함께 바꾸므로, 응답만 믿고 일부만 갈아 끼우면 화면이 반쯤 낡는다.
+              project.reload();
+            }}
+          />
+          <ApiKeyModal
+            open={managingKeys}
+            projectId={project.data.id}
+            projectName={project.data.name}
+            onClose={() => setManagingKeys(false)}
+            onKeysChanged={() => apiKeys.reload()}
+          />
+        </>
       )}
 
       <div className="po__tabs" role="tablist" aria-label="프로젝트 상세">
@@ -718,9 +739,14 @@ export function ProjectOverviewPage() {
                   <p className="meta">
                     에이전트를 등록하면 줄마다 실행 버튼이 생긴다. 설정은 나중에 채워도 된다.
                   </p>
-                  <Button variant="solid" onClick={() => setCreatingAgent(true)}>
-                    에이전트 등록
-                  </Button>
+                  <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+                    <Button onClick={() => setManagingKeys(true)}>
+                      API 키 발급 및 연동
+                    </Button>
+                    <Button variant="solid" onClick={() => setCreatingAgent(true)}>
+                      에이전트 등록
+                    </Button>
+                  </div>
                 </div>
               )}
               <Async state={agents}>

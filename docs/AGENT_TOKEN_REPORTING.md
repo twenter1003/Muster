@@ -8,17 +8,32 @@ Muster는 **1줄 연동 CLI (`npx muster-connect`)**를 통해 **Claude Code**�
 
 ## 1. 초간단 1줄 연동 (`npx muster-connect`)
 
-어떤 레포지토리든 터미널에서 다음 명령 한 줄만 실행하면 끝납니다:
+Muster 웹 대시보드의 **프로젝트 상세 화면 헤더 [API 키 관리] 버튼**을 누르면 새 API 키를 1클릭 발급받을 수 있으며, 즉시 실행할 수 있는 완성된 연동 명령어를 복사할 수 있습니다.
+
+### 방법 A: 🚀 전역 1회 자동 라우팅 연동 (가장 추천)
+맥북에 한 번만 등록해 두면, **앞으로 어떤 Git 레포지토리에서든** Claude Code나 Antigravity로 작업한 토큰이 Git remote 주소를 감지하여 각 프로젝트 대시보드로 자동 분류 및 적재됩니다 (개별 레포 폴더마다 설정할 필요가 없습니다):
+
+```bash
+npx muster-connect --global --key="muster_xxx" --tools=both --yes
+```
+
+### 방법 B: 📁 현재 레포 전용 대화형 연동
+특정 레포지토리 폴더에만 설정을 두고 싶은 경우, 해당 폴더에서 실행합니다:
 
 ```bash
 npx muster-connect
-# 또는 레포 내에서:
-node scripts/muster-connect.mjs
+# 또는 비대화형:
+npx muster-connect \
+  --url="https://muster-xcswvn6m2q-du.a.run.app" \
+  --key="muster_xxx" \
+  --project="<PROJECT_UUID>" \
+  --tools="both" \
+  --yes
 ```
 
 ### CLI 대화형 안내 흐름:
 1. **Muster API URL 입력** (기본값: `https://muster-xcswvn6m2q-du.a.run.app`)
-2. **Muster API Key 입력** (프로젝트 상세 → API Key 발급)
+2. **Muster API Key 입력** (프로젝트 상세 → [API 키 관리] 버튼 클릭 후 발급)
 3. **Muster Project ID 입력** (UUID)
 4. **연동 대상 도구 선택** (`all` / `claude` / `antigravity`)
 5. 자동 작업 수행:
@@ -27,16 +42,6 @@ node scripts/muster-connect.mjs
    - Claude Code 훅(`.claude/settings.json`) 자동 등록 (`SessionStart`, `SessionEnd`)
    - Antigravity 훅(`.agents/hooks.json` 및 `~/.gemini/config/hooks.json`) 자동 등록 (`Stop`)
    - 과거 세션 자동 스캔 및 토큰 백필 질의 (`y` 선택 시 즉시 DB 백필)
-
-### 비대화형 CI/스크립트 옵션:
-```bash
-npx muster-connect \
-  --url="https://muster-xcswvn6m2q-du.a.run.app" \
-  --key="muster_xxx" \
-  --project="<PROJECT_UUID>" \
-  --tools="both" \
-  --yes
-```
 
 ---
 

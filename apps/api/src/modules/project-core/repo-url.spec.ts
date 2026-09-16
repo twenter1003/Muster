@@ -1,4 +1,4 @@
-import { parseRepoUrl } from './repo-url';
+import { parseRepoUrl, normalizeGitRepoUrl } from './repo-url';
 import { ApiException } from '../../common/errors/api.exception';
 
 describe('parseRepoUrl', () => {
@@ -32,3 +32,16 @@ describe('parseRepoUrl', () => {
     expect(() => parseRepoUrl('https://github.com/..%2F..%2Fetc/passwd')).toThrow(ApiException);
   });
 });
+
+describe('normalizeGitRepoUrl', () => {
+  it.each([
+    ['https://github.com/octocat/hello-world', 'https://github.com/octocat/hello-world'],
+    ['https://github.com/octocat/hello-world.git', 'https://github.com/octocat/hello-world'],
+    ['git@github.com:octocat/hello-world.git', 'https://github.com/octocat/hello-world'],
+    ['git@github.com:octocat/hello-world', 'https://github.com/octocat/hello-world'],
+    ['ssh://git@github.com/octocat/hello-world.git', 'https://github.com/octocat/hello-world'],
+  ])('%s → %s', (input, expected) => {
+    expect(normalizeGitRepoUrl(input)).toBe(expected);
+  });
+});
+
