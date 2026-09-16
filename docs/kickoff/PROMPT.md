@@ -32,10 +32,12 @@ Claude Code/LLM 기반으로 여러 사이드 프로젝트를 동시에 진행�
 
 1. [README.md](../../README.md) — 폴더 구조, 로컬 실행, 테스트, 마이그레이션, 배포 제약
 2. [docs/DESIGN_DRIFT.md](../DESIGN_DRIFT.md) — 설계서에서 갈라진 모든 지점과 그 이유.
-   **가장 중요한 문서.** 13개 항목, 번호 순서대로 시간순이다.
+   **가장 중요한 문서.** 14개 항목, 번호 순서대로 시간순이다.
 3. [docs/DEPLOY.md](../DEPLOY.md) — 배포 절차, Supabase/Cloud Run 함정
 4. [docs/AGENT_TOKEN_REPORTING.md](../AGENT_TOKEN_REPORTING.md) — 토큰 사용량 자동 리포팅
-   (Claude Code 훅) 설치법
+   (Claude Code & Antigravity 훅, 1줄 연동 CLI `npx muster-connect`)
+5. [docs/LLM_ECOSYSTEM_GUIDE.md](../LLM_ECOSYSTEM_GUIDE.md) — 2026 최신 LLM 모델(Gemini 3.x,
+   Claude Sonnet 5 등) 라인업, 단가표, 프롬프트 캐싱 및 Muster 권장사항
 
 ## 지금 상태 (이 문서를 쓴 시점 기준)
 
