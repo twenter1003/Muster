@@ -7,6 +7,7 @@ import { ApiError, apiFetch, apiPatch, apiPost, type Page } from '../lib/api';
 import { EM_DASH, LOG_LEVELS, formatDateTime, type LogLevel, type Measurable } from '../lib/domain';
 import { shouldConfirmDraftOverwrite } from '../lib/goalsDraft';
 import { getAnalyzeButtonLabel, getUnanalyzedStatusText } from '../lib/goalsProgress';
+import { getGoalsProgressStats, parseGoalChecklist, toggleGoalChecklist } from '../lib/goalChecklist';
 import { formatTokenCount, getWasteBadge } from '../lib/tokenIntelligence';
 import { useApi } from '../lib/useApi';
 import './ProjectDetailPage.css';
@@ -288,11 +289,31 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
   const [confirmOverwrite, setConfirmOverwrite] = useState(false);
 
   const progress = progressState.data?.progress ?? null;
+  const checklistItems = parseGoalChecklist(goals.data?.content_md);
+  const stats = getGoalsProgressStats(goals.data?.content_md);
 
   const startEditing = () => {
     setDraftText(goals.data?.content_md ?? '');
     setError(null);
     setEditing(true);
+  };
+
+  const handleToggleCheck = (index: number) => {
+    if (!goals.data?.content_md || saving || analyzing) return;
+    const newContent = toggleGoalChecklist(goals.data.content_md, index);
+    setSaving(true);
+    setError(null);
+    apiPatch<GoalsView>(`/projects/${projectId}/goals`, { content_md: newContent }).then(
+      () => {
+        setSaving(false);
+        goals.reload();
+        analyze();
+      },
+      (err: unknown) => {
+        setSaving(false);
+        setError(err instanceof ApiError ? `${err.message} (${err.code})` : String(err));
+      },
+    );
   };
 
   const runGenerateDraft = () => {
@@ -368,7 +389,7 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
               className="input detail__goals-textarea"
               value={draftText}
               disabled={drafting || saving}
-              placeholder="목표/요구사항을 마크다운으로 적는다. 또는 아래 버튼으로 AI 초안을 만든다."
+              placeholder="목표/요구사항을 마크다운 체크리스트(- [ ])로 적는다. 또는 아래 버튼으로 AI 초안을 만든다."
               onChange={(e) => setDraftText(e.target.value)}
             />
             {error !== null && (
@@ -412,20 +433,70 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
                   />
                 </div>
                 <p className="detail__big">
-                  {progress.percent}% <span className="meta">AI 추정 진행률</span>
+                  {progress.percent}%{' '}
+                  <span className="meta">
+                    {stats.total > 0
+                      ? `(${stats.completed}/${stats.total} 완료 · 결정론적 마일스톤)`
+                      : 'AI 추정 진행률'}
+                  </span>
                 </p>
                 <p className="meta">{progress.summary}</p>
-                {progress.remaining_items.length > 0 && (
-                  <ul className="detail__goals-remaining">
-                    {progress.remaining_items.map((item, i) => (
-                      <li key={i}>
-                        <strong>{item.title}</strong>
-                        {item.description && <span className="meta"> — {item.description}</span>}
-                      </li>
+                {checklistItems.length > 0 ? (
+                  <div className="detail__goals-checklist">
+                    {checklistItems.map((item) => (
+                      <label
+                        key={item.index}
+                        className={`detail__goals-check-item ${item.completed ? 'detail__goals-check-item--done' : ''}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={item.completed}
+                          disabled={saving || analyzing}
+                          onChange={() => handleToggleCheck(item.index)}
+                        />
+                        <span className="detail__goals-check-title">{item.title}</span>
+                        {item.completed ? (
+                          <span className="badge">완료</span>
+                        ) : (
+                          <span className="meta">대기</span>
+                        )}
+                      </label>
                     ))}
-                  </ul>
+                  </div>
+                ) : (
+                  progress.remaining_items.length > 0 && (
+                    <ul className="detail__goals-remaining">
+                      {progress.remaining_items.map((item, i) => (
+                        <li key={i}>
+                          <strong>{item.title}</strong>
+                          {item.description && <span className="meta"> — {item.description}</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  )
                 )}
                 <p className="meta">{formatDateTime(progress.analyzed_at)} 분석</p>
+              </>
+            ) : checklistItems.length > 0 ? (
+              <>
+                <div className="detail__goals-checklist">
+                  {checklistItems.map((item) => (
+                    <label
+                      key={item.index}
+                      className={`detail__goals-check-item ${item.completed ? 'detail__goals-check-item--done' : ''}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={item.completed}
+                        disabled={saving || analyzing}
+                        onChange={() => handleToggleCheck(item.index)}
+                      />
+                      <span className="detail__goals-check-title">{item.title}</span>
+                      {item.completed && <span className="badge">완료</span>}
+                    </label>
+                  ))}
+                </div>
+                <p className="meta">{getUnanalyzedStatusText(analyzing)}</p>
               </>
             ) : (
               <p className="meta">{getUnanalyzedStatusText(analyzing)}</p>
