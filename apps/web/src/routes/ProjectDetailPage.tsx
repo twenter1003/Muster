@@ -7,6 +7,7 @@ import { ApiError, apiFetch, apiPatch, apiPost, type Page } from '../lib/api';
 import { EM_DASH, LOG_LEVELS, formatDateTime, type LogLevel, type Measurable } from '../lib/domain';
 import { shouldConfirmDraftOverwrite } from '../lib/goalsDraft';
 import { getAnalyzeButtonLabel, getUnanalyzedStatusText } from '../lib/goalsProgress';
+import { formatTokenCount, getWasteBadge } from '../lib/tokenIntelligence';
 import { useApi } from '../lib/useApi';
 import './ProjectDetailPage.css';
 
@@ -52,10 +53,35 @@ interface DocumentView {
   created_at: string;
 }
 
+interface SessionRunView {
+  id: string;
+  agent_name: string;
+  tokens_used: number;
+  cost: string;
+  status: string;
+  started_at: string;
+  ended_at: string | null;
+  waste?: {
+    level: 'NORMAL' | 'CAUTION' | 'HIGH_WASTE';
+    reason: string;
+    estimated_wasted_tokens: number;
+  };
+}
+
+interface WasteInsightSummary {
+  total_wasted_tokens: number;
+  waste_percentage: number;
+  high_waste_sessions_count: number;
+  recommendation: string;
+}
+
 interface UsageBreakdown {
   today_tokens: string;
   month_tokens: string;
+  total_tokens?: string;
   daily: Array<{ date: string; tokens: string }>;
+  waste_insight?: WasteInsightSummary;
+  recent_runs?: SessionRunView[];
 }
 
 interface GoalsView {
@@ -552,7 +578,7 @@ export function ProjectDetailPage() {
         </div>
 
         <div className="panel">
-          <p className="panel__head">Claude 토큰 사용량</p>
+          <p className="panel__head">에이전트 토큰 관제</p>
           <div className="panel__body">
             {usage.loading ? (
               <p className="meta">불러오는 중…</p>
@@ -561,10 +587,53 @@ export function ProjectDetailPage() {
             ) : (
               <>
                 <p className="detail__big">
-                  {usage.data.month_tokens} <span className="meta">이번 달 누적</span>
+                  {formatTokenCount(usage.data.month_tokens)}{' '}
+                  <span className="meta">
+                    이번 달
+                    {usage.data.total_tokens
+                      ? ` · 총 ${formatTokenCount(usage.data.total_tokens)}`
+                      : ''}
+                  </span>
                 </p>
                 <Sparkline daily={usage.data.daily} />
-                <p className="meta">오늘 {usage.data.today_tokens} 토큰</p>
+                <p className="meta">오늘 {formatTokenCount(usage.data.today_tokens)} 토큰</p>
+
+                {usage.data.waste_insight &&
+                  usage.data.waste_insight.high_waste_sessions_count > 0 && (
+                    <div
+                      className="detail__goals-remaining"
+                      style={{ marginTop: 'var(--space-2)' }}
+                    >
+                      <p className="meta" style={{ color: 'var(--color-signal, #e05252)' }}>
+                        ⚠️ <strong>컨텍스트 팽창 주의</strong> (
+                        {usage.data.waste_insight.waste_percentage}% 낭비 추정)
+                      </p>
+                      <p className="meta">{usage.data.waste_insight.recommendation}</p>
+                    </div>
+                  )}
+
+                {usage.data.recent_runs && usage.data.recent_runs.length > 0 && (
+                  <div style={{ marginTop: 'var(--space-3)' }}>
+                    <p className="meta" style={{ marginBottom: 'var(--space-1)' }}>
+                      최근 세션 ({usage.data.recent_runs.length}건)
+                    </p>
+                    {usage.data.recent_runs.slice(0, 4).map((r) => {
+                      const badge = getWasteBadge(r.waste?.level);
+                      return (
+                        <div
+                          key={r.id}
+                          className="detail__row"
+                          style={{ fontSize: 'var(--font-size-meta)' }}
+                        >
+                          <span className={badge.className}>{badge.text}</span>
+                          <span className="detail__row-text">{r.agent_name}</span>
+                          <span className="meta">{formatTokenCount(r.tokens_used)}</span>
+                          <span className="meta">{formatDateTime(r.started_at)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </>
             )}
           </div>
