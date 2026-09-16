@@ -180,3 +180,152 @@ describe('Phase 7 — 실행 시작 인증 (e2e)', () => {
     expect(bobProject).toBeTruthy();
   });
 });
+
+/**
+ * `PATCH /agent-runs/:id` — 실행 **종료** 기록도 API 키와 세션 둘 다 받는다.
+ *
+ * 전에는 세션만 받았다. 시작은 키로 열려 있었는데 종료가 세션 전용이면, 외부 에이전트는
+ * 실행을 시작할 수는 있어도 실제 토큰/비용을 채워 끝맺을 수는 없었다 — 사람이 대시보드에서
+ * 일일이 정정하지 않는 한 토큰 사용량 카드가 영원히 0으로 남는 셈이다. 여기서 고정하는 것도
+ * 시작 인증 테스트와 같다 — 문을 하나 더 열었으므로 범위가 새면 그게 곧 사고다.
+ */
+describe('Phase 7 — 실행 종료 인증 (e2e)', () => {
+  let app: INestApplication;
+  let ds: DataSource;
+  let sessions: SessionService;
+
+  let alice: User;
+  let bob: User;
+  let aliceToken: string;
+  let bobToken: string;
+
+  let aliceAgent: string;
+  let aliceKey: string;
+  let bobKey: string;
+
+  const http = () => request(app.getHttpServer());
+  const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
+
+  const createUser = async (login: string): Promise<User> => {
+    const repo = ds.getRepository(User);
+    return repo.save(repo.create({ github_login: login, email: null }));
+  };
+
+  const setup = async (token: string, name: string) => {
+    const project = await http()
+      .post('/api/v1/projects')
+      .set(auth(token))
+      .send({ name })
+      .expect(201);
+    const projectId = project.body.id as string;
+
+    const agent = await http()
+      .post(`/api/v1/projects/${projectId}/agents`)
+      .set(auth(token))
+      .send({ name: `${name}-agent`, config_md: '# agent' })
+      .expect(201);
+
+    const key = await http()
+      .post(`/api/v1/projects/${projectId}/api-keys`)
+      .set(auth(token))
+      .send({ label: `${name}-key` })
+      .expect(201);
+
+    return { projectId, agentId: agent.body.id as string, key: key.body.key as string };
+  };
+
+  const startRun = async (agentId: string, apiKey: string): Promise<string> => {
+    const res = await http()
+      .post(`/api/v1/agents/${agentId}/runs`)
+      .set({ 'X-API-Key': apiKey })
+      .expect(201);
+    return res.body.id as string;
+  };
+
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    app = moduleRef.createNestApplication();
+    app.setGlobalPrefix('api/v1');
+    app.useGlobalPipes(
+      new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }),
+    );
+    await app.init();
+
+    ds = app.get<DataSource>(DATA_SOURCE);
+    sessions = app.get(SessionService);
+
+    const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    alice = await createUser(`finish-alice-${stamp}`);
+    bob = await createUser(`finish-bob-${stamp}`);
+    aliceToken = (await sessions.issue(alice.id)).token;
+    bobToken = (await sessions.issue(bob.id)).token;
+
+    const a = await setup(aliceToken, `finish-a-${stamp}`);
+    aliceAgent = a.agentId;
+    aliceKey = a.key;
+
+    const b = await setup(bobToken, `finish-b-${stamp}`);
+    bobKey = b.key;
+  }, 30_000);
+
+  afterAll(async () => {
+    for (const user of [alice, bob]) {
+      if (!user) continue;
+      await ds.query(
+        `DELETE FROM projects WHERE id IN (SELECT project_id FROM project_members WHERE user_id = $1)`,
+        [user.id],
+      );
+      await ds.getRepository(Session).delete({ user_id: user.id });
+      await ds.getRepository(User).delete({ id: user.id });
+    }
+    await app.close();
+  });
+
+  it('에이전트는 자기가 API 키로 시작한 실행을 같은 키로 끝맺어 실제 토큰/비용을 채운다', async () => {
+    const runId = await startRun(aliceAgent, aliceKey);
+
+    const res = await http()
+      .patch(`/api/v1/agent-runs/${runId}`)
+      .set({ 'X-API-Key': aliceKey })
+      .send({ status: 'succeeded', tokens_used: 1234, cost: '0.56' })
+      .expect(200);
+
+    expect(res.body).toMatchObject({ status: 'succeeded', tokens_used: 1234, cost: '0.56' });
+    expect(res.body.ended_at).not.toBeNull();
+  });
+
+  it('사람은 세션으로 실행을 정정한다 (기존 경로가 그대로 산다)', async () => {
+    const runId = await startRun(aliceAgent, aliceKey);
+
+    const res = await http()
+      .patch(`/api/v1/agent-runs/${runId}`)
+      .set(auth(aliceToken))
+      .send({ status: 'failed', tokens_used: 10 })
+      .expect(200);
+
+    expect(res.body.status).toBe('failed');
+  });
+
+  it('신원이 하나도 없으면 401이다', async () => {
+    const runId = await startRun(aliceAgent, aliceKey);
+    await http().patch(`/api/v1/agent-runs/${runId}`).send({ tokens_used: 1 }).expect(401);
+  });
+
+  it('남의 키로는 남의 실행을 끝맺지 못한다', async () => {
+    const runId = await startRun(aliceAgent, aliceKey);
+    await http()
+      .patch(`/api/v1/agent-runs/${runId}`)
+      .set({ 'X-API-Key': bobKey })
+      .send({ tokens_used: 1 })
+      .expect(404);
+  });
+
+  it('남의 세션으로도 마찬가지다', async () => {
+    const runId = await startRun(aliceAgent, aliceKey);
+    await http()
+      .patch(`/api/v1/agent-runs/${runId}`)
+      .set(auth(bobToken))
+      .send({ tokens_used: 1 })
+      .expect(404);
+  });
+});
