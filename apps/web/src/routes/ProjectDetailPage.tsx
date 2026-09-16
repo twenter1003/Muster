@@ -5,6 +5,7 @@ import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
 import { ApiError, apiFetch, apiPatch, apiPost, type Page } from '../lib/api';
 import { EM_DASH, LOG_LEVELS, formatDateTime, type LogLevel, type Measurable } from '../lib/domain';
+import { shouldConfirmDraftOverwrite } from '../lib/goalsDraft';
 import { useApi } from '../lib/useApi';
 import './ProjectDetailPage.css';
 
@@ -257,6 +258,7 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
   const [saving, setSaving] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmOverwrite, setConfirmOverwrite] = useState(false);
 
   const progress = progressState.data?.progress ?? null;
 
@@ -266,7 +268,8 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
     setEditing(true);
   };
 
-  const generateDraft = () => {
+  const runGenerateDraft = () => {
+    setConfirmOverwrite(false);
     setDrafting(true);
     setError(null);
     apiPost<{ content_md: string }>(`/projects/${projectId}/goals/draft`).then(
@@ -279,6 +282,15 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
         setError(err instanceof ApiError ? `${err.message} (${err.code})` : String(err));
       },
     );
+  };
+
+  /** 편집 중인 내용이 있으면 먼저 확인을 받는다 — 초안은 저장 전까지 서버에 없어 되돌릴 수 없다. */
+  const generateDraft = () => {
+    if (shouldConfirmDraftOverwrite(draftText)) {
+      setConfirmOverwrite(true);
+      return;
+    }
+    runGenerateDraft();
   };
 
   const saveGoals = () => {
@@ -406,6 +418,25 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
           </div>
         )}
       </div>
+      <Modal
+        open={confirmOverwrite}
+        title="편집 중인 내용을 덮어쓸까?"
+        onClose={() => setConfirmOverwrite(false)}
+      >
+        <div className="modal__form">
+          <p className="meta">
+            지금 편집 중인 내용이 새 AI 초안으로 바뀐다. 저장하지 않았다면 되돌릴 수 없다.
+          </p>
+          <div className="modal__actions">
+            <Button type="button" onClick={() => setConfirmOverwrite(false)}>
+              취소
+            </Button>
+            <Button type="button" onClick={runGenerateDraft}>
+              덮어쓰기
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
