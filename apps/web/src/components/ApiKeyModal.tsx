@@ -16,7 +16,7 @@ export interface ApiKeyView {
 interface ApiKeyModalProps {
   open: boolean;
   projectId: string;
-  projectName: string;
+  projectName?: string;
   onClose: () => void;
   onKeysChanged?: () => void;
 }
@@ -121,9 +121,37 @@ export function ApiKeyModal({
 
   const keys: ApiKeyView[] = data?.items ?? [];
 
+  const apiOrigin =
+    typeof window !== 'undefined'
+      ? window.location.origin
+      : 'https://muster-54275961665.asia-northeast3.run.app';
+
+  const globalCmd = issued
+    ? `node scripts/muster-connect.mjs --global --url="${apiOrigin}" --key="${issued.key}" --tools=both --yes`
+    : '';
+
+  const projectCmd = issued
+    ? `node scripts/muster-connect.mjs --project="${projectId}" --url="${apiOrigin}" --key="${issued.key}" --tools=both --yes`
+    : '';
+
   return (
-    <Modal open={open} title={`API 키 관리 — ${projectName}`} onClose={onClose}>
+    <Modal
+      open={open}
+      title={`API 키 관리${projectName ? ` — ${projectName}` : ''}`}
+      onClose={onClose}
+    >
       <div className="akm__container">
+        {/* 안내 팁 박스 (새 키 발급 전) */}
+        {issued === null && (
+          <div className="akm__tip-box">
+            <span>
+              💡 새 API 키를 발급받으면 터미널에서 실행할 <strong>1줄 연동 명령어</strong>가
+              제공됩니다. 전역 1회 연동 시 모든 레포에서 사용한 에이전트 토큰이 Git 주소에 맞춰
+              자동으로 집계됩니다.
+            </span>
+          </div>
+        )}
+
         {/* 1회성 원문 키 노출 박스 */}
         {issued !== null && (
           <div className="akm__issued-card" role="alert">
@@ -139,22 +167,19 @@ export function ApiKeyModal({
             </div>
 
             <div className="akm__quick-connect">
-              <div className="akm__quick-title">⚡ 1줄 연동 명령어 복사 (터미널에 바로 실행)</div>
+              <div className="akm__quick-title">⚡ 1줄 연동 명령어 (터미널에서 실행)</div>
               <div className="akm__cmd-group">
                 <div className="akm__cmd-item">
                   <div className="akm__cmd-desc">
                     <strong>🚀 전역 1회 자동 라우팅 연동 (가장 추천)</strong>
                     <span>
-                      어떤 레포든 Git 주소를 인식해 자동으로 이 프로젝트로 토큰이 수집됩니다.
+                      Muster 폴더에서 1회 실행하면 모든 레포에서 작업 시 Git 주소 기반으로 자동
+                      집계됩니다.
                     </span>
                   </div>
+                  <pre className="akm__cmd-code">{globalCmd}</pre>
                   <Button
-                    onClick={() =>
-                      copyToClipboard(
-                        `npx muster-connect --global --key="${issued.key}" --tools=both --yes`,
-                        () => setCopiedGlobalCmd(true),
-                      )
-                    }
+                    onClick={() => copyToClipboard(globalCmd, () => setCopiedGlobalCmd(true))}
                   >
                     {copiedGlobalCmd ? '✓ 명령어 복사됨' : '전역 연동 명령어 복사'}
                   </Button>
@@ -163,15 +188,11 @@ export function ApiKeyModal({
                 <div className="akm__cmd-item">
                   <div className="akm__cmd-desc">
                     <strong>📁 현재 레포 전용 연동</strong>
-                    <span>이 레포 폴더에만 설정(`.muster/config.json`)을 생성합니다.</span>
+                    <span>해당 레포 폴더에만 설정(.muster/config.json)을 생성합니다.</span>
                   </div>
+                  <pre className="akm__cmd-code">{projectCmd}</pre>
                   <Button
-                    onClick={() =>
-                      copyToClipboard(
-                        `npx muster-connect --project="${projectId}" --key="${issued.key}" --tools=both --yes`,
-                        () => setCopiedProjectCmd(true),
-                      )
-                    }
+                    onClick={() => copyToClipboard(projectCmd, () => setCopiedProjectCmd(true))}
                   >
                     {copiedProjectCmd ? '✓ 명령어 복사됨' : '레포 전용 연동 명령어 복사'}
                   </Button>
