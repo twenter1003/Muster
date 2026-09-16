@@ -7,6 +7,9 @@ import { buildPage, type Page, type PageRequest } from '../../common/pagination/
 import { BudgetService } from './budget.service';
 import type { UpdateRunDto } from './dto/update-run.dto';
 
+/** 실행 종료를 요청한 신원 — 사람(세션) 또는 에이전트(API 키) 중 하나. */
+export type RunIdentity = { userId: string } | { apiKeyProjectId: string };
+
 /** 설계서 Part 4 §6 — 실행 이력. 토큰/비용 집계의 원천. */
 @Injectable()
 export class AgentRunsService {
@@ -37,11 +40,20 @@ export class AgentRunsService {
   /**
    * 실행 종료 기록 (설계서 Part 4 §6).
    *
+   * **에이전트 또는 사람**이 호출한다 — startRun과 같은 이유(agents.controller.ts 주석
+   * 참조)에 더해, 시작만 키로 열려 있으면 외부 에이전트가 실행을 시작할 수는 있어도 실제
+   * 토큰/비용을 채워 끝맺을 수는 없다. 그러면 토큰 사용량 카드는 사람이 대시보드에서
+   * 일일이 정정하지 않는 한 영원히 0으로 남는다 — 자진신고 기능이 자진신고할 방법이
+   * 없는 상태였다.
+   *
    * 사용량 재계산은 저장 **후**에, 그리고 저장 **전** 합계를 넘겨서 한다.
    * 임계치를 넘어서는 순간을 알아내려면 이 실행이 반영되기 전후를 비교해야 한다.
    */
-  async finish(runId: string, userId: string, dto: UpdateRunDto): Promise<AgentRun> {
-    const run = await this.findAccessibleOrFail(runId, userId);
+  async finish(runId: string, identity: RunIdentity, dto: UpdateRunDto): Promise<AgentRun> {
+    const run =
+      'apiKeyProjectId' in identity
+        ? await this.findAccessibleByKeyOrFail(runId, identity.apiKeyProjectId)
+        : await this.findAccessibleOrFail(runId, identity.userId);
     const projectId = await this.projectIdOfRun(run);
 
     const before = await this.budget.sumUsage(projectId);
@@ -94,6 +106,19 @@ export class AgentRunsService {
       user_id: userId,
     });
     if (!isMember) throw ApiException.notFound('실행 이력을 찾을 수 없습니다.');
+
+    return run;
+  }
+
+  /** API 키로 인증한 요청이 이 실행을 건드릴 수 있는지 — 키의 소유 프로젝트와 같아야 한다. */
+  private async findAccessibleByKeyOrFail(runId: string, apiKeyProjectId: string): Promise<AgentRun> {
+    const run = await this.runs.findOneBy({ id: runId });
+    if (!run) throw ApiException.notFound('실행 이력을 찾을 수 없습니다.');
+
+    const agent = await this.agents.findOneBy({ id: run.agent_id });
+    if (!agent || agent.project_id !== apiKeyProjectId) {
+      throw ApiException.notFound('실행 이력을 찾을 수 없습니다.');
+    }
 
     return run;
   }

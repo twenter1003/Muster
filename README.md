@@ -107,6 +107,13 @@ pnpm --filter @muster/api test:e2e    # e2e (DB 필요 — 아래 마이그레�
 pnpm lint
 ```
 
+## 에이전트 토큰 사용량 리포팅
+
+`AGENT_RUNS`는 자진신고 테이블이다 — 외부 에이전트가 `X-API-Key`로 직접 채워야 프로젝트
+상세의 "토큰 사용량" 카드에 값이 쌓인다. Claude Code를 첫 리포터로 붙이는 훅 스크립트가
+`scripts/claude-code-hooks/report-agent-usage.mjs`에 있다. 설치·동작 방식은
+`docs/AGENT_TOKEN_REPORTING.md` 참조.
+
 ## GCS 설정 (Phase 4 전제)
 
 문서 원본은 GCS에 저장되고 클라이언트가 signed URL로 직접 업로드한다. 로그인만 사람이 하고

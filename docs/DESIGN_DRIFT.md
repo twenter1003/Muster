@@ -251,6 +251,53 @@ project-goals(목표 초안·진행률 분석) 둘 다 이 모듈을 통해서�
 
 ---
 
+## 13. `PATCH /agent-runs/:id`도 API 키를 받는다 + 실제 리포터 클라이언트 신설 (개선 채택)
+
+7번에서 `POST /agents/:id/runs`(실행 **시작**)에 API 키 인증을 열었지만, 실행 **종료**
+(`PATCH /agent-runs/:id`)는 그때도 지금까지도 세션 인증뿐이었다 — 코드 주석은 "사람이
+대시보드에서 정정할 수 있어야 하니 세션"이라고 근거를 달았지만, 그 결과로 **외부
+에이전트는 실행을 시작할 수는 있어도 실제 토큰/비용을 채워 끝맺을 방법이 없었다**.
+사람이 대시보드에서 매 실행을 일일이 정정하지 않는 한 "토큰 사용량" 카드는 영원히
+0으로 남는 상태였다 — 자진신고 기능이 자진신고할 방법이 없었던 셈이다.
+
+`AgentRunsController.finish`에 startRun과 같은 `ApiKeyOrSessionGuard`를 달고,
+`AgentRunsService.finish`가 신원(세션 `userId` 또는 API 키 `apiKeyProjectId`)에 따라
+접근 범위를 나눠 확인하도록 고쳤다(`RunIdentity` 판별 유니언). 시작 라우트가 이미
+증명한 패턴 그대로라 새 위험은 없다 — 키는 자기 프로젝트로, 사람은 자기가 멤버인
+프로젝트로만 좁힌다. e2e로 대칭성을 검증했다(`test/agent-runs-auth.e2e-spec.ts` —
+남의 키·남의 세션으로는 끝맺지 못하는 것까지 확인).
+
+**이걸로 끝나지 않는다 — API가 열려도 호출하는 쪽이 없으면 여전히 0이다.** 그래서
+Claude Code를 첫 리포터 클라이언트로 붙였다(`scripts/claude-code-hooks/
+report-agent-usage.mjs`, 설치는 `docs/AGENT_TOKEN_REPORTING.md`):
+
+- **`SessionStart`에서 실행을 시작하고 `SessionEnd`에서 끝맺는다.** 둘 사이의 대응은
+  `~/.muster/runs/<session_id>.json`에 `run_id`를 적어 뒀다가 읽는 식으로 잡는다 —
+  Claude Code 훅은 상태를 유지하지 않는 단발 프로세스라, 시작과 끝을 잇는 저장소가
+  스크립트 밖에 필요하다.
+- **토큰 수는 transcript JSONL을 직접 합산해서 구한다** — Claude Code가 세션이 끝날 때
+  집계된 총 사용량을 훅 payload로 주지 않는다. 실제 transcript 파일(`type: "assistant"`
+  줄의 `message.usage`)을 열어 필드명을 확인한 뒤(2026-09-16) 작성했다 — 문서화되지
+  않은 내부 포맷이라 Claude Code가 바꾸면 합산 로직도 깨질 수 있다는 점을 문서에
+  명시해 뒀다.
+- **비용은 기본적으로 비워 둔다.** 모델·플랜마다 단가가 달라 추측해서 채우면 목표/
+  진행률 기능(12번)에서 지켰던 "근거 없는 숫자를 만들지 않는다" 원칙이 깨진다. 사용자가
+  `MUSTER_COST_PER_MTOK_INPUT`/`_OUTPUT` 환경변수로 요율을 직접 주는 경우에만 계산한다.
+- **설정 없는 레포에서는 조용히 아무 일도 안 한다.** 훅은 전역(`~/.claude/settings.json`)
+  으로 걸릴 수 있으므로, Muster로 추적하지 않는 다른 프로젝트에서 매번 오류를 내면 훅
+  자체를 못 쓰게 된다. `.muster/config.json`(레포 로컬, gitignore 대상) 또는 세 환경변수
+  (`MUSTER_API_URL`/`MUSTER_API_KEY`/`MUSTER_AGENT_ID`)가 전부 없으면 `null`을 돌려주고
+  끝낸다.
+- **훅은 세션을 절대 막지 않는다.** 네트워크 오류든 설정 오류든 항상 `exit 0`으로
+  끝나고 stderr에만 남긴다 — 이 리포터가 죽었다고 Claude Code 자체가 막히면 본말전도다.
+
+로컬 API 서버를 띄우고 실제 프로젝트·에이전트·API 키를 만들어 `SessionStart`/
+`SessionEnd` 훅 JSON을 스크립트에 직접 흘려보내는 방식으로 전체 흐름(시작 → transcript
+합산 → 종료 → `/agents/:id/runs` 조회로 확인)을 검증했다 — 순수 함수 6개는
+`node --test scripts/claude-code-hooks/report-agent-usage.test.mjs`로 별도 커버한다.
+
+---
+
 ## 경미한 추가 (보고용)
 
 | 컬럼 | 이유 |

@@ -236,17 +236,26 @@ export class AgentsController {
   }
 }
 
-/** 설계서 Part 4 §6 — 실행 종료 기록. 사람이 대시보드에서 정정할 수도 있어 세션 인증이다. */
+/**
+ * 설계서 Part 4 §6 — 실행 종료 기록. startRun과 같은 이유로 **에이전트 또는 사람**을 받는다
+ * (agent-runs.service.ts finish() 주석 참조) — 사람은 대시보드에서 정정할 수 있고, 에이전트는
+ * 자기가 시작한 실행을 실제 토큰/비용으로 끝맺을 수 있어야 한다.
+ */
 @Controller('agent-runs')
 export class AgentRunsController {
   constructor(private readonly runs: AgentRunsService) {}
 
   @Patch(':id')
+  @Public()
+  @UseGuards(ApiKeyOrSessionGuard)
   async finish(
     @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
     @Body() dto: UpdateRunDto,
   ): Promise<RunView> {
-    return toRunView(await this.runs.finish(id, user.id, dto));
+    const identity = req.apiKeyProjectId !== undefined
+      ? { apiKeyProjectId: req.apiKeyProjectId }
+      : { userId: req.user!.id };
+    return toRunView(await this.runs.finish(id, identity, dto));
   }
 }

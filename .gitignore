@@ -9,6 +9,10 @@ coverage/
 .secrets/
 .secrets-test/
 
+# Claude Code 훅(scripts/claude-code-hooks)이 이 레포를 Muster로 추적할 때 쓰는 로컬
+# 설정 — API 키 원문이 들어간다 (docs/AGENT_TOKEN_REPORTING.md).
+.muster/
+
 # tsc --build가 남기는 증분 빌드 캐시. 빌드할 때마다 바뀌는 산출물이라 추적하면
 # 관계없는 PR마다 diff에 끼어들고, 커밋 사이에 충돌까지 낸다.
 *.tsbuildinfo
