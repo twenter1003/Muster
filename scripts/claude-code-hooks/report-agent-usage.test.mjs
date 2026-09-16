@@ -30,7 +30,11 @@ test('loadConfig: .muster/config.json이 있으면 환경변수보다 우선한�
       MUSTER_AGENT_ID: 'env-agent',
     });
 
-    assert.deepEqual(config, { apiUrl: 'https://local', apiKey: 'local-key', agentId: 'local-agent' });
+    assert.deepEqual(config, {
+      apiUrl: 'https://local',
+      apiKey: 'local-key',
+      agentId: 'local-agent',
+    });
   });
 });
 

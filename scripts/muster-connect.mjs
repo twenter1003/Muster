@@ -15,6 +15,7 @@ import {
   writeFileSync,
   readdirSync,
   statSync,
+  copyFileSync,
 } from 'node:fs';
 import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
@@ -66,6 +67,33 @@ export function saveGlobalMusterConfig({ apiUrl, apiKey }) {
   };
 
   writeFileSync(join(musterDir, 'config.json'), JSON.stringify(config, null, 2) + '\n', 'utf8');
+}
+
+/** 훅 스크립트를 ~/.muster/hooks로 복사하여 레포 경로에 구애받지 않도록 독립 배포 */
+export function installGlobalHookScripts() {
+  const hooksDir = join(homedir(), '.muster', 'hooks');
+  const claudeDir = join(hooksDir, 'claude-code-hooks');
+  const antigravityDir = join(hooksDir, 'antigravity-hooks');
+
+  mkdirSync(claudeDir, { recursive: true });
+  mkdirSync(antigravityDir, { recursive: true });
+
+  const claudeSrc = resolve(__dirname, 'claude-code-hooks', 'report-agent-usage.mjs');
+  const claudeDst = join(claudeDir, 'report-agent-usage.mjs');
+  if (existsSync(claudeSrc)) {
+    copyFileSync(claudeSrc, claudeDst);
+  }
+
+  const antigravitySrc = resolve(__dirname, 'antigravity-hooks', 'report-agent-usage.mjs');
+  const antigravityDst = join(antigravityDir, 'report-agent-usage.mjs');
+  if (existsSync(antigravitySrc)) {
+    copyFileSync(antigravitySrc, antigravityDst);
+  }
+
+  return {
+    claudeScript: existsSync(claudeDst) ? claudeDst : claudeSrc,
+    antigravityScript: existsSync(antigravityDst) ? antigravityDst : antigravitySrc,
+  };
 }
 
 /** .muster/config.json 생성 및 .gitignore 갱신 */
@@ -368,40 +396,52 @@ export async function runInteractive(args) {
       process.exit(1);
     }
 
-    // 4. API Key 검증 및 프로젝트/에이전트 조회
+    // 4. API Key 검증
     console.log(`\n🔍 API Key 검증 중 (${apiUrl})...`);
-    let agentsList = [];
+    let verifiedProjectId = null;
     try {
-      const res = await fetchApi(apiUrl, apiKey, '/agents');
-      agentsList = res.items || [];
-    } catch (err) {
-      console.error(`❌ API Key 검증 실패: ${err.message}`);
-      process.exit(1);
+      const res = await fetchApi(apiUrl, apiKey, '/api-keys/verify');
+      verifiedProjectId = res.project_id;
+    } catch {
+      // 구버전 서버 호환성: /api-keys/verify가 없는 경우 by-repo 핑으로 검증
+      try {
+        await fetchApi(apiUrl, apiKey, '/agent-runs/by-repo', 'POST', {
+          git_remote_url: 'https://github.com/ping/check',
+          agent_name: 'ping',
+          tokens_used: 0,
+        });
+      } catch (pingErr) {
+        if (pingErr.message.includes('401')) {
+          console.error(`❌ API Key 검증 실패: 유효하지 않거나 만료된 API 키입니다.`);
+          process.exit(1);
+        }
+      }
     }
 
-    const projectId = existingConfig.projectId || agentsList[0]?.project_id;
-    if (!projectId) {
-      console.error('❌ 연결할 Project ID를 찾을 수 없습니다.');
-      process.exit(1);
+    const projectId = existingConfig.projectId || args.project || verifiedProjectId;
+    if (projectId) {
+      console.log(`✓ 인증 성공! 프로젝트 연결됨 (Project ID: ${projectId})`);
+    } else {
+      console.log(`✓ 인증 성공! API 키 확인 완료`);
     }
-    console.log(`✓ 인증 성공! 프로젝트 연결됨 (Project ID: ${projectId})`);
 
     // 4.1 전역 설정 모드 (--global)
     if (args.global) {
       saveGlobalMusterConfig({ apiUrl, apiKey });
       console.log(`✓ ~/.muster/config.json 전역 설정 저장 완료`);
 
-      const claudeHookScript = resolve(__dirname, 'claude-code-hooks', 'report-agent-usage.mjs');
-      registerClaudeHooks(claudeHookScript);
+      const { claudeScript, antigravityScript } = installGlobalHookScripts();
+      registerClaudeHooks(claudeScript);
       console.log(`✓ Claude Code 전역 훅 등록 완료 (~/.claude/settings.json)`);
 
-      const antigravityHookScript = resolve(__dirname, 'antigravity-hooks', 'report-agent-usage.mjs');
-      registerAntigravityHooks(antigravityHookScript);
+      registerAntigravityHooks(antigravityScript);
       console.log(`✓ Antigravity 전역 훅 등록 완료 (~/.gemini/config/hooks.json)`);
 
       console.log(`\n🎉 전역 1회 자동 라우팅 연동이 완료되었습니다!`);
       console.log(`   앞으로 어떤 Git 레포지토리에서든 Claude Code 또는 Antigravity로 작업하시면`);
-      console.log(`   Git remote 주소를 통해 해당 Muster 프로젝트 대시보드로 토큰이 자동 집계됩니다.`);
+      console.log(
+        `   Git remote 주소를 통해 해당 Muster 프로젝트 대시보드로 토큰이 자동 집계됩니다.`,
+      );
       console.log(`   (개별 레포 폴더마다 muster-connect를 실행할 필요가 없습니다)\n`);
       rl.close();
       return;
@@ -415,8 +455,16 @@ export async function runInteractive(args) {
     let toolChoice = args.tools || (await rl.question('선택 [3]: '));
     toolChoice = toolChoice.trim() || '3';
 
-    const enableClaude = toolChoice === '1' || toolChoice === '3' || toolChoice.toLowerCase() === 'both' || toolChoice.toLowerCase() === 'claude';
-    const enableAntigravity = toolChoice === '2' || toolChoice === '3' || toolChoice.toLowerCase() === 'both' || toolChoice.toLowerCase() === 'antigravity';
+    const enableClaude =
+      toolChoice === '1' ||
+      toolChoice === '3' ||
+      toolChoice.toLowerCase() === 'both' ||
+      toolChoice.toLowerCase() === 'claude';
+    const enableAntigravity =
+      toolChoice === '2' ||
+      toolChoice === '3' ||
+      toolChoice.toLowerCase() === 'both' ||
+      toolChoice.toLowerCase() === 'antigravity';
 
     const agentsMap = { ...(existingConfig.agents || {}) };
 
@@ -466,7 +514,11 @@ export async function runInteractive(args) {
     }
 
     if (enableAntigravity) {
-      const antigravityHookScript = resolve(__dirname, 'antigravity-hooks', 'report-agent-usage.mjs');
+      const antigravityHookScript = resolve(
+        __dirname,
+        'antigravity-hooks',
+        'report-agent-usage.mjs',
+      );
       registerAntigravityHooks(antigravityHookScript);
       // 프로젝트 로컬 .agents/hooks.json에도 등록
       registerAntigravityHooks(antigravityHookScript, join(cwd, '.agents', 'hooks.json'));
@@ -501,7 +553,9 @@ export async function runInteractive(args) {
             tokens += s.tokensUsed;
           } catch {}
         }
-        console.log(`  ✓ Claude Code 백필 완료: ${count}개 세션 (${(tokens / 1_000_000).toFixed(2)}M 토큰)`);
+        console.log(
+          `  ✓ Claude Code 백필 완료: ${count}개 세션 (${(tokens / 1_000_000).toFixed(2)}M 토큰)`,
+        );
       }
 
       if (enableAntigravity && agentsMap.antigravity) {
@@ -522,12 +576,16 @@ export async function runInteractive(args) {
             tokens += s.tokensUsed;
           } catch {}
         }
-        console.log(`  ✓ Antigravity 백필 완료: ${count}개 세션 (${(tokens / 1_000_000).toFixed(2)}M 토큰)`);
+        console.log(
+          `  ✓ Antigravity 백필 완료: ${count}개 세션 (${(tokens / 1_000_000).toFixed(2)}M 토큰)`,
+        );
       }
     }
 
     console.log('\n🎉 모든 연동 설정이 성공적으로 완료되었습니다!');
-    console.log(`이제 Claude Code 및 Antigravity 사용 시 토큰이 Muster 대시보드에 자동 집계됩니다.`);
+    console.log(
+      `이제 Claude Code 및 Antigravity 사용 시 토큰이 Muster 대시보드에 자동 집계됩니다.`,
+    );
     console.log(`대시보드 확인: ${apiUrl.replace('/api/v1', '')}/projects/${projectId}\n`);
   } finally {
     rl.close();

@@ -9,8 +9,12 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
+import { Public } from '../../common/auth/public.decorator';
+import { ApiKeyGuard } from '../../common/auth/api-key.guard';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user';
 import { CursorPaginationQuery } from '../../common/pagination/pagination.dto';
@@ -373,6 +377,13 @@ export class ApiKeysController {
     private readonly projects: ProjectsService,
     private readonly audit: AuditService,
   ) {}
+
+  @Get('verify')
+  @Public()
+  @UseGuards(ApiKeyGuard)
+  verify(@Req() req: Request): { ok: boolean; project_id: string } {
+    return { ok: true, project_id: req.apiKeyProjectId! };
+  }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
