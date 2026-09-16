@@ -6,6 +6,13 @@ import { Agent, AgentRun, ProjectBudget } from '../../database/entities';
 import { DomainEvent, type BudgetThresholdExceededEvent } from '../../common/events/domain-events';
 import type { PutBudgetDto } from './dto/put-budget.dto';
 
+import {
+  assessSessionWaste,
+  computeWasteInsight,
+  type SessionWasteAssessment,
+  type WasteInsightSummary,
+} from './token-waste';
+
 export interface BudgetUsage {
   token_limit: string | null;
   cost_limit: string | null;
@@ -21,12 +28,26 @@ export interface BudgetUsage {
 /** 기본 예산. 레코드가 없어도 조회가 되어야 대시보드가 빈 화면을 안 만든다. */
 const DEFAULT_THRESHOLD_PCT = '80';
 
-/** 프로젝트 상세·목록 화면의 "토큰 사용량" 카드가 쓰는 하루 단위 집계. */
+export interface SessionRunView {
+  id: string;
+  agent_name: string;
+  tokens_used: number;
+  cost: string;
+  status: string;
+  started_at: string;
+  ended_at: string | null;
+  waste: SessionWasteAssessment;
+}
+
+/** 프로젝트 상세·목록 화면의 "토큰 사용량" 카드가 쓰는 하루 단위 집계 및 낭비 진단. */
 export interface UsageBreakdown {
   today_tokens: string;
   month_tokens: string;
+  total_tokens?: string;
   /** 오래된 날짜부터 오늘까지, 값이 없는 날도 '0'으로 채워서 스파크라인이 끊기지 않게 한다. */
   daily: Array<{ date: string; tokens: string }>;
+  waste_insight?: WasteInsightSummary;
+  recent_runs?: SessionRunView[];
 }
 
 const DAILY_WINDOW_DAYS = 7;
@@ -147,7 +168,7 @@ export class BudgetService {
     monthStart.setUTCDate(1);
     monthStart.setUTCHours(0, 0, 0, 0);
 
-    const [rows, monthRow] = await Promise.all([
+    const [rows, monthRow, totalRow, recentRuns] = await Promise.all([
       this.runs
         .createQueryBuilder('r')
         .innerJoin(Agent, 'a', 'a.id = r.agent_id')
@@ -164,6 +185,19 @@ export class BudgetService {
         .andWhere('r.started_at >= :monthStart', { monthStart })
         .select('COALESCE(SUM(r.tokens_used), 0)', 'tokens')
         .getRawOne<{ tokens: string }>(),
+      this.runs
+        .createQueryBuilder('r')
+        .innerJoin(Agent, 'a', 'a.id = r.agent_id')
+        .where('a.project_id = :projectId', { projectId })
+        .select('COALESCE(SUM(r.tokens_used), 0)', 'tokens')
+        .getRawOne<{ tokens: string }>(),
+      this.runs
+        .createQueryBuilder('r')
+        .innerJoinAndSelect('r.agent', 'a')
+        .where('a.project_id = :projectId', { projectId })
+        .orderBy('r.started_at', 'DESC')
+        .take(10)
+        .getMany(),
     ]);
 
     const byDay = new Map(rows.map((r) => [toDateKey(r.day), r.tokens]));
@@ -174,10 +208,24 @@ export class BudgetService {
       return { date, tokens: byDay.get(date) ?? '0' };
     });
 
+    const recent_runs: SessionRunView[] = recentRuns.map((r) => ({
+      id: r.id,
+      agent_name: r.agent?.name ?? 'agent',
+      tokens_used: r.tokens_used,
+      cost: r.cost,
+      status: r.status,
+      started_at: r.started_at.toISOString(),
+      ended_at: r.ended_at ? r.ended_at.toISOString() : null,
+      waste: assessSessionWaste(r.tokens_used),
+    }));
+
     return {
       today_tokens: daily.at(-1)?.tokens ?? '0',
       month_tokens: String(monthRow?.tokens ?? '0'),
+      total_tokens: String(totalRow?.tokens ?? '0'),
       daily,
+      waste_insight: computeWasteInsight(recentRuns),
+      recent_runs,
     };
   }
 
