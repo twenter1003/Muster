@@ -6,6 +6,7 @@ import { Modal } from '../components/Modal';
 import { ApiError, apiFetch, apiPatch, apiPost, type Page } from '../lib/api';
 import { EM_DASH, LOG_LEVELS, formatDateTime, type LogLevel, type Measurable } from '../lib/domain';
 import { shouldConfirmDraftOverwrite } from '../lib/goalsDraft';
+import { getAnalyzeButtonLabel, getUnanalyzedStatusText } from '../lib/goalsProgress';
 import { useApi } from '../lib/useApi';
 import './ProjectDetailPage.css';
 
@@ -293,23 +294,6 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
     runGenerateDraft();
   };
 
-  const saveGoals = () => {
-    if (draftText.trim() === '') return;
-    setSaving(true);
-    setError(null);
-    apiPatch<GoalsView>(`/projects/${projectId}/goals`, { content_md: draftText }).then(
-      () => {
-        setSaving(false);
-        setEditing(false);
-        goals.reload();
-      },
-      (err: unknown) => {
-        setSaving(false);
-        setError(err instanceof ApiError ? `${err.message} (${err.code})` : String(err));
-      },
-    );
-  };
-
   const analyze = () => {
     setAnalyzing(true);
     setError(null);
@@ -326,6 +310,24 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
         } else {
           setError(err instanceof ApiError ? `${err.message} (${err.code})` : String(err));
         }
+      },
+    );
+  };
+
+  const saveGoals = () => {
+    if (draftText.trim() === '') return;
+    setSaving(true);
+    setError(null);
+    apiPatch<GoalsView>(`/projects/${projectId}/goals`, { content_md: draftText }).then(
+      () => {
+        setSaving(false);
+        setEditing(false);
+        goals.reload();
+        analyze();
+      },
+      (err: unknown) => {
+        setSaving(false);
+        setError(err instanceof ApiError ? `${err.message} (${err.code})` : String(err));
       },
     );
   };
@@ -400,7 +402,7 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
                 <p className="meta">{formatDateTime(progress.analyzed_at)} 분석</p>
               </>
             ) : (
-              <p className="meta">아직 분석하지 않았다.</p>
+              <p className="meta">{getUnanalyzedStatusText(analyzing)}</p>
             )}
             {error !== null && (
               <p className="error-note" role="alert">
@@ -409,7 +411,7 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
             )}
             <div className="detail__goals-actions">
               <Button type="button" onClick={analyze} disabled={analyzing}>
-                {analyzing ? '분석하는 중…' : '다시 분석'}
+                {getAnalyzeButtonLabel(analyzing, progress !== null)}
               </Button>
               <Button type="button" onClick={startEditing}>
                 목표 편집
