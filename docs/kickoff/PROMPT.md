@@ -37,7 +37,7 @@ Claude Code/LLM 기반으로 여러 사이드 프로젝트를 동시에 진행�
 4. [docs/AGENT_TOKEN_REPORTING.md](../AGENT_TOKEN_REPORTING.md) — 토큰 사용량 자동 리포팅
    (Claude Code & Antigravity 훅, 1줄 연동 CLI `npx muster-connect`)
 5. [docs/LLM_ECOSYSTEM_GUIDE.md](../LLM_ECOSYSTEM_GUIDE.md) — 2026 최신 LLM 모델(Gemini 3.x,
-   Claude Sonnet 5 등) 라인업, 단가표, 프롬프트 캐싱 및 Muster 권장사항
+   Claude Fable 5.1 / Opus 5 / Sonnet 5, GPT-5.6/6 등) 라인업, 단가표, 프롬프트 캐싱 및 Muster 권장사항
 
 ## 지금 상태 (이 문서를 쓴 시점 기준)
 
@@ -54,6 +54,7 @@ Claude Code/LLM 기반으로 여러 사이드 프로젝트를 동시에 진행�
   `pnpm --filter @muster/api test:e2e`(246+, 로컬 DB 필요). 전부 통과하는 게 기본 전제 —
   실패한 채로 커밋하지 않는다.
 - **최근 완료된 것** (최신순, 상세는 git log):
+  - 2026 최신 LLM 생태계 가이드 구축 (Gemini 3.x, Claude Fable 5.1 / Opus 5 / Sonnet 5, GPT-6 Astra, DeepSeek 라인업 및 1M 토큰당 단가표·캐싱 공식 정리, PR #48, #49)
   - 1줄 연동 CLI (`npx muster-connect`) 및 멀티 모델(Claude / Antigravity) 토큰 관제 (외부 의존성 제로 Ponytail 원칙 CLI, SQLite metadata Protobuf 디코더 기반 Antigravity 세션 토큰 실측 훅, 백엔드 agent_name 필터링 및 CreateRunDto 백필 지원, 웹 대시보드 무지연 필터 칩 및 세션 뱃지 UI, PR #46)
   - 목표 달성률의 마일스톤 체크리스트화 및 결정론적 진행률 산출 (문제점 1&2 해결: Markdown Task List 기반 파싱, Gemini는 커밋 증거 매칭만 수행, 진행률을 (완료/전체)*100% 수학적 결정론으로 고정, 웹 체크리스트 인터랙티브 토글, PR #45)
   - 에이전트 토큰 관제 및 낭비 분석 대시보드 (과거 13.7억 토큰 백필 스크립트, 컨텍스트 팽창 낭비 진단, 최근 세션별 이력 카드, PR #44)
