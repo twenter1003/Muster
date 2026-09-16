@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  getGoalsProgressStats,
-  parseGoalChecklist,
-  toggleGoalChecklist,
-} from './goalChecklist';
+import { getGoalsProgressStats, parseGoalChecklist, toggleGoalChecklist } from './goalChecklist';
 
 describe('goalChecklist (Web)', () => {
   describe('parseGoalChecklist', () => {

@@ -7,7 +7,11 @@ import { ApiError, apiFetch, apiPatch, apiPost, type Page } from '../lib/api';
 import { EM_DASH, LOG_LEVELS, formatDateTime, type LogLevel, type Measurable } from '../lib/domain';
 import { shouldConfirmDraftOverwrite } from '../lib/goalsDraft';
 import { getAnalyzeButtonLabel, getUnanalyzedStatusText } from '../lib/goalsProgress';
-import { getGoalsProgressStats, parseGoalChecklist, toggleGoalChecklist } from '../lib/goalChecklist';
+import {
+  getGoalsProgressStats,
+  parseGoalChecklist,
+  toggleGoalChecklist,
+} from '../lib/goalChecklist';
 import { formatTokenCount, getWasteBadge } from '../lib/tokenIntelligence';
 import { useApi } from '../lib/useApi';
 import './ProjectDetailPage.css';
