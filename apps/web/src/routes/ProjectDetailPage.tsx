@@ -13,6 +13,7 @@ import {
   toggleGoalChecklist,
 } from '../lib/goalChecklist';
 import { formatTokenCount, getWasteBadge } from '../lib/tokenIntelligence';
+import { buildTokenUsageUrl, getAgentLabel, type AgentFilterType } from '../lib/agentFilter';
 import { useApi } from '../lib/useApi';
 import './ProjectDetailPage.css';
 
@@ -548,6 +549,7 @@ export function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [level, setLevel] = useState<LogLevel | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [agentFilter, setAgentFilter] = useState<AgentFilterType>('all');
 
   const project = useApi<ProjectView>(id ? `/projects/${id}` : null);
   const git = useApi<{ integration: GitIntegrationView | null }>(
@@ -563,7 +565,7 @@ export function ProjectDetailPage() {
   const logs = useApi<Page<LogView>>(
     id ? `/projects/${id}/logs?limit=5${level ? `&level=${level}` : ''}` : null,
   );
-  const usage = useApi<UsageBreakdown>(id ? `/projects/${id}/token-usage` : null);
+  const usage = useApi<UsageBreakdown>(id ? buildTokenUsageUrl(id, agentFilter) : null);
   const documents = useApi<Page<DocumentView>>(id ? `/projects/${id}/documents?limit=5` : null);
 
   const deploys = useMemo(
@@ -653,7 +655,59 @@ export function ProjectDetailPage() {
         </div>
 
         <div className="panel">
-          <p className="panel__head">에이전트 토큰 관제</p>
+          <div
+            className="panel__head"
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 'var(--space-2)',
+            }}
+          >
+            <span>에이전트 토큰 관제</span>
+            <div className="chip-row" role="group" aria-label="에이전트 필터">
+              <button
+                type="button"
+                className="chip"
+                style={{
+                  padding: '2px 8px',
+                  fontSize: 'var(--font-size-meta)',
+                  transition: 'border-color 100ms ease-out, color 100ms ease-out',
+                }}
+                aria-pressed={agentFilter === 'all'}
+                onClick={() => setAgentFilter('all')}
+              >
+                전체 보기
+              </button>
+              <button
+                type="button"
+                className="chip"
+                style={{
+                  padding: '2px 8px',
+                  fontSize: 'var(--font-size-meta)',
+                  transition: 'border-color 100ms ease-out, color 100ms ease-out',
+                }}
+                aria-pressed={agentFilter === 'claude-code'}
+                onClick={() => setAgentFilter('claude-code')}
+              >
+                Claude Code
+              </button>
+              <button
+                type="button"
+                className="chip"
+                style={{
+                  padding: '2px 8px',
+                  fontSize: 'var(--font-size-meta)',
+                  transition: 'border-color 100ms ease-out, color 100ms ease-out',
+                }}
+                aria-pressed={agentFilter === 'antigravity'}
+                onClick={() => setAgentFilter('antigravity')}
+              >
+                Antigravity
+              </button>
+            </div>
+          </div>
           <div className="panel__body">
             {usage.loading ? (
               <p className="meta">불러오는 중…</p>
@@ -694,6 +748,7 @@ export function ProjectDetailPage() {
                     </p>
                     {usage.data.recent_runs.slice(0, 4).map((r) => {
                       const badge = getWasteBadge(r.waste?.level);
+                      const agentLabel = getAgentLabel(r.agent_name);
                       return (
                         <div
                           key={r.id}
@@ -701,6 +756,16 @@ export function ProjectDetailPage() {
                           style={{ fontSize: 'var(--font-size-meta)' }}
                         >
                           <span className={badge.className}>{badge.text}</span>
+                          <span
+                            className="badge"
+                            style={{
+                              fontSize: '10px',
+                              padding: '0 4px',
+                              color: 'var(--color-ink-mid)',
+                            }}
+                          >
+                            {agentLabel}
+                          </span>
                           <span className="detail__row-text">{r.agent_name}</span>
                           <span className="meta">{formatTokenCount(r.tokens_used)}</span>
                           <span className="meta">{formatDateTime(r.started_at)}</span>
