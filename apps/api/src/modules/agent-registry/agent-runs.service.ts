@@ -111,7 +111,10 @@ export class AgentRunsService {
   }
 
   /** API 키로 인증한 요청이 이 실행을 건드릴 수 있는지 — 키의 소유 프로젝트와 같아야 한다. */
-  private async findAccessibleByKeyOrFail(runId: string, apiKeyProjectId: string): Promise<AgentRun> {
+  private async findAccessibleByKeyOrFail(
+    runId: string,
+    apiKeyProjectId: string,
+  ): Promise<AgentRun> {
     const run = await this.runs.findOneBy({ id: runId });
     if (!run) throw ApiException.notFound('실행 이력을 찾을 수 없습니다.');
 

@@ -253,9 +253,10 @@ export class AgentRunsController {
     @Req() req: Request,
     @Body() dto: UpdateRunDto,
   ): Promise<RunView> {
-    const identity = req.apiKeyProjectId !== undefined
-      ? { apiKeyProjectId: req.apiKeyProjectId }
-      : { userId: req.user!.id };
+    const identity =
+      req.apiKeyProjectId !== undefined
+        ? { apiKeyProjectId: req.apiKeyProjectId }
+        : { userId: req.user!.id };
     return toRunView(await this.runs.finish(id, identity, dto));
   }
 }
