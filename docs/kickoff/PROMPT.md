@@ -48,7 +48,7 @@ Claude Code/LLM 기반으로 여러 사이드 프로젝트를 동시에 진행�
   `gcloud run services describe muster --region asia-northeast3 --format='value(status.url)'`
   로 직접 확인할 것 — **Cloud Run 기본 URL이 배포 중에 바뀐 적이 있다**(숫자 기반 →
   해시 기반). GitHub OAuth 콜백은 항상 그 시점의 현재 URL을 따라간다.
-- **테스트**: `pnpm -r build`, `pnpm -r test`(api 유닛 409+ / web 93+),
+- **테스트**: `pnpm -r build`, `pnpm -r test`(api 유닛 430 / web 119),
   `pnpm --filter @muster/api test:e2e`(246+, 로컬 DB 필요). 전부 통과하는 게 기본 전제 —
   실패한 채로 커밋하지 않는다.
 - **최근 완료된 것** (최신순, 상세는 git log):

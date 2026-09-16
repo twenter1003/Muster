@@ -36,14 +36,14 @@
   - `GET /projects/:id/token-usage?agent_name=`
   - `POST /agents/:id/runs` with optional body `CreateRunDto`
 
-- [ ] **Step 1: Write failing unit test for `BudgetService.dailyUsage` with `agentName` filter**
-- [ ] **Step 2: Run test to verify it fails**
-- [ ] **Step 3: Implement `agentName` filter in `BudgetService.dailyUsage` and `ProjectAgentsController.getTokenUsage`**
-- [ ] **Step 4: Write failing unit test for `AgentRunsService.start` with optional `CreateRunDto` (started_at, ended_at, tokens_used, status)**
-- [ ] **Step 5: Run test to verify it fails**
-- [ ] **Step 6: Implement `CreateRunDto` and update `AgentRunsService.start` and `AgentsController.startRun`**
-- [ ] **Step 7: Run all api tests to verify they pass**
-- [ ] **Step 8: Commit Task 1**
+- [x] **Step 1: Write failing unit test for `BudgetService.dailyUsage` with `agentName` filter**
+- [x] **Step 2: Run test to verify it fails**
+- [x] **Step 3: Implement `agentName` filter in `BudgetService.dailyUsage` and `ProjectAgentsController.getTokenUsage`**
+- [x] **Step 4: Write failing unit test for `AgentRunsService.start` with optional `CreateRunDto` (started_at, ended_at, tokens_used, status)**
+- [x] **Step 5: Run test to verify it fails**
+- [x] **Step 6: Implement `CreateRunDto` and update `AgentRunsService.start` and `AgentsController.startRun`**
+- [x] **Step 7: Run all api tests to verify they pass**
+- [x] **Step 8: Commit Task 1**
 
 ---
 
@@ -58,12 +58,12 @@
 - Consumes: `UsageBreakdown`, `GET /projects/:id/token-usage?agent_name=`
 - Produces: Interactive filter chips `[전체 보기]`, `[Claude Code]`, `[Antigravity]` in `ProjectDetailPage`
 
-- [ ] **Step 1: Write failing test for agent filter query and agent badge helper**
-- [ ] **Step 2: Run test to verify it fails**
-- [ ] **Step 3: Implement filter chip state and agent badge in `ProjectDetailPage.tsx`**
-- [ ] **Step 4: Apply `emil-design-eng` / `minimalist-ui` styles: 100ms ease-out transitions, clear focus/active states, zero layout shift**
-- [ ] **Step 5: Run web unit tests to verify they pass**
-- [ ] **Step 6: Commit Task 2**
+- [x] **Step 1: Write failing test for agent filter query and agent badge helper**
+- [x] **Step 2: Run test to verify it fails**
+- [x] **Step 3: Implement filter chip state and agent badge in `ProjectDetailPage.tsx`**
+- [x] **Step 4: Apply `emil-design-eng` / `minimalist-ui` styles: 100ms ease-out transitions, clear focus/active states, zero layout shift**
+- [x] **Step 5: Run web unit tests to verify they pass**
+- [x] **Step 6: Commit Task 2**
 
 ---
 
@@ -77,11 +77,11 @@
 - Consumes: Antigravity `Stop` hook payload via stdin (`conversationId`, `workspacePaths`, `transcriptPath`), `~/.gemini/antigravity/conversations/<id>.db`
 - Produces: API call to `POST /agents/:id/runs` with accurate token counts and stdout `{}`
 
-- [ ] **Step 1: Write failing tests for Protobuf Tag 9 token extraction, transcript fallback, and config resolution**
-- [ ] **Step 2: Run test (`node --test scripts/antigravity-hooks/report-agent-usage.test.mjs`) to verify it fails**
-- [ ] **Step 3: Implement `scripts/antigravity-hooks/report-agent-usage.mjs` with safe exit 0 and zero external dependencies**
-- [ ] **Step 4: Run tests to verify they pass**
-- [ ] **Step 5: Commit Task 3**
+- [x] **Step 1: Write failing tests for Protobuf Tag 9 token extraction, transcript fallback, and config resolution**
+- [x] **Step 2: Run test (`node --test scripts/antigravity-hooks/report-agent-usage.test.mjs`) to verify it fails**
+- [x] **Step 3: Implement `scripts/antigravity-hooks/report-agent-usage.mjs` with safe exit 0 and zero external dependencies**
+- [x] **Step 4: Run tests to verify they pass**
+- [x] **Step 5: Commit Task 3**
 
 ---
 
@@ -96,12 +96,12 @@
 - Consumes: User inputs via CLI, Muster REST API, local configs (`~/.claude/settings.json`, `.agents/hooks.json`, `~/.gemini/config/hooks.json`)
 - Produces: Fully configured `.muster/config.json`, hooks registered, past sessions backfilled
 
-- [ ] **Step 1: Write tests for CLI helper functions (config validation, settings.json updater, hooks.json updater, backfill scanners)**
-- [ ] **Step 2: Run tests to verify failure**
-- [ ] **Step 3: Implement `scripts/muster-connect.mjs` with interactive prompt, tool selection, hook installer, and backfill engine**
-- [ ] **Step 4: Update `package.json` bin mapping**
-- [ ] **Step 5: Run tests and execute a dry-run test of `node scripts/muster-connect.mjs --help` or automated flags**
-- [ ] **Step 6: Commit Task 4**
+- [x] **Step 1: Write tests for CLI helper functions (config validation, settings.json updater, hooks.json updater, backfill scanners)**
+- [x] **Step 2: Run tests to verify failure**
+- [x] **Step 3: Implement `scripts/muster-connect.mjs` with interactive prompt, tool selection, hook installer, and backfill engine**
+- [x] **Step 4: Update `package.json` bin mapping**
+- [x] **Step 5: Run tests and execute a dry-run test of `node scripts/muster-connect.mjs --help` or automated flags**
+- [x] **Step 6: Commit Task 4**
 
 ---
 
@@ -112,8 +112,8 @@
 - Modify: `docs/kickoff/PROMPT.md`
 - Modify: `docs/DESIGN_DRIFT.md`
 
-- [ ] **Step 1: Run Antigravity backfill against the current Muster project to load actual Antigravity session tokens**
-- [ ] **Step 2: Run full build, test, and lint (`pnpm -r build`, `pnpm -r test`, `pnpm lint`)**
-- [ ] **Step 3: Update documentation (`AGENT_TOKEN_REPORTING.md`, `DESIGN_DRIFT.md`, `PROMPT.md`)**
-- [ ] **Step 4: Commit Task 5**
-- [ ] **Step 5: Push branch `feat/muster-connect-multi-agent` and open PR**
+- [x] **Step 1: Run Antigravity backfill against the current Muster project to load actual Antigravity session tokens**
+- [x] **Step 2: Run full build, test, and lint (`pnpm -r build`, `pnpm -r test`, `pnpm lint`)**
+- [x] **Step 3: Update documentation (`AGENT_TOKEN_REPORTING.md`, `DESIGN_DRIFT.md`, `PROMPT.md`)**
+- [x] **Step 4: Commit Task 5**
+- [x] **Step 5: Push branch `feat/muster-connect-multi-agent` and open PR**
