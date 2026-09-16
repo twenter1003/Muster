@@ -37,8 +37,7 @@ export class AgentRunsService {
 
     const agent = await this.agents.findOneBy({ id: agentId });
     const projectId = agent?.project_id;
-    const before =
-      projectId && status !== 'running' ? await this.budget.sumUsage(projectId) : null;
+    const before = projectId && status !== 'running' ? await this.budget.sumUsage(projectId) : null;
 
     const run = await this.runs.save(
       this.runs.create({

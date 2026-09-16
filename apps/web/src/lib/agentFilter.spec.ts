@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildTokenUsageUrl, getAgentLabel, type AgentFilterType } from './agentFilter';
+import { buildTokenUsageUrl, getAgentLabel } from './agentFilter';
 
 describe('agentFilter', () => {
   describe('buildTokenUsageUrl', () => {
