@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { HealthIndicator } from '../components/HealthIndicator';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
+import { ApiKeyModal } from '../components/ApiKeyModal';
 import { ApiError, apiFetch, apiPatch, apiPost, type Page } from '../lib/api';
 import { EM_DASH, LOG_LEVELS, formatDateTime, type LogLevel, type Measurable } from '../lib/domain';
 import { shouldConfirmDraftOverwrite } from '../lib/goalsDraft';
@@ -549,6 +550,7 @@ export function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [level, setLevel] = useState<LogLevel | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false);
   const [agentFilter, setAgentFilter] = useState<AgentFilterType>('all');
 
   const project = useApi<ProjectView>(id ? `/projects/${id}` : null);
@@ -600,9 +602,12 @@ export function ProjectDetailPage() {
         <Link to="/" className="meta">
           ← 프로젝트 목록
         </Link>
-        <Button onClick={() => setDeleting(true)} disabled={!project.data}>
-          프로젝트 삭제
-        </Button>
+        <div className="detail__toprow-actions">
+          <Button onClick={() => setApiKeyModalOpen(true)}>API 키 관리</Button>
+          <Button onClick={() => setDeleting(true)} disabled={!project.data}>
+            프로젝트 삭제
+          </Button>
+        </div>
       </div>
 
       <header className="detail__head">
@@ -615,9 +620,18 @@ export function ProjectDetailPage() {
           )}
           <HealthIndicator score={healthScore(health.data)} />
         </div>
-        {git.data?.integration && (
-          <p className="meta">{git.data.integration.repo_url.replace('https://', '')}</p>
-        )}
+        <div className="detail__head-meta-row">
+          {git.data?.integration && (
+            <p className="meta">{git.data.integration.repo_url.replace('https://', '')}</p>
+          )}
+          <button
+            type="button"
+            className="detail__apikey-link meta"
+            onClick={() => setApiKeyModalOpen(true)}
+          >
+            API 키 연동 ⚙️
+          </button>
+        </div>
       </header>
 
       <div className="detail__grid">
@@ -666,46 +680,69 @@ export function ProjectDetailPage() {
             }}
           >
             <span>에이전트 토큰 관제</span>
-            <div className="chip-row" role="group" aria-label="에이전트 필터">
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-2)',
+                flexWrap: 'wrap',
+              }}
+            >
               <button
                 type="button"
                 className="chip"
                 style={{
                   padding: '2px 8px',
                   fontSize: 'var(--font-size-meta)',
-                  transition: 'border-color 100ms ease-out, color 100ms ease-out',
+                  borderColor: 'var(--color-brand, #3b82f6)',
+                  color: 'var(--color-brand, #3b82f6)',
+                  cursor: 'pointer',
                 }}
-                aria-pressed={agentFilter === 'all'}
-                onClick={() => setAgentFilter('all')}
+                onClick={() => setApiKeyModalOpen(true)}
               >
-                전체 보기
+                🔑 API 키 연동
               </button>
-              <button
-                type="button"
-                className="chip"
-                style={{
-                  padding: '2px 8px',
-                  fontSize: 'var(--font-size-meta)',
-                  transition: 'border-color 100ms ease-out, color 100ms ease-out',
-                }}
-                aria-pressed={agentFilter === 'claude-code'}
-                onClick={() => setAgentFilter('claude-code')}
-              >
-                Claude Code
-              </button>
-              <button
-                type="button"
-                className="chip"
-                style={{
-                  padding: '2px 8px',
-                  fontSize: 'var(--font-size-meta)',
-                  transition: 'border-color 100ms ease-out, color 100ms ease-out',
-                }}
-                aria-pressed={agentFilter === 'antigravity'}
-                onClick={() => setAgentFilter('antigravity')}
-              >
-                Antigravity
-              </button>
+              <div className="chip-row" role="group" aria-label="에이전트 필터">
+                <button
+                  type="button"
+                  className="chip"
+                  style={{
+                    padding: '2px 8px',
+                    fontSize: 'var(--font-size-meta)',
+                    transition: 'border-color 100ms ease-out, color 100ms ease-out',
+                  }}
+                  aria-pressed={agentFilter === 'all'}
+                  onClick={() => setAgentFilter('all')}
+                >
+                  전체 보기
+                </button>
+                <button
+                  type="button"
+                  className="chip"
+                  style={{
+                    padding: '2px 8px',
+                    fontSize: 'var(--font-size-meta)',
+                    transition: 'border-color 100ms ease-out, color 100ms ease-out',
+                  }}
+                  aria-pressed={agentFilter === 'claude-code'}
+                  onClick={() => setAgentFilter('claude-code')}
+                >
+                  Claude Code
+                </button>
+                <button
+                  type="button"
+                  className="chip"
+                  style={{
+                    padding: '2px 8px',
+                    fontSize: 'var(--font-size-meta)',
+                    transition: 'border-color 100ms ease-out, color 100ms ease-out',
+                  }}
+                  aria-pressed={agentFilter === 'antigravity'}
+                  onClick={() => setAgentFilter('antigravity')}
+                >
+                  Antigravity
+                </button>
+              </div>
             </div>
           </div>
           <div className="panel__body">
@@ -726,6 +763,16 @@ export function ProjectDetailPage() {
                 </p>
                 <Sparkline daily={usage.data.daily} />
                 <p className="meta">오늘 {formatTokenCount(usage.data.today_tokens)} 토큰</p>
+
+                <div style={{ marginTop: 'var(--space-2)' }}>
+                  <button
+                    type="button"
+                    className="detail__apikey-link meta"
+                    onClick={() => setApiKeyModalOpen(true)}
+                  >
+                    💡 에이전트 연동 방법 및 API 키 발급받기 →
+                  </button>
+                </div>
 
                 {usage.data.waste_insight &&
                   usage.data.waste_insight.high_waste_sessions_count > 0 && (
@@ -883,6 +930,13 @@ export function ProjectDetailPage() {
           </div>
         </div>
       </div>
+
+      <ApiKeyModal
+        open={apiKeyModalOpen}
+        projectId={id}
+        projectName={project.data?.name}
+        onClose={() => setApiKeyModalOpen(false)}
+      />
     </section>
   );
 }
