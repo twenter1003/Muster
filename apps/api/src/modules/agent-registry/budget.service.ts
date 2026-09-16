@@ -159,7 +159,7 @@ export class BudgetService {
    * 날짜 경계는 UTC 기준이다(date_trunc의 기본 세션 타임존). 사용자별 시간대를 반영하지
    * 않는 근사치이지만, "오늘 얼마나 썼는지" 감을 주는 용도라 이 정도 오차는 감수한다.
    */
-  async dailyUsage(projectId: string): Promise<UsageBreakdown> {
+  async dailyUsage(projectId: string, agentName?: string): Promise<UsageBreakdown> {
     const since = new Date();
     since.setUTCDate(since.getUTCDate() - (DAILY_WINDOW_DAYS - 1));
     since.setUTCHours(0, 0, 0, 0);
@@ -168,36 +168,47 @@ export class BudgetService {
     monthStart.setUTCDate(1);
     monthStart.setUTCHours(0, 0, 0, 0);
 
+    let rowsQb = this.runs
+      .createQueryBuilder('r')
+      .innerJoin(Agent, 'a', 'a.id = r.agent_id')
+      .where('a.project_id = :projectId', { projectId })
+      .andWhere('r.started_at >= :since', { since })
+      .select("date_trunc('day', r.started_at)", 'day')
+      .addSelect('COALESCE(SUM(r.tokens_used), 0)', 'tokens')
+      .groupBy('day');
+
+    let monthQb = this.runs
+      .createQueryBuilder('r')
+      .innerJoin(Agent, 'a', 'a.id = r.agent_id')
+      .where('a.project_id = :projectId', { projectId })
+      .andWhere('r.started_at >= :monthStart', { monthStart })
+      .select('COALESCE(SUM(r.tokens_used), 0)', 'tokens');
+
+    let totalQb = this.runs
+      .createQueryBuilder('r')
+      .innerJoin(Agent, 'a', 'a.id = r.agent_id')
+      .where('a.project_id = :projectId', { projectId })
+      .select('COALESCE(SUM(r.tokens_used), 0)', 'tokens');
+
+    let recentQb = this.runs
+      .createQueryBuilder('r')
+      .innerJoinAndSelect('r.agent', 'a')
+      .where('a.project_id = :projectId', { projectId })
+      .orderBy('r.started_at', 'DESC')
+      .take(10);
+
+    if (agentName && agentName !== 'all') {
+      rowsQb = rowsQb.andWhere('a.name = :agentName', { agentName });
+      monthQb = monthQb.andWhere('a.name = :agentName', { agentName });
+      totalQb = totalQb.andWhere('a.name = :agentName', { agentName });
+      recentQb = recentQb.andWhere('a.name = :agentName', { agentName });
+    }
+
     const [rows, monthRow, totalRow, recentRuns] = await Promise.all([
-      this.runs
-        .createQueryBuilder('r')
-        .innerJoin(Agent, 'a', 'a.id = r.agent_id')
-        .where('a.project_id = :projectId', { projectId })
-        .andWhere('r.started_at >= :since', { since })
-        .select("date_trunc('day', r.started_at)", 'day')
-        .addSelect('COALESCE(SUM(r.tokens_used), 0)', 'tokens')
-        .groupBy('day')
-        .getRawMany<{ day: Date; tokens: string }>(),
-      this.runs
-        .createQueryBuilder('r')
-        .innerJoin(Agent, 'a', 'a.id = r.agent_id')
-        .where('a.project_id = :projectId', { projectId })
-        .andWhere('r.started_at >= :monthStart', { monthStart })
-        .select('COALESCE(SUM(r.tokens_used), 0)', 'tokens')
-        .getRawOne<{ tokens: string }>(),
-      this.runs
-        .createQueryBuilder('r')
-        .innerJoin(Agent, 'a', 'a.id = r.agent_id')
-        .where('a.project_id = :projectId', { projectId })
-        .select('COALESCE(SUM(r.tokens_used), 0)', 'tokens')
-        .getRawOne<{ tokens: string }>(),
-      this.runs
-        .createQueryBuilder('r')
-        .innerJoinAndSelect('r.agent', 'a')
-        .where('a.project_id = :projectId', { projectId })
-        .orderBy('r.started_at', 'DESC')
-        .take(10)
-        .getMany(),
+      rowsQb.getRawMany<{ day: Date; tokens: string }>(),
+      monthQb.getRawOne<{ tokens: string }>(),
+      totalQb.getRawOne<{ tokens: string }>(),
+      recentQb.getMany(),
     ]);
 
     const byDay = new Map(rows.map((r) => [toDateKey(r.day), r.tokens]));

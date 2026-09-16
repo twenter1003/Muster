@@ -25,6 +25,7 @@ import { AgentRunsService } from './agent-runs.service';
 import { BudgetService, type BudgetUsage, type UsageBreakdown } from './budget.service';
 import { ApiKeyOrSessionGuard } from '../../common/auth/api-key-or-session.guard';
 import { CreateAgentDto } from './dto/create-agent.dto';
+import { CreateRunDto } from './dto/create-run.dto';
 import { UpdateAgentDto } from './dto/update-agent.dto';
 import { UpdateRunDto } from './dto/update-run.dto';
 import { PutBudgetDto } from './dto/put-budget.dto';
@@ -113,8 +114,11 @@ export class ProjectAgentsController {
    */
   @Get(':id/token-usage')
   @UseGuards(ProjectMemberGuard)
-  async getTokenUsage(@Param('id') projectId: string): Promise<UsageBreakdown> {
-    return this.budget.dailyUsage(projectId);
+  async getTokenUsage(
+    @Param('id') projectId: string,
+    @Query('agent_name') agentName?: string,
+  ): Promise<UsageBreakdown> {
+    return this.budget.dailyUsage(projectId, agentName);
   }
 
   /**
@@ -224,7 +228,11 @@ export class AgentsController {
   @Public()
   @UseGuards(ApiKeyOrSessionGuard)
   @HttpCode(HttpStatus.CREATED)
-  async startRun(@Param('id') id: string, @Req() req: Request): Promise<RunView> {
+  async startRun(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Body() dto?: CreateRunDto,
+  ): Promise<RunView> {
     // 어느 신원으로 왔든 **그 신원이 닿을 수 있는 에이전트**로만 좁힌다. 키는 자기
     // 프로젝트로, 사람은 자기가 멤버인 프로젝트로. 남의 에이전트에 실행을 끼워넣지 못한다.
     const agent =
@@ -232,7 +240,7 @@ export class AgentsController {
         ? await this.agents.findInProjectOrFail(id, req.apiKeyProjectId)
         : await this.agents.detail(id, req.user!.id);
 
-    return toRunView(await this.runs.start(agent.id));
+    return toRunView(await this.runs.start(agent.id, dto));
   }
 }
 

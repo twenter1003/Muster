@@ -5,6 +5,7 @@ import { Agent, AgentRun, ProjectMember } from '../../database/entities';
 import { ApiException } from '../../common/errors/api.exception';
 import { buildPage, type Page, type PageRequest } from '../../common/pagination/paginate';
 import { BudgetService } from './budget.service';
+import type { CreateRunDto } from './dto/create-run.dto';
 import type { UpdateRunDto } from './dto/update-run.dto';
 
 /** 실행 종료를 요청한 신원 — 사람(세션) 또는 에이전트(API 키) 중 하나. */
@@ -21,20 +22,39 @@ export class AgentRunsService {
   ) {}
 
   /**
-   * 실행 시작 기록. 에이전트가 `X-API-Key`로 호출하므로 소유 프로젝트는 가드가 확정해 넘긴다.
-   * 시작 시점에는 토큰·비용이 0이고 종료 시각도 없다.
+   * 실행 시작 기록 또는 과거 세션 백필 생성.
+   * dto가 없으면 status='running', tokens_used=0, started_at=현재시각으로 시작된다.
    */
-  async start(agentId: string): Promise<AgentRun> {
-    return this.runs.save(
+  async start(agentId: string, dto?: CreateRunDto): Promise<AgentRun> {
+    const status = dto?.status ?? 'running';
+    const startedAt = dto?.started_at ? new Date(dto.started_at) : new Date();
+    let endedAt: Date | null = null;
+    if (dto?.ended_at) {
+      endedAt = new Date(dto.ended_at);
+    } else if (status !== 'running') {
+      endedAt = new Date();
+    }
+
+    const agent = await this.agents.findOneBy({ id: agentId });
+    const projectId = agent?.project_id;
+    const before = projectId && status !== 'running' ? await this.budget.sumUsage(projectId) : null;
+
+    const run = await this.runs.save(
       this.runs.create({
         agent_id: agentId,
-        status: 'running',
-        tokens_used: 0,
-        cost: '0',
-        started_at: new Date(),
-        ended_at: null,
+        status,
+        tokens_used: dto?.tokens_used ?? 0,
+        cost: dto?.cost ?? '0',
+        started_at: startedAt,
+        ended_at: endedAt,
       }),
     );
+
+    if (projectId && before) {
+      await this.budget.recalculateAndAlert(projectId, before);
+    }
+
+    return run;
   }
 
   /**

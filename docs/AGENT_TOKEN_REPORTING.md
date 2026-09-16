@@ -1,33 +1,71 @@
-# 에이전트 토큰 사용량 실측 연동 (Claude Code 훅)
+# 에이전트 토큰 사용량 실측 연동 (Claude Code & Antigravity)
 
-프로젝트 상세 화면의 "토큰 사용량" 카드는 `AGENT_RUNS` 집계다. 이 테이블은 설계상
-자진신고다 — 외부 에이전트가 `X-API-Key`로 직접 실행 시작/종료를 기록해야 값이 쌓인다
-(설계서 Part 4 §6). 그런데 지금까지 그 API를 실제로 호출하는 클라이언트가 없어서 카드가
-항상 0이었다. 이 문서는 Claude Code를 그 클라이언트로 쓰는 방법이다.
+프로젝트 상세 화면의 "토큰 사용량" 카드는 `AGENT_RUNS` 집계다. 이 테이블은 외부 에이전트가 `X-API-Key`로 실행 시작/종료를 기록해야 값이 쌓인다(설계서 Part 4 §6).
 
-## 준비
+Muster는 **1줄 연동 CLI (`npx muster-connect`)**를 통해 **Claude Code**와 **Antigravity(Gemini)** 모두의 실시간 세션 토큰 리포팅 및 과거 세션 토큰 백필을 완전 자동화합니다.
 
-1. Muster에서 프로젝트 상세 → 에이전트 등록 (이름은 자유, 예: `claude-code`).
-2. 같은 프로젝트에서 API 키 발급 — **응답에 뜨는 키 원문은 그때 한 번만 보인다.**
-3. 에이전트 id와 API 키를 적어 둔다.
+---
 
-## 레포에 연결
+## 1. 초간단 1줄 연동 (`npx muster-connect`)
 
-작업할 레포 루트에 `.muster/config.json`을 만든다 (커밋하지 않는다 — API 키가 들어간다):
+어떤 레포지토리든 터미널에서 다음 명령 한 줄만 실행하면 끝납니다:
+
+```bash
+npx muster-connect
+# 또는 레포 내에서:
+node scripts/muster-connect.mjs
+```
+
+### CLI 대화형 안내 흐름:
+1. **Muster API URL 입력** (기본값: `https://muster-xcswvn6m2q-du.a.run.app`)
+2. **Muster API Key 입력** (프로젝트 상세 → API Key 발급)
+3. **Muster Project ID 입력** (UUID)
+4. **연동 대상 도구 선택** (`all` / `claude` / `antigravity`)
+5. 자동 작업 수행:
+   - Muster API에서 에이전트(`claude-code`, `antigravity`) 존재 확인 및 미존재 시 자동 등록
+   - `.muster/config.json` 로컬 설정 생성 및 `.gitignore`에 자동 추가
+   - Claude Code 훅(`.claude/settings.json`) 자동 등록 (`SessionStart`, `SessionEnd`)
+   - Antigravity 훅(`.agents/hooks.json` 및 `~/.gemini/config/hooks.json`) 자동 등록 (`Stop`)
+   - 과거 세션 자동 스캔 및 토큰 백필 질의 (`y` 선택 시 즉시 DB 백필)
+
+### 비대화형 CI/스크립트 옵션:
+```bash
+npx muster-connect \
+  --url="https://muster-xcswvn6m2q-du.a.run.app" \
+  --key="muster_xxx" \
+  --project="<PROJECT_UUID>" \
+  --tools="both" \
+  --yes
+```
+
+---
+
+## 2. 수동 설정 안내
+
+자동 연동 CLI 대신 수동으로 설정하고 싶은 경우 아래 단계를 따릅니다.
+
+### 2.1 레포에 연결 (.muster/config.json)
+
+작업할 레포 루트에 `.muster/config.json`을 만듭니다 (커밋하지 않습니다 — API 키가 포함되므로 `.gitignore` 대상):
 
 ```json
 {
   "apiUrl": "https://<muster-서비스-주소>/api/v1",
   "apiKey": "muster_...",
-  "agentId": "<위에서 등록한 에이전트 id>"
+  "projectId": "<프로젝트 UUID>",
+  "agents": {
+    "claude-code": "<claude-code 에이전트 UUID>",
+    "antigravity": "<antigravity 에이전트 UUID>"
+  },
+  "agentId": "<기본 에이전트 UUID>"
 }
 ```
 
-`.gitignore`에 `.muster/config.json`을 추가할 것. 이 파일이 없으면 스크립트는
-`MUSTER_API_URL` / `MUSTER_API_KEY` / `MUSTER_AGENT_ID` 환경변수로 폴백한다 — 한 대의
-머신에서 프로젝트 하나만 추적한다면 훅을 전역으로 걸고 환경변수만 설정해도 된다.
+이 파일이 없으면 스크립트는 `MUSTER_API_URL` / `MUSTER_API_KEY` / `MUSTER_AGENT_ID` 환경변수로 폴백합니다.
 
-## Claude Code 훅 등록
+---
+
+### 2.2 Claude Code 훅 등록
 
 `.claude/settings.json`(프로젝트 로컬 또는 `~/.claude/settings.json`)에 추가:
 
@@ -54,37 +92,68 @@
 }
 ```
 
-같은 스크립트를 두 이벤트에 그대로 건다 — 안에서 `hook_event_name`을 보고 분기한다.
-세션이 시작되면 실행을 시작 기록하고(`run_id`를 `~/.muster/runs/<session_id>.json`에
-저장), 세션이 끝나면 그 파일을 읽어 transcript의 토큰 사용량을 합산해 실행을 끝맺는다.
+- `SessionStart`: 세션 시작 시 실행 시작 기록 (`run_id`를 `~/.muster/runs/<session_id>.json`에 임시 저장).
+- `SessionEnd`: 세션 종료 시 transcript JSONL(`type: "assistant"` 줄의 `message.usage`)을 직접 합산해 실행을 종료(`succeeded`)하고 토큰/비용 기록.
 
-## 알아 둘 것
+---
 
-- **`.muster/config.json`도 훅 환경변수도 없는 레포에서는 조용히 아무 일도 하지 않는다.**
-  훅은 전역으로 걸리므로, Muster로 추적하지 않는 레포에서 매번 실패 로그를 남기면 안 된다.
-- **훅은 절대 세션을 막지 않는다.** 네트워크 오류든 설정 오류든 항상 종료 코드 0으로
-  끝나고, 문제는 stderr에만 남는다.
-- **토큰 수는 transcript JSONL에서 직접 합산한다** (`type: "assistant"`인 줄의
-  `message.usage.{input_tokens,output_tokens,cache_creation_input_tokens,
-  cache_read_input_tokens}` 네 필드). 2026-09-16 실제 transcript 파일로 확인한 형태다 —
-  Claude Code가 이 스키마를 바꾸면 합산 로직도 같이 손봐야 한다.
-- **비용(`cost`)은 기본적으로 비워 둔다.** 모델·플랜마다 단가가 달라 추측해서 채우지
-  않는다. `MUSTER_COST_PER_MTOK_INPUT`과 `MUSTER_COST_PER_MTOK_OUTPUT`(1M 토큰당 USD)을
-  **둘 다** 환경변수로 주면 그때만 계산한다 — 캐시 생성/읽기 토큰은 입력측 단가로 묶는다
-  (출력만 별도 단가가 있는 대부분의 요금제와 맞춘다).
-- **컴팩션으로 `SessionStart`가 다시 불려도 실행을 두 번 시작하지 않는다** — 같은
-  `session_id`의 상태 파일이 이미 있으면 건너뛴다.
-- 실행 상태는 항상 `succeeded`로 끝맺는다. 세션이 에러로 끝났는지는 훅에서 구분할
-  방법이 없다 — 필요하면 프로젝트 상세 화면에서 사람이 정정한다(`PATCH /agent-runs/:id`는
-  세션 인증도 그대로 받는다).
+### 2.3 Antigravity 훅 등록
 
-## 검증
+`.agents/hooks.json`(프로젝트 로컬) 또는 `~/.gemini/config/hooks.json`(전역)에 추가:
 
-```bash
-node --test scripts/claude-code-hooks/report-agent-usage.test.mjs
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          { "type": "command", "command": "node /절대/경로/scripts/antigravity-hooks/report-agent-usage.mjs" }
+        ]
+      }
+    ]
+  }
+}
 ```
 
-전체 흐름(시작 → transcript 합산 → 종료)은 로컬 API에 실제 프로젝트/에이전트/키를 만들고
-`SessionStart`·`SessionEnd` 훅 JSON을 스크립트에 직접 흘려보내 확인했다 — 토큰 수가
-transcript 합계와 정확히 일치하고, 비용 요율을 주면 반영되고, 설정 없는 레포는 아무 것도
-만들지 않는다.
+- Antigravity는 세션 완료 시 `Stop` 이벤트를 발생시키며, stdin으로 `{ conversationId, workspacePaths, transcriptPath, modelName }`을 전달합니다.
+- 스크립트는 `~/.gemini/antigravity/conversations/<conversationId>.db`의 `steps` 테이블 `metadata` BLOB을 **자체 경량 Protobuf 디코더**(Node 내장 `node:sqlite`)로 해석하여 정확한 입력 토큰(Tag 9 sub[2])과 출력 토큰(Tag 9 sub[3])을 추출합니다.
+- DB가 없거나 잠겨있을 경우 `transcript.jsonl` 기반 글자 수 환산(4 chars/token)으로 안정적 폴백을 수행합니다.
+
+---
+
+## 3. 웹 대시보드 토큰 관제 및 필터링
+
+웹 대시보드(`/projects/:id`)의 "토큰 사용량 & 컨텍스트 관제" 카드 상단에 도구별 필터 칩이 제공됩니다:
+
+- **[전체 보기]**: 해당 프로젝트에 기록된 모든 도구의 누적/일별 사용량 및 컨텍스트 낭비율 합산
+- **[Claude Code]**: Claude Code 세션(`claude-code`)만 분리 집계
+- **[Antigravity]**: Antigravity 세션(`antigravity`)만 분리 집계
+
+하단 "최근 세션별 사용 이력" 목록에서는 세션마다 도구 뱃지(`Claude Code` / `Antigravity`)가 붙어 어떤 도구에서 토큰이 소모되었는지 직관적으로 식별할 수 있습니다.
+
+---
+
+## 4. 알아 둘 것 & 설계 원칙
+
+1. **Ponytail 원칙 (Zero External Dependencies)**:
+   - CLI(`scripts/muster-connect.mjs`) 및 훅 스크립트(`scripts/antigravity-hooks/`, `scripts/claude-code-hooks/`)는 추가적인 npm 패키지 설치 없이 Node.js 20+ 내장 모듈(`node:readline`, `node:fs`, `node:path`, `node:sqlite`, `fetch`)만으로 동작합니다.
+2. **세션 안전 보장 (Exit 0 Guarantee)**:
+   - 훅 스크립트는 네트워크 오류, 인증 실패, DB 락 등 어떤 예외가 발생하더라도 항상 `process.exit(0)`으로 정상 종료하며 오류는 stderr에만 기록합니다. 외부 관제 스크립트의 문제로 인해 사용자의 코딩 에이전트 세션이 중단되지 않습니다.
+3. **비용(Cost) 정책**:
+   - 단가는 모델 및 구독 플랜마다 상이하므로 기본값은 비워두며(`null`), 사용자가 `MUSTER_COST_PER_MTOK_INPUT`과 `MUSTER_COST_PER_MTOK_OUTPUT` 환경변수를 모두 제공했을 때만 수학적으로 정확하게 산출합니다.
+
+---
+
+## 5. 테스트 및 검증
+
+```bash
+# Antigravity 훅 및 Protobuf 디코더 단위 테스트
+node --test scripts/antigravity-hooks/report-agent-usage.test.mjs
+
+# Claude Code 훅 단위 테스트
+node --test scripts/claude-code-hooks/report-agent-usage.test.mjs
+
+# muster-connect CLI 단위 테스트
+node --test scripts/muster-connect.test.mjs
+```

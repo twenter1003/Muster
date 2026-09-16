@@ -298,9 +298,37 @@ report-agent-usage.mjs`, 설치는 `docs/AGENT_TOKEN_REPORTING.md`):
 
 ---
 
+## 14. 멀티 모델(Claude Code / Antigravity) 토큰 관제 및 1줄 연동 CLI (`npx muster-connect`) 신설 (개선 채택)
+
+13번에서는 Claude Code 토큰 수집만 지원했으나, 개발자가 여러 AI 에이전트(Claude Code, Google Antigravity 등)를 병행해서 사용하거나 특정 에이전트만 단독 사용하는 환경에서 도구별 토큰 소모량과 컨텍스트 낭비를 명확히 비교·관제할 수 없었다. 또한 외부 개발자 온보딩 시 수동으로 훅과 `.muster/config.json`을 작성해야 하는 마찰이 컸다.
+
+**채택된 개선 사항**:
+
+1. **1줄 연동 CLI 도구 (`npx muster-connect` / `scripts/muster-connect.mjs`)**:
+   - Ponytail 원칙 준수: 외부 npm 의존성 전혀 없이 Node.js 20+ 내장 모듈(`node:readline`, `node:fs`, `node:path`, `node:sqlite`, `fetch`)만으로 구동.
+   - 대화형 인터페이스 및 비대화형 플래그(`--yes`, `--url`, `--key`, `--project`, `--tools`) 지원.
+   - 원클릭으로 Muster 에이전트 자동 생성, `.muster/config.json` 및 `.gitignore` 등록, Claude Code(`.claude/settings.json`) 및 Antigravity(`.agents/hooks.json`, `~/.gemini/config/hooks.json`) 훅 자동 등록, 과거 세션 스캔 및 원클릭 백필을 원스톱으로 처리.
+
+2. **Google Antigravity 세션 토큰 실측 훅 (`scripts/antigravity-hooks/`)**:
+   - Antigravity 세션 완료 이벤트(`Stop`)와 연동.
+   - Antigravity 세션 SQLite DB(`~/.gemini/antigravity/conversations/<id>.db`)의 `steps` 테이블 `metadata` BLOB을 자체 순수 JS 경량 Protobuf 디코더로 해석하여 정확한 입력 토큰(Tag 9 sub[2])과 출력 토큰(Tag 9 sub[3])을 추출.
+   - SQLite 파일이 없거나 잠겨있을 경우 `transcript.jsonl` 기반 문자 수 환산(4 chars/token)으로 안전하게 폴백.
+   - 세션 안전성: 어떤 오류가 발생해도 `exit 0` 보장.
+
+3. **백엔드 API 확장**:
+   - `BudgetService.dailyUsage`: `agent_name` (`claude-code` | `antigravity` | `all`) 쿼리 파라미터를 지원하여 특정 도구별 토큰 소모량 및 컨텍스트 낭비율만 필터링 집계 가능.
+   - `AgentRunsService.start`: `CreateRunDto`(`started_at`, `ended_at`, `tokens_used`, `cost`, `status`)를 허용하여 과거 세션 대량 백필 지원.
+
+4. **웹 대시보드 UI 인터랙션 (`apps/web`)**:
+   - `emil-design-eng` 및 `minimalist-ui` 철학에 맞춰 토큰 관제 카드 상단에 `[전체 보기]`, `[Claude Code]`, `[Antigravity]` 필터 칩 배치.
+   - 100ms ease-out 전환과 zero layout shift를 보장하며, 최근 세션별 이력 카드에 도구 뱃지 표시.
+
+---
+
 ## 경미한 추가 (보고용)
 
 | 컬럼 | 이유 |
 |---|---|
 | `SESSIONS.created_at` | 세션 목록·이상 로그인 추적 |
 | `AGENTS.created_at` | 커서 페이지네이션 정렬 기준 |
+

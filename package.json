@@ -2,6 +2,9 @@
   "name": "muster",
   "version": "0.1.0",
   "private": true,
+  "bin": {
+    "muster-connect": "./scripts/muster-connect.mjs"
+  },
   "packageManager": "pnpm@9.15.4",
   "engines": {
     "node": ">=20"

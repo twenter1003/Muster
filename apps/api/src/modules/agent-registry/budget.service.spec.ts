@@ -2,7 +2,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Repository } from 'typeorm';
 import { BudgetService } from './budget.service';
 import { DomainEvent } from '../../common/events/domain-events';
-import type { ProjectBudget } from '../../database/entities';
+import type { ProjectBudget, AgentRun } from '../../database/entities';
 
 /** 예산 판정의 결정들을 고정한다. */
 
@@ -164,6 +164,69 @@ describe('BudgetService', () => {
       await service.put(PROJECT, {});
 
       expect(existing.alert_threshold_pct).toBe('80');
+    });
+  });
+
+  describe('dailyUsage 에이전트 필터링', () => {
+    it('agentName이 주어지면 쿼리에 a.name 조건을 바인딩한다', async () => {
+      const qbMock = {
+        innerJoin: jest.fn().mockReturnThis(),
+        innerJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([]),
+        getRawOne: jest.fn().mockResolvedValue({ tokens: '1500' }),
+        getMany: jest.fn().mockResolvedValue([]),
+      };
+
+      const runsRepo = {
+        createQueryBuilder: jest.fn().mockReturnValue(qbMock),
+      } as unknown as Repository<AgentRun>;
+
+      const service = new BudgetService({} as never, runsRepo, new EventEmitter2());
+
+      const result = await service.dailyUsage(PROJECT, 'claude-code');
+
+      expect(result.month_tokens).toBe('1500');
+      // andWhere('a.name = :agentName', { agentName: 'claude-code' }) 호출 확인
+      expect(qbMock.andWhere).toHaveBeenCalledWith('a.name = :agentName', {
+        agentName: 'claude-code',
+      });
+    });
+
+    it('agentName이 없거나 all이면 a.name 조건을 추가하지 않는다', async () => {
+      const qbMock = {
+        innerJoin: jest.fn().mockReturnThis(),
+        innerJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([]),
+        getRawOne: jest.fn().mockResolvedValue({ tokens: '3000' }),
+        getMany: jest.fn().mockResolvedValue([]),
+      };
+
+      const runsRepo = {
+        createQueryBuilder: jest.fn().mockReturnValue(qbMock),
+      } as unknown as Repository<AgentRun>;
+
+      const service = new BudgetService({} as never, runsRepo, new EventEmitter2());
+
+      await service.dailyUsage(PROJECT, 'all');
+
+      const calledWithAgentName = qbMock.andWhere.mock.calls.some(
+        (args: unknown[]) => args[0] === 'a.name = :agentName',
+      );
+      expect(calledWithAgentName).toBe(false);
     });
   });
 });
