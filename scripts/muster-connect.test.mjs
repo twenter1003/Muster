@@ -25,6 +25,16 @@ test('muster-connect: parseArgs', async (t) => {
     assert.equal(args.project, 'proj_123');
     assert.equal(args.tools, 'both');
     assert.equal(args.yes, true);
+    assert.equal(args.global, false);
+  });
+
+  await t.test('--global 또는 -g 인자를 파싱한다', () => {
+    const args1 = parseArgs(['--global', '--key=muster_secret']);
+    assert.equal(args1.global, true);
+    assert.equal(args1.key, 'muster_secret');
+
+    const args2 = parseArgs(['-g']);
+    assert.equal(args2.global, true);
   });
 });
 

@@ -12,21 +12,40 @@
 //
 // 설치: docs/AGENT_TOKEN_REPORTING.md 참조.
 
+import { execFileSync } from 'node:child_process';
 import { readFileSync, existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-/** 프로젝트 로컬 설정(.muster/config.json)이 있으면 그걸, 없으면 환경변수를 쓴다. */
+/** 현재 작업 디렉터리의 git remote origin URL을 추출한다 (실패 시 null). */
+export function getGitRemoteUrl(cwd) {
+  try {
+    const out = execFileSync('git', ['remote', 'get-url', 'origin'], {
+      cwd,
+      encoding: 'utf8',
+      timeout: 3000,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    return out.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+/** 프로젝트 로컬 설정(.muster/config.json), 환경변수, 또는 전역 설정(~/.muster/config.json) 로드 */
 export function loadConfig(cwd, env) {
-  const localPath = join(cwd, '.muster', 'config.json');
-  if (existsSync(localPath)) {
-    try {
-      const parsed = JSON.parse(readFileSync(localPath, 'utf8'));
-      if (parsed.apiUrl && parsed.apiKey && parsed.agentId) {
-        return { apiUrl: parsed.apiUrl, apiKey: parsed.apiKey, agentId: parsed.agentId };
+  if (cwd) {
+    const localPath = join(cwd, '.muster', 'config.json');
+    if (existsSync(localPath)) {
+      try {
+        const parsed = JSON.parse(readFileSync(localPath, 'utf8'));
+        const agentId = parsed.agents?.['claude-code'] || parsed.agentId;
+        if (parsed.apiUrl && parsed.apiKey && agentId) {
+          return { apiUrl: parsed.apiUrl, apiKey: parsed.apiKey, agentId };
+        }
+      } catch {
+        // 손상된 설정 파일은 조용히 무시하고 환경변수로 폴백한다.
       }
-    } catch {
-      // 손상된 설정 파일은 조용히 무시하고 환경변수로 폴백한다.
     }
   }
 
@@ -35,8 +54,17 @@ export function loadConfig(cwd, env) {
     return { apiUrl: MUSTER_API_URL, apiKey: MUSTER_API_KEY, agentId: MUSTER_AGENT_ID };
   }
 
-  // 둘 다 없으면 이 레포는 Muster로 보고할 대상이 아니라는 뜻 — 훅은 전역으로 걸리므로
-  // 무관한 레포에서는 항상 이 경로를 탄다.
+  // 3순위: 전역 설정 (~/.muster/config.json) — git remote 기반 자동 라우팅
+  const globalPath = join(homedir(), '.muster', 'config.json');
+  if (existsSync(globalPath)) {
+    try {
+      const parsed = JSON.parse(readFileSync(globalPath, 'utf8'));
+      if (parsed.apiUrl && parsed.apiKey) {
+        return { apiUrl: parsed.apiUrl, apiKey: parsed.apiKey, agentId: parsed.agentId || null, isGlobal: true };
+      }
+    } catch {}
+  }
+
   return null;
 }
 
@@ -115,6 +143,25 @@ async function handleSessionStart(hook, env) {
 
   const config = loadConfig(hook.cwd, env);
   if (!config) return;
+
+  if (config.isGlobal) {
+    const gitRemote = getGitRemoteUrl(hook.cwd);
+    if (!gitRemote) return;
+    try {
+      const run = await apiCall(config, 'POST', `/agent-runs/by-repo`, {
+        repo_url: gitRemote,
+        agent_name: 'claude-code',
+        status: 'running',
+        tokens_used: 0,
+        cost: '0',
+      });
+      mkdirSync(join(homedir(), '.muster', 'runs'), { recursive: true });
+      writeFileSync(statePath, JSON.stringify({ run_id: run.id, cwd: hook.cwd }), 'utf8');
+    } catch (err) {
+      process.stderr.write(`[Muster] Git 자동 라우팅 시작 건너뜀: ${err.message}\n`);
+    }
+    return;
+  }
 
   const run = await apiCall(config, 'POST', `/agents/${config.agentId}/runs`, undefined);
 

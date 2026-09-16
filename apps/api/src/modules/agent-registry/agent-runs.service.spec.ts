@@ -1,13 +1,15 @@
 import { Repository } from 'typeorm';
 import { AgentRunsService } from './agent-runs.service';
 import { BudgetService } from './budget.service';
-import type { Agent, AgentRun, ProjectMember } from '../../database/entities';
+import { ApiException } from '../../common/errors/api.exception';
+import type { Agent, AgentRun, GitIntegration, ProjectMember } from '../../database/entities';
 
 describe('AgentRunsService', () => {
   let service: AgentRunsService;
   let runsRepo: Partial<Repository<AgentRun>>;
   let agentsRepo: Partial<Repository<Agent>>;
   let membersRepo: Partial<Repository<ProjectMember>>;
+  let gitIntegrationsRepo: Partial<Repository<GitIntegration>>;
   let budgetService: Partial<BudgetService>;
 
   beforeEach(() => {
@@ -17,9 +19,24 @@ describe('AgentRunsService', () => {
       findOneBy: jest.fn(),
     };
     agentsRepo = {
+      create: jest.fn().mockImplementation((val) => val),
+      save: jest.fn().mockImplementation(async (val) => ({ id: 'agent-new', ...val })),
       findOneBy: jest.fn().mockResolvedValue({ id: 'agent-1', project_id: 'proj-1' } as Agent),
     };
-    membersRepo = {};
+    membersRepo = {
+      find: jest.fn().mockResolvedValue([{ user_id: 'user-1', role: 'owner' }] as ProjectMember[]),
+    };
+    gitIntegrationsRepo = {
+      createQueryBuilder: jest.fn().mockReturnValue({
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue({
+          project_id: 'proj-target',
+          repo_url: 'https://github.com/owner/repo',
+        }),
+      }),
+    };
     budgetService = {
       sumUsage: jest.fn().mockResolvedValue({ tokens: '100', cost: '0' }),
       recalculateAndAlert: jest.fn().mockResolvedValue(undefined),
@@ -29,6 +46,7 @@ describe('AgentRunsService', () => {
       runsRepo as Repository<AgentRun>,
       agentsRepo as Repository<Agent>,
       membersRepo as Repository<ProjectMember>,
+      gitIntegrationsRepo as Repository<GitIntegration>,
       budgetService as BudgetService,
     );
   });
@@ -76,6 +94,77 @@ describe('AgentRunsService', () => {
         tokens: '100',
         cost: '0',
       });
+      expect(run.id).toBe('run-1');
+    });
+  });
+
+  describe('recordByRepo', () => {
+    it('프로젝트 소유자가 없으면 404를 던진다', async () => {
+      (membersRepo.find as jest.Mock).mockResolvedValueOnce([]);
+
+      await expect(
+        service.recordByRepo('proj-key', {
+          repo_url: 'https://github.com/owner/repo',
+          agent_name: 'antigravity',
+          tokens_used: 1000,
+        }),
+      ).rejects.toThrow(ApiException);
+    });
+
+    it('연동되지 않은 레포지토리 URL이면 404를 던진다', async () => {
+      (gitIntegrationsRepo.createQueryBuilder as jest.Mock).mockReturnValueOnce({
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue(null),
+      });
+
+      await expect(
+        service.recordByRepo('proj-key', {
+          repo_url: 'https://github.com/owner/unknown',
+          agent_name: 'antigravity',
+          tokens_used: 1000,
+        }),
+      ).rejects.toThrow(ApiException);
+    });
+
+    it('레포 매핑 성공 시 기존 에이전트를 찾아 실행을 기록한다', async () => {
+      const run = await service.recordByRepo('proj-key', {
+        repo_url: 'git@github.com:owner/repo.git',
+        agent_name: 'antigravity',
+        tokens_used: 15000,
+      });
+
+      expect(agentsRepo.findOneBy).toHaveBeenCalledWith({
+        project_id: 'proj-target',
+        name: 'antigravity',
+      });
+      expect(runsRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agent_id: 'agent-1',
+          tokens_used: 15000,
+          status: 'succeeded',
+        }),
+      );
+      expect(run.id).toBe('run-1');
+    });
+
+    it('에이전트가 없으면 자동으로 생성하고 실행을 기록한다', async () => {
+      (agentsRepo.findOneBy as jest.Mock).mockResolvedValueOnce(null);
+
+      const run = await service.recordByRepo('proj-key', {
+        repo_url: 'https://github.com/owner/repo',
+        agent_name: 'claude-code',
+        tokens_used: 25000,
+      });
+
+      expect(agentsRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          project_id: 'proj-target',
+          name: 'claude-code',
+        }),
+      );
+      expect(agentsRepo.save).toHaveBeenCalled();
       expect(run.id).toBe('run-1');
     });
   });
