@@ -69,4 +69,3 @@ export function normalizeGitRepoUrl(input: string): string {
   const { owner, repo } = parseRepoUrl(trimmed);
   return repoUrlOf(`${owner}/${repo}`);
 }
-

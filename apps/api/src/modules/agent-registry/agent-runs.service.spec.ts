@@ -31,7 +31,10 @@ describe('AgentRunsService', () => {
         innerJoin: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
-        getOne: jest.fn().mockResolvedValue({ project_id: 'proj-target', repo_url: 'https://github.com/owner/repo' }),
+        getOne: jest.fn().mockResolvedValue({
+          project_id: 'proj-target',
+          repo_url: 'https://github.com/owner/repo',
+        }),
       }),
     };
     budgetService = {

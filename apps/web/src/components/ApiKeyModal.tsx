@@ -64,7 +64,9 @@ export function ApiKeyModal({
 
   const copyToClipboard = async (text: string, onSuccess: () => void) => {
     if (typeof navigator.clipboard?.writeText !== 'function') {
-      setIssueError('이 브라우저에서는 자동 복사가 지원되지 않습니다. 텍스트를 직접 복사해 주세요.');
+      setIssueError(
+        '이 브라우저에서는 자동 복사가 지원되지 않습니다. 텍스트를 직접 복사해 주세요.',
+      );
       return;
     }
     try {
@@ -142,7 +144,9 @@ export function ApiKeyModal({
                 <div className="akm__cmd-item">
                   <div className="akm__cmd-desc">
                     <strong>🚀 전역 1회 자동 라우팅 연동 (가장 추천)</strong>
-                    <span>어떤 레포든 Git 주소를 인식해 자동으로 이 프로젝트로 토큰이 수집됩니다.</span>
+                    <span>
+                      어떤 레포든 Git 주소를 인식해 자동으로 이 프로젝트로 토큰이 수집됩니다.
+                    </span>
                   </div>
                   <Button
                     onClick={() =>
@@ -226,10 +230,7 @@ export function ApiKeyModal({
                     {confirmId === k.id ? (
                       <div className="akm__confirm-group">
                         <span className="meta">폐기할까요?</span>
-                        <Button
-                          disabled={revoking !== null}
-                          onClick={() => handleRevoke(k.id)}
-                        >
+                        <Button disabled={revoking !== null} onClick={() => handleRevoke(k.id)}>
                           {revoking === k.id ? '폐기 중…' : '폐기 확인'}
                         </Button>
                         <Button onClick={() => setConfirmId(null)}>취소</Button>

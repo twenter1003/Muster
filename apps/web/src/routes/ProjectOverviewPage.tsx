@@ -740,9 +740,7 @@ export function ProjectOverviewPage() {
                     에이전트를 등록하면 줄마다 실행 버튼이 생긴다. 설정은 나중에 채워도 된다.
                   </p>
                   <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-                    <Button onClick={() => setManagingKeys(true)}>
-                      API 키 발급 및 연동
-                    </Button>
+                    <Button onClick={() => setManagingKeys(true)}>API 키 발급 및 연동</Button>
                     <Button variant="solid" onClick={() => setCreatingAgent(true)}>
                       에이전트 등록
                     </Button>

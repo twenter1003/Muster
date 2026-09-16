@@ -279,10 +279,7 @@ export class AgentRunsController {
   @Public()
   @UseGuards(ApiKeyGuard)
   @HttpCode(HttpStatus.CREATED)
-  async recordByRepo(
-    @Req() req: Request,
-    @Body() dto: RecordRunByRepoDto,
-  ): Promise<RunView> {
+  async recordByRepo(@Req() req: Request, @Body() dto: RecordRunByRepoDto): Promise<RunView> {
     const run = await this.runs.recordByRepo(req.apiKeyProjectId!, dto);
     return toRunView(run);
   }

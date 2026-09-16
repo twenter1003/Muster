@@ -44,4 +44,3 @@ describe('normalizeGitRepoUrl', () => {
     expect(normalizeGitRepoUrl(input)).toBe(expected);
   });
 });
-
