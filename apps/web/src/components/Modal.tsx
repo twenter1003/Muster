@@ -6,6 +6,7 @@ interface ModalProps {
   title: string;
   /** Esc·배경 클릭·닫기 버튼이 모두 이것을 부른다. 저장 중에는 호출자가 막는다. */
   onClose: () => void;
+  className?: string;
   children: ReactNode;
 }
 
@@ -21,7 +22,7 @@ interface ModalProps {
  * **모달이 아닌** 다이얼로그가 된다(배경이 눌리고 Esc도 안 먹는다). 모달이 되려면
  * 반드시 showModal()을 불러야 한다.
  */
-export function Modal({ open, title, onClose, children }: ModalProps) {
+export function Modal({ open, title, onClose, className, children }: ModalProps) {
   const ref = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -45,7 +46,7 @@ export function Modal({ open, title, onClose, children }: ModalProps) {
   return (
     <dialog
       ref={ref}
-      className="modal"
+      className={`modal ${className ?? ''}`.trim()}
       aria-label={title}
       // 배경(::backdrop)을 누르면 닫는다. dialog 자신이 클릭 대상일 때만이 배경이다 —
       // 안쪽 요소에서 올라온 클릭은 target이 그 요소다.

@@ -12,10 +12,13 @@ const ARTIFACT_DIR_CURRENT =
   '/Users/kimtaewoo/.gemini/antigravity/brain/59af4d8d-bdc2-4137-9515-1e864441b8e9';
 const ARTIFACT_DIR_SESSION =
   '/Users/kimtaewoo/.gemini/antigravity/brain/1aa6d9ea-825f-4de3-b3a5-d2ef4a543122';
+const ARTIFACT_DIR_ABORT =
+  '/Users/kimtaewoo/.gemini/antigravity/brain/0959bf44-17ba-4157-8495-db5e55b990da';
 
 fs.mkdirSync(ARTIFACT_DIR_PARENT, { recursive: true });
 fs.mkdirSync(ARTIFACT_DIR_CURRENT, { recursive: true });
 fs.mkdirSync(ARTIFACT_DIR_SESSION, { recursive: true });
+fs.mkdirSync(ARTIFACT_DIR_ABORT, { recursive: true });
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -436,24 +439,111 @@ const server = http.createServer((req, res) => {
           },
           recent_runs: [
             {
+              id: 'run-active-1',
+              agent_id: 'ag-1',
+              agent_name: 'claude-sonnet-5',
+              tokens_used: 145200,
+              cost: '$0.435',
+              status: 'running',
+              started_at: new Date(Date.now() - 480000).toISOString(),
+              ended_at: null,
+              duration_seconds: 480,
+              waste: {
+                level: 'HIGH_WASTE',
+                wasted_tokens: 65000,
+                wasted_cost: '0.1950',
+                burn_rate_tokens_per_min: 18150,
+                recommendations: [
+                  '최근 5분간 토큰 소모율(18,150 T/min)이 급증하여 예산 초과 위험이 있습니다.',
+                  '불필요한 반복 쿼리가 감지되었습니다. 불필요한 경우 세션을 조기 중단(Abort)하세요.',
+                ],
+              },
+            },
+            {
               id: 'run-1',
+              agent_id: 'ag-1',
               agent_name: 'claude-sonnet-5',
               tokens_used: 12500,
               cost: '$0.037',
               status: 'completed',
               started_at: new Date(Date.now() - 3600000).toISOString(),
               ended_at: new Date().toISOString(),
+              duration_seconds: 120,
+              waste: {
+                level: 'NORMAL',
+                wasted_tokens: 0,
+                wasted_cost: '0.0000',
+                burn_rate_tokens_per_min: 6250,
+                recommendations: ['정상 범위 내의 토큰 소모 패턴입니다.'],
+              },
             },
             {
               id: 'run-2',
+              agent_id: 'ag-2',
               agent_name: 'gemini-3.6-flash',
               tokens_used: 8200,
               cost: '$0.008',
               status: 'completed',
               started_at: new Date(Date.now() - 7200000).toISOString(),
               ended_at: new Date().toISOString(),
+              duration_seconds: 45,
+              waste: {
+                level: 'NORMAL',
+                wasted_tokens: 0,
+                wasted_cost: '0.0000',
+                burn_rate_tokens_per_min: 10933,
+                recommendations: ['정상 범위 내의 토큰 소모 패턴입니다.'],
+              },
             },
           ],
+        }),
+      );
+      return;
+    }
+
+    // Agent Run Abort & Detail
+    const matchAbort = url.pathname.match(/^\/api\/v1\/(?:agents\/[^/]+\/runs|agent-runs)\/([^/]+)\/abort$/);
+    if (matchAbort && req.method === 'POST') {
+      const runId = matchAbort[1];
+      res.writeHead(200);
+      res.end(
+        JSON.stringify({
+          id: runId,
+          status: 'cancelled',
+          ended_at: new Date().toISOString(),
+          tokens_used: 145200,
+          cost: '$0.435',
+          message: 'Agent run aborted successfully',
+        }),
+      );
+      return;
+    }
+
+    const matchRunDetail = url.pathname.match(/^\/api\/v1\/agent-runs\/([^/]+)$/);
+    if (matchRunDetail && req.method === 'GET') {
+      const runId = matchRunDetail[1];
+      res.writeHead(200);
+      res.end(
+        JSON.stringify({
+          id: runId,
+          agent_id: 'ag-1',
+          agent_name: 'claude-sonnet-5',
+          tokens_used: 145200,
+          cost: '$0.435',
+          status: 'running',
+          started_at: new Date(Date.now() - 480000).toISOString(),
+          ended_at: null,
+          duration_seconds: 480,
+          waste: {
+            level: 'HIGH_WASTE',
+            wasted_tokens: 65000,
+            wasted_cost: '0.1950',
+            burn_rate_tokens_per_min: 18150,
+            recommendations: [
+              '최근 5분간 토큰 소모율(18,150 T/min)이 급증하여 예산 초과 위험이 있습니다.',
+              '불필요한 반복 쿼리가 감지되었습니다. 불필요한 경우 세션을 조기 중단(Abort)하세요.',
+            ],
+          },
         }),
       );
       return;
@@ -693,9 +783,11 @@ async function runCaptures() {
     const destParent = path.join(ARTIFACT_DIR_PARENT, outName);
     const destCurrent = path.join(ARTIFACT_DIR_CURRENT, outName);
     const destSession = path.join(ARTIFACT_DIR_SESSION, outName);
+    const destAbort = path.join(ARTIFACT_DIR_ABORT, outName);
     fs.writeFileSync(destParent, buffer);
     fs.writeFileSync(destCurrent, buffer);
     fs.writeFileSync(destSession, buffer);
+    fs.writeFileSync(destAbort, buffer);
 
     console.log(`  ✅ 저장 완료: ${outName} (${(buffer.length / 1024).toFixed(1)} KB)`);
   };
@@ -953,7 +1045,57 @@ async function runCaptures() {
       `,
     });
 
-    console.log('\n🎉 모든 뷰포트 및 인터랙티브 플로팅 툴팁 시각적 증거(스크린샷 22종) 완벽 캡처 완료!');
+    // 23. 데스크톱 뷰포트 (1280x900) - 최근 세션 목록 (recent_runs) 및 인라인 [중단] 버튼 포커스
+    await captureItem({
+      url: 'http://127.0.0.1:8765/projects/proj-001',
+      outName: 'desktop-recent-runs-table.png',
+      width: 1280,
+      height: 900,
+      isMobile: false,
+      waitMs: 1500,
+      evalScript: `document.querySelector('.detail__recent-runs')?.scrollIntoView({ block: 'center' })`,
+    });
+
+    // 24. 데스크톱 뷰포트 (1280x900) - 세션별 낭비 이력 딥다이브 모달 (SessionWasteModal) 오픈 상태
+    await captureItem({
+      url: 'http://127.0.0.1:8765/projects/proj-001',
+      outName: 'desktop-session-waste-modal.png',
+      width: 1280,
+      height: 900,
+      isMobile: false,
+      waitMs: 1500,
+      evalScript: `
+        document.querySelector('.detail__recent-runs')?.scrollIntoView({ block: 'center' });
+        document.querySelector('.session-row--clickable')?.click();
+      `,
+    });
+
+    // 25. 모바일 뷰포트 (390x844) - 세션별 낭비 이력 딥다이브 모달 모바일 반응형 뷰
+    await captureItem({
+      url: 'http://127.0.0.1:8765/projects/proj-001',
+      outName: 'mobile-session-waste-modal.png',
+      width: 390,
+      height: 844,
+      isMobile: true,
+      waitMs: 1500,
+      evalScript: `
+        document.querySelector('.detail__recent-runs')?.scrollIntoView({ block: 'center' });
+        document.querySelector('.session-row--clickable')?.click();
+      `,
+    });
+
+    // 26. 데스크톱 뷰포트 (1280x900) - 예산 급증 경고 배너의 원클릭 [세션 중단] 및 [낭비 딥다이브] 액션
+    await captureItem({
+      url: 'http://127.0.0.1:8765/projects/proj-001',
+      outName: 'desktop-budget-spike-banner.png',
+      width: 1280,
+      height: 900,
+      isMobile: false,
+      waitMs: 1500,
+      evalScript: `document.querySelector('.budget-spike-banner')?.scrollIntoView({ block: 'center' })`,
+    });
+
+    console.log('\n🎉 모든 뷰포트 및 인터랙티브 플로팅 툴팁 & 세션 낭비 딥다이브 모달 시각적 증거(스크린샷 26종) 완벽 캡처 완료!');
   } finally {
     ws.close();
     chrome.kill();

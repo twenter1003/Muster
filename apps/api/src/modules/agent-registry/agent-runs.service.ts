@@ -5,10 +5,12 @@ import { InjectRepository } from '../../database/inject-repository.decorator';
 import { Agent, AgentRun, GitIntegration, ProjectMember } from '../../database/entities';
 import { DomainEvent } from '../../common/events/domain-events';
 import { ApiException } from '../../common/errors/api.exception';
+import { ErrorCode } from '../../common/errors/error-codes';
 import { buildPage, type Page, type PageRequest } from '../../common/pagination/paginate';
 import { normalizeGitRepoUrl } from '../project-core/repo-url';
 import { BudgetService } from './budget.service';
 import { ModelPricingService } from './model-pricing.service';
+import { assessSessionWaste, type SessionWasteAssessment } from './token-waste';
 import type { CreateRunDto } from './dto/create-run.dto';
 import type { HeartbeatRunDto } from './dto/heartbeat-run.dto';
 import type { RecordRunByRepoDto } from './dto/record-run-by-repo.dto';
@@ -16,6 +18,21 @@ import type { UpdateRunDto } from './dto/update-run.dto';
 
 /** 실행 종료를 요청한 신원 — 사람(세션) 또는 에이전트(API 키) 중 하나. */
 export type RunIdentity = { userId: string } | { apiKeyProjectId: string };
+
+/** 세션 단건 상세 및 낭비 진단 뷰 */
+export interface SessionRunDetailView {
+  id: string;
+  agent_id: string;
+  agent_name: string;
+  project_id: string;
+  status: string;
+  tokens_used: number;
+  cost: string;
+  started_at: string;
+  ended_at: string | null;
+  duration_seconds: number;
+  waste: SessionWasteAssessment;
+}
 
 /** 설계서 Part 4 §6 — 실행 이력. 토큰/비용 집계의 원천. */
 @Injectable()
@@ -232,6 +249,14 @@ export class AgentRunsService {
       'apiKeyProjectId' in identity
         ? await this.findAccessibleByKeyOrFail(runId, identity.apiKeyProjectId)
         : await this.findAccessibleOrFail(runId, identity.userId);
+
+    if (run.status === 'cancelled') {
+      throw ApiException.conflict(
+        ErrorCode.CONFLICT,
+        '세션이 이미 사용자에 의해 중단(cancelled)되었습니다.',
+      );
+    }
+
     const projectId = await this.projectIdOfRun(run);
 
     const prevTokens = run.tokens_used ?? 0;
@@ -274,6 +299,82 @@ export class AgentRunsService {
     }
 
     return saved;
+  }
+
+  /**
+   * 실행 중인 세션을 강제 중단(abort)한다.
+   *
+   * - status='running' 상태만 중단 가능하며, 이미 종료된 세션에 대해 호출 시 409 Conflict 반환.
+   * - status를 'cancelled'로 변경하고 ended_at을 기록.
+   * - 변경 후 예산 재계산(budget.recalculateAndAlert) 및 실시간 SSE DomainEvent.AGENT_RUN_FINISHED(status: 'cancelled') 이벤트 발행.
+   */
+  async abort(runId: string, identity: RunIdentity): Promise<AgentRun> {
+    const run =
+      'apiKeyProjectId' in identity
+        ? await this.findAccessibleByKeyOrFail(runId, identity.apiKeyProjectId)
+        : await this.findAccessibleOrFail(runId, identity.userId);
+
+    if (run.status !== 'running') {
+      throw ApiException.conflict(
+        ErrorCode.INVALID_STATE_TRANSITION,
+        `이미 종료된 세션입니다. (현재 상태: ${run.status})`,
+      );
+    }
+
+    const projectId = await this.projectIdOfRun(run);
+    const before = await this.budget.sumUsage(projectId);
+
+    run.status = 'cancelled';
+    run.ended_at = new Date();
+
+    const saved = await this.runs.save(run);
+    await this.budget.recalculateAndAlert(projectId, before);
+
+    const agent = await this.agents.findOneBy({ id: saved.agent_id });
+    this.events.emit(DomainEvent.AGENT_RUN_FINISHED, {
+      project_id: projectId,
+      agent_id: saved.agent_id,
+      agent_name: agent?.name ?? 'agent',
+      run_id: saved.id,
+      status: 'cancelled',
+      tokens_used: saved.tokens_used,
+      cost: saved.cost,
+      started_at: saved.started_at.toISOString(),
+      ended_at: (saved.ended_at ?? new Date()).toISOString(),
+    });
+
+    return saved;
+  }
+
+  /**
+   * 세션 단건 상세 및 낭비 진단 데이터 조회.
+   */
+  async detail(runId: string, identity: RunIdentity): Promise<SessionRunDetailView> {
+    const run =
+      'apiKeyProjectId' in identity
+        ? await this.findAccessibleByKeyOrFail(runId, identity.apiKeyProjectId)
+        : await this.findAccessibleOrFail(runId, identity.userId);
+
+    const agent = await this.agents.findOneBy({ id: run.agent_id });
+    const projectId = agent?.project_id ?? (await this.projectIdOfRun(run));
+
+    const startMs = run.started_at.getTime();
+    const endMs = (run.ended_at ?? new Date()).getTime();
+    const duration_seconds = Math.max(0, Math.floor((endMs - startMs) / 1000));
+
+    return {
+      id: run.id,
+      agent_id: run.agent_id,
+      agent_name: agent?.name ?? 'agent',
+      project_id: projectId,
+      status: run.status,
+      tokens_used: run.tokens_used,
+      cost: run.cost,
+      started_at: run.started_at.toISOString(),
+      ended_at: run.ended_at ? run.ended_at.toISOString() : null,
+      duration_seconds,
+      waste: assessSessionWaste(run.tokens_used),
+    };
   }
 
   async listForAgent(agentId: string, page: PageRequest): Promise<Page<AgentRun>> {

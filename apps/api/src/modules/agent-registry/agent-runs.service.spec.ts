@@ -290,5 +290,114 @@ describe('AgentRunsService', () => {
         }),
       );
     });
+
+    it('이미 cancelled 상태인 세션에 heartbeat 요청 시 409 Conflict 예외를 던진다', async () => {
+      const cancelledRun = {
+        id: 'run-hb-3',
+        agent_id: 'agent-1',
+        status: 'cancelled',
+        tokens_used: 5000,
+        cost: '0.0180',
+        started_at: new Date('2026-09-17T03:00:00.000Z'),
+        ended_at: new Date('2026-09-17T03:05:00.000Z'),
+      } as AgentRun;
+
+      (runsRepo.findOneBy as jest.Mock).mockResolvedValue(cancelledRun);
+      (membersRepo.countBy as jest.Mock).mockResolvedValue(1);
+
+      await expect(
+        service.heartbeat('run-hb-3', { userId: 'user-1' }, { tokens_used: 6000 }),
+      ).rejects.toThrow(ApiException);
+    });
+  });
+
+  describe('abort', () => {
+    it('running 상태의 세션을 cancelled로 변경하고 종료 시각 기록, 예산 재계산 및 AGENT_RUN_FINISHED 이벤트를 방출한다', async () => {
+      const runningRun = {
+        id: 'run-abort-1',
+        agent_id: 'agent-1',
+        status: 'running',
+        tokens_used: 12000,
+        cost: '0.0500',
+        started_at: new Date('2026-09-17T04:00:00.000Z'),
+        ended_at: null,
+      } as AgentRun;
+
+      (runsRepo.findOneBy as jest.Mock).mockResolvedValue(runningRun);
+      (membersRepo.countBy as jest.Mock).mockResolvedValue(1);
+
+      const result = await service.abort('run-abort-1', { userId: 'user-1' });
+
+      expect(result.status).toBe('cancelled');
+      expect(result.ended_at).toBeInstanceOf(Date);
+      expect(budgetService.recalculateAndAlert).toHaveBeenCalledWith('proj-1', {
+        tokens: '100',
+        cost: '0',
+      });
+      expect(events.emit).toHaveBeenCalledWith(
+        DomainEvent.AGENT_RUN_FINISHED,
+        expect.objectContaining({
+          project_id: 'proj-1',
+          agent_name: 'claude-code',
+          run_id: 'run-abort-1',
+          status: 'cancelled',
+        }),
+      );
+    });
+
+    it('이미 완료(succeeded/failed/cancelled)된 세션에 abort 호출 시 409 Conflict를 던진다', async () => {
+      const succeededRun = {
+        id: 'run-abort-2',
+        agent_id: 'agent-1',
+        status: 'succeeded',
+        tokens_used: 10000,
+        cost: '0.0400',
+        started_at: new Date('2026-09-17T04:00:00.000Z'),
+        ended_at: new Date('2026-09-17T04:10:00.000Z'),
+      } as AgentRun;
+
+      (runsRepo.findOneBy as jest.Mock).mockResolvedValue(succeededRun);
+      (membersRepo.countBy as jest.Mock).mockResolvedValue(1);
+
+      await expect(service.abort('run-abort-2', { userId: 'user-1' })).rejects.toThrow(
+        ApiException,
+      );
+    });
+
+    it('접근 권한이 없거나 없는 세션에 abort 호출 시 404를 던진다', async () => {
+      (runsRepo.findOneBy as jest.Mock).mockResolvedValue(null);
+
+      await expect(service.abort('run-nonexistent', { userId: 'user-1' })).rejects.toThrow(
+        ApiException,
+      );
+    });
+  });
+
+  describe('detail', () => {
+    it('세션 단건 상세 및 낭비 진단 데이터(waste, duration_seconds)를 정확히 반환한다', async () => {
+      const run = {
+        id: 'run-detail-1',
+        agent_id: 'agent-1',
+        status: 'running',
+        tokens_used: 45000,
+        cost: '0.1500',
+        started_at: new Date(Date.now() - 30000),
+        ended_at: null,
+      } as AgentRun;
+
+      (runsRepo.findOneBy as jest.Mock).mockResolvedValue(run);
+      (membersRepo.countBy as jest.Mock).mockResolvedValue(1);
+
+      const detail = await service.detail('run-detail-1', { userId: 'user-1' });
+
+      expect(detail.id).toBe('run-detail-1');
+      expect(detail.agent_id).toBe('agent-1');
+      expect(detail.agent_name).toBe('claude-code');
+      expect(detail.project_id).toBe('proj-1');
+      expect(detail.tokens_used).toBe(45000);
+      expect(detail.duration_seconds).toBeGreaterThanOrEqual(30);
+      expect(detail.waste).toBeDefined();
+      expect(detail.waste.level).toBeDefined();
+    });
   });
 });
