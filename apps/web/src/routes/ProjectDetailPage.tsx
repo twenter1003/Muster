@@ -804,7 +804,6 @@ export function ProjectDetailPage() {
   const liveBurnRate = useMemo(
     () =>
       computeLiveBurnRate(usage.data?.burn_rate, activeAgents, agentHeartbeats, agentStartTimes),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [usage.data?.burn_rate, activeAgents, agentHeartbeats, agentStartTimes, nowSec],
   );
 
