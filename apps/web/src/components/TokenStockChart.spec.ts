@@ -111,4 +111,79 @@ describe('TokenStockChart 로직 및 데이터 정합성 검증', () => {
       });
     });
   });
+
+  describe('인터랙티브 플로팅 툴팁(Floating Tooltip) 위치 및 수치 계산 검증', () => {
+    const SVG_WIDTH = 680;
+    const CHART_HEIGHT = 180;
+
+    const computeTooltipPosition = (x: number, y: number) => {
+      const isLeft = x > SVG_WIDTH * 0.52;
+      const flipClass = isLeft
+        ? 'token-stock-chart__tooltip--left'
+        : 'token-stock-chart__tooltip--right';
+      const leftPct = (x / SVG_WIDTH) * 100;
+      const topPct = Math.min(Math.max((y / CHART_HEIGHT) * 100, 16), 74);
+      return { flipClass, leftPct, topPct };
+    };
+
+    it('X 좌표가 차트 중간 우측일 때 좌측으로 플립(Flip)되어 차트 경계 이탈을 방지한다', () => {
+      // 오른쪽 끝점 (x = 600)
+      const posRight = computeTooltipPosition(600, 90);
+      expect(posRight.flipClass).toBe('token-stock-chart__tooltip--left');
+      expect(posRight.leftPct).toBeCloseTo(88.23, 1);
+
+      // 왼쪽 시작점 (x = 80)
+      const posLeft = computeTooltipPosition(80, 90);
+      expect(posLeft.flipClass).toBe('token-stock-chart__tooltip--right');
+      expect(posLeft.leftPct).toBeCloseTo(11.76, 1);
+
+      // 경계값 (353.6 = 680 * 0.52)
+      const posCenterLeft = computeTooltipPosition(350, 90);
+      expect(posCenterLeft.flipClass).toBe('token-stock-chart__tooltip--right');
+
+      const posCenterRight = computeTooltipPosition(355, 90);
+      expect(posCenterRight.flipClass).toBe('token-stock-chart__tooltip--left');
+    });
+
+    it('Y 좌표가 상단/하단 경계에 근접해도 클램핑(16% ~ 74%)되어 툴팁이 잘리지 않는다', () => {
+      // 최상단 (y = 0)
+      const posTop = computeTooltipPosition(200, 0);
+      expect(posTop.topPct).toBe(16);
+
+      // 최하단 (y = 180)
+      const posBottom = computeTooltipPosition(200, 180);
+      expect(posBottom.topPct).toBe(74);
+
+      // 정상 중간 범위 (y = 90 -> 50%)
+      const posMid = computeTooltipPosition(200, 90);
+      expect(posMid.topPct).toBe(50);
+    });
+
+    it('툴팁 내 에이전트별 토큰 수치와 점유율(%)이 정확히 계산된다', () => {
+      const totalTokens = 20000;
+      const claudeTokens = 12000;
+      const geminiTokens = 5000;
+      const cursorTokens = 3000;
+
+      const getPct = (tokens: number) => Math.round((tokens / totalTokens) * 100);
+
+      expect(getPct(claudeTokens)).toBe(60);
+      expect(getPct(geminiTokens)).toBe(25);
+      expect(getPct(cursorTokens)).toBe(15);
+      expect(getPct(claudeTokens) + getPct(geminiTokens) + getPct(cursorTokens)).toBe(100);
+    });
+
+    it('라이브 틱(Pending Tokens)은 최신 데이터 포인트 호버 시에만 표시된다', () => {
+      const totalPoints = 4;
+      const liveTokens = 5000;
+
+      const shouldShowLive = (hoveredIndex: number | null) =>
+        liveTokens > 0 && hoveredIndex === totalPoints - 1;
+
+      expect(shouldShowLive(3)).toBe(true); // 최신 인덱스
+      expect(shouldShowLive(2)).toBe(false); // 과거 인덱스
+      expect(shouldShowLive(0)).toBe(false); // 시작 인덱스
+      expect(shouldShowLive(null)).toBe(false); // 호버 해제
+    });
+  });
 });

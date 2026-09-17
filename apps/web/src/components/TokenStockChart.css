@@ -401,3 +401,181 @@
   font-weight: 600;
   animation: pulse-tick 1.8s infinite ease-in-out;
 }
+
+/* 마우스 호버 시 포인트 위치에 부유하는 인터랙티브 플로팅 툴팁 */
+.token-stock-chart__tooltip {
+  position: absolute;
+  z-index: 10;
+  pointer-events: none;
+  user-select: none;
+  min-width: 175px;
+  max-width: 270px;
+  background: rgba(15, 23, 42, 0.94);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  box-shadow:
+    0 10px 28px -4px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
+  padding: 8px 11px;
+  color: #f3f4f6;
+  font-size: 11px;
+  line-height: 1.4;
+  animation: tooltipFadeIn 0.1s ease-out;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.token-stock-chart__tooltip--left {
+  transform: translate(calc(-100% - 14px), -50%);
+}
+
+.token-stock-chart__tooltip--right {
+  transform: translate(14px, -50%);
+}
+
+.stock-tooltip__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.stock-tooltip__date {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.stock-tooltip__badge {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #e5e7eb;
+  letter-spacing: 0.3px;
+}
+
+.stock-tooltip__body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.stock-tooltip__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.stock-tooltip__row--total {
+  font-size: 12px;
+  margin-bottom: 2px;
+}
+
+.stock-tooltip__label {
+  color: #d1d5db;
+  font-weight: 500;
+}
+
+.stock-tooltip__value {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.stock-tooltip__value strong {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.stock-tooltip__cost {
+  color: #34d399;
+  font-size: 11px;
+}
+
+.stock-tooltip__agents {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stock-tooltip__divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 3px 0;
+}
+
+.stock-tooltip__row--agent {
+  font-size: 10.5px;
+  padding: 1px 0;
+}
+
+.stock-tooltip__agent-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #e5e7eb;
+}
+
+.stock-tooltip__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.stock-tooltip__agent-name {
+  font-weight: 500;
+}
+
+.stock-tooltip__agent-values {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+}
+
+.stock-tooltip__agent-tokens {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.stock-tooltip__agent-cost {
+  color: #9ca3af;
+}
+
+.stock-tooltip__agent-pct {
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+}
+
+.stock-tooltip__live {
+  margin-top: 4px;
+  padding-top: 3px;
+  border-top: 1px dashed rgba(16, 185, 129, 0.3);
+  color: #34d399;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: ui-monospace, monospace;
+}
+
