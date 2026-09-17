@@ -427,26 +427,27 @@
   }
 
   .plist__card-foot {
-    flex-wrap: wrap;
-    gap: var(--space-1);
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding-top: var(--space-2);
   }
 
   .plist__token-count {
+    font-size: 11px;
     white-space: normal;
     word-break: break-word;
-    font-size: 11px;
+    width: 100%;
   }
-}
 
-@media (max-width: 480px) {
   .plist__filter-chips {
-    overflow-x: auto;
-    flex-wrap: nowrap;
-    padding-bottom: 4px;
-    -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
   }
 
   .plist__filter-chips .chip {
-    flex-shrink: 0;
+    font-size: 11px;
+    padding: 4px 9px;
   }
 }

@@ -318,28 +318,78 @@
   background: rgba(255, 255, 255, 0.18);
 }
 
-@media (max-width: 480px) {
+.bhud-segmented__name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 767px) {
   .bhud-panel {
     bottom: 12px;
     right: 12px;
     left: 12px;
     width: auto;
-    max-width: none;
-    padding: 12px;
+    max-width: calc(100vw - 24px);
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .bhud-panel__title {
+    font-size: 12px;
+  }
+
+  .bhud-badge-speedup {
+    font-size: 10px;
+    padding: 1px 6px;
+  }
+
+  .bhud-segmented__btn {
+    padding: 5px 6px;
+    font-size: 11px;
+    gap: 4px;
   }
 
   .bhud-metrics-grid {
     grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .bhud-metric-card {
+    padding: 6px 8px;
+    gap: 2px;
+  }
+
+  .bhud-metric-card__label {
+    font-size: 9px;
+  }
+
+  .bhud-metric-card__value {
+    font-size: 13px;
+  }
+
+  .bhud-metric-card__compare {
+    font-size: 9px;
+  }
+
+  .bhud-panel__hint {
+    font-size: 10px;
   }
 
   .bhud-pill {
     bottom: 12px;
     right: 12px;
+    max-width: calc(100vw - 24px);
     padding: 5px 10px;
     gap: 6px;
   }
 
   .bhud-pill__variant {
     font-size: 11px;
+  }
+
+  .bhud-pill__badge {
+    font-size: 10px;
+    padding: 1px 5px;
   }
 }
