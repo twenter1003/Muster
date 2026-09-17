@@ -12,6 +12,7 @@ import {
   type SessionWasteAssessment,
   type WasteInsightSummary,
 } from './token-waste';
+import { ModelPricingService } from './model-pricing.service';
 
 export interface BudgetUsage {
   token_limit: string | null;
@@ -39,7 +40,26 @@ export interface SessionRunView {
   waste: SessionWasteAssessment;
 }
 
-/** 프로젝트 상세·목록 화면의 "토큰 사용량" 카드가 쓰는 하루 단위 집계 및 낭비 진단. */
+export type TokenGranularity = 'hour' | 'day' | 'month';
+
+export interface TimeSeriesBucket {
+  key: string;
+  label: string;
+  tokens: string;
+  cost: string;
+}
+
+export interface ModelUsageItem {
+  model_name: string;
+  display_name: string;
+  provider: 'anthropic' | 'google' | 'openai' | 'deepseek' | 'other';
+  tokens: string;
+  cost: string;
+  run_count: number;
+  percentage: number;
+}
+
+/** 프로젝트 상세·목록 화면의 "토큰 사용량" 카드가 쓰는 다차원 시계열 집계 및 모델 브레이크다운. */
 export interface UsageBreakdown {
   today_tokens: string;
   month_tokens: string;
@@ -49,6 +69,9 @@ export interface UsageBreakdown {
   total_cost?: string;
   /** 오래된 날짜부터 오늘까지, 값이 없는 날도 '0'으로 채워서 스파크라인이 끊기지 않게 한다. */
   daily: Array<{ date: string; tokens: string; cost?: string }>;
+  granularity?: TokenGranularity;
+  time_series?: TimeSeriesBucket[];
+  model_breakdown?: ModelUsageItem[];
   waste_insight?: WasteInsightSummary;
   recent_runs?: SessionRunView[];
 }
@@ -57,11 +80,16 @@ const DAILY_WINDOW_DAYS = 7;
 
 @Injectable()
 export class BudgetService {
+  private readonly modelPricing: ModelPricingService;
+
   constructor(
     @InjectRepository(ProjectBudget) private readonly budgets: Repository<ProjectBudget>,
     @InjectRepository(AgentRun) private readonly runs: Repository<AgentRun>,
     private readonly events: EventEmitter2,
-  ) {}
+    modelPricing?: ModelPricingService,
+  ) {
+    this.modelPricing = modelPricing ?? new ModelPricingService();
+  }
 
   /**
    * 설계서 Part 4 §6 — 예산 설정 + 현재 사용률.
@@ -156,31 +184,64 @@ export class BudgetService {
   }
 
   /**
-   * 오늘 사용량·이번 달 누적·최근 며칠간의 하루 단위 사용량.
-   * 목록 카드는 today_tokens만, 상세 화면은 daily까지 써서 스파크라인을 그린다.
-   *
-   * 날짜 경계는 UTC 기준이다(date_trunc의 기본 세션 타임존). 사용자별 시간대를 반영하지
-  /**
-   * 프로젝트 목록·상세 화면의 "토큰 사용량" 카드가 쓰는 일별 집계.
-   * 한국(Asia/Seoul) 등 클라이언트 타임존 기준으로 하루 경계를 계산한다.
+   * 프로젝트 목록·상세 화면의 "토큰 사용량" 카드가 쓰는 다차원 시계열 집계 및 모델 브레이크다운.
+   * granularity (hour|day|month) 및 한국(Asia/Seoul) 등 클라이언트 타임존 기준으로 버킷을 계산한다.
    */
   async dailyUsage(
     projectId: string,
     agentName?: string,
     timeZone = 'Asia/Seoul',
+    granularity: TokenGranularity = 'day',
   ): Promise<UsageBreakdown> {
     const tz = sanitizeTimeZone(timeZone);
+    const gran: TokenGranularity =
+      granularity === 'hour' || granularity === 'month' ? granularity : 'day';
     const now = new Date();
-    const dailyDates = getDailyDates(DAILY_WINDOW_DAYS, tz);
-    const since = new Date(now.getTime() - (DAILY_WINDOW_DAYS + 1) * 24 * 3600 * 1000);
-    const currentMonth = dailyDates.at(-1)!.slice(0, 7);
 
-    let rowsQb = this.runs
+    // 1. Time-series bucket specifications
+    let timeSeriesBuckets: TimeSeriesBucket[] = [];
+    let timeSeriesSince: Date;
+    let bucketExpr: string;
+
+    if (gran === 'hour') {
+      timeSeriesBuckets = getHourlyBuckets(24, tz);
+      timeSeriesSince = new Date(now.getTime() - 25 * 3600 * 1000);
+      bucketExpr =
+        "to_char(COALESCE(r.ended_at, r.started_at) AT TIME ZONE :tz, 'YYYY-MM-DD HH24') || ':00'";
+    } else if (gran === 'month') {
+      timeSeriesBuckets = getMonthlyBuckets(6, tz);
+      timeSeriesSince = new Date(now.getFullYear(), now.getMonth() - 6, 1);
+      bucketExpr = "to_char(COALESCE(r.ended_at, r.started_at) AT TIME ZONE :tz, 'YYYY-MM')";
+    } else {
+      timeSeriesBuckets = getDailyBuckets(14, tz);
+      timeSeriesSince = new Date(now.getTime() - 15 * 24 * 3600 * 1000);
+      bucketExpr = "to_char(COALESCE(r.ended_at, r.started_at) AT TIME ZONE :tz, 'YYYY-MM-DD')";
+    }
+
+    const currentMonth = getDailyDates(1, tz)[0].slice(0, 7);
+
+    let timeSeriesQb = this.runs
       .createQueryBuilder('r')
       .innerJoin(Agent, 'a', 'a.id = r.agent_id')
       .where('a.project_id = :projectId', { projectId })
       .andWhere('(r.started_at >= :since OR (r.ended_at IS NOT NULL AND r.ended_at >= :since))', {
-        since,
+        since: timeSeriesSince,
+        tz,
+      })
+      .select(bucketExpr, 'bucket')
+      .addSelect('COALESCE(SUM(r.tokens_used), 0)', 'tokens')
+      .addSelect('COALESCE(SUM(r.cost), 0)', 'cost')
+      .groupBy(bucketExpr);
+
+    // 하위 호환을 위한 7일 일별 쿼리
+    const dailyDates = getDailyDates(DAILY_WINDOW_DAYS, tz);
+    const dailySince = new Date(now.getTime() - (DAILY_WINDOW_DAYS + 1) * 24 * 3600 * 1000);
+    let dailyQb = this.runs
+      .createQueryBuilder('r')
+      .innerJoin(Agent, 'a', 'a.id = r.agent_id')
+      .where('a.project_id = :projectId', { projectId })
+      .andWhere('(r.started_at >= :since OR (r.ended_at IS NOT NULL AND r.ended_at >= :since))', {
+        since: dailySince,
         tz,
       })
       .select("to_char(COALESCE(r.ended_at, r.started_at) AT TIME ZONE :tz, 'YYYY-MM-DD')", 'day')
@@ -213,29 +274,91 @@ export class BudgetService {
       .orderBy('r.started_at', 'DESC')
       .take(10);
 
+    let modelQb = this.runs
+      .createQueryBuilder('r')
+      .innerJoin(Agent, 'a', 'a.id = r.agent_id')
+      .where('a.project_id = :projectId', { projectId })
+      .select('a.name', 'agent_name')
+      .addSelect('COALESCE(SUM(r.tokens_used), 0)', 'tokens')
+      .addSelect('COALESCE(SUM(r.cost), 0)', 'cost')
+      .addSelect('COUNT(r.id)', 'run_count')
+      .groupBy('a.name');
+
     if (agentName && agentName !== 'all') {
-      rowsQb = rowsQb.andWhere('a.name = :agentName', { agentName });
+      timeSeriesQb = timeSeriesQb.andWhere('a.name = :agentName', { agentName });
+      dailyQb = dailyQb.andWhere('a.name = :agentName', { agentName });
       monthQb = monthQb.andWhere('a.name = :agentName', { agentName });
       totalQb = totalQb.andWhere('a.name = :agentName', { agentName });
       recentQb = recentQb.andWhere('a.name = :agentName', { agentName });
+      modelQb = modelQb.andWhere('a.name = :agentName', { agentName });
     }
 
-    const [rows, monthRow, totalRow, recentRuns] = await Promise.all([
-      rowsQb.getRawMany<{ day: Date | string; tokens: string; cost: string }>(),
-      monthQb.getRawOne<{ tokens: string; cost: string }>(),
-      totalQb.getRawOne<{ tokens: string; cost: string }>(),
-      recentQb.getMany(),
-    ]);
+    const [timeSeriesRows, dailyRows, monthRow, totalRow, recentRuns, modelRows] =
+      await Promise.all([
+        timeSeriesQb.getRawMany<{ bucket: Date | string; tokens: string; cost: string }>(),
+        dailyQb.getRawMany<{ day: Date | string; tokens: string; cost: string }>(),
+        monthQb.getRawOne<{ tokens: string; cost: string }>(),
+        totalQb.getRawOne<{ tokens: string; cost: string }>(),
+        recentQb.getMany(),
+        modelQb.getRawMany<{
+          agent_name: string;
+          tokens: string;
+          cost: string;
+          run_count: string | number;
+        }>(),
+      ]);
 
-    const byDay = new Map(rows.map((r) => [toDateKey(r.day), { tokens: r.tokens, cost: r.cost }]));
+    // time_series 버킷 채우기
+    const timeSeriesMap = new Map(
+      timeSeriesRows.map((r) => [
+        toBucketKey(r.bucket),
+        { tokens: String(r.tokens), cost: String(r.cost) },
+      ]),
+    );
+    const time_series: TimeSeriesBucket[] = timeSeriesBuckets.map((b) => {
+      const entry = timeSeriesMap.get(b.key);
+      return {
+        key: b.key,
+        label: b.label,
+        tokens: entry?.tokens ?? '0',
+        cost: entry?.cost ?? '0.0000',
+      };
+    });
+
+    // 하위 호환 daily 채우기
+    const dailyMap = new Map(
+      dailyRows.map((r) => [toDateKey(r.day), { tokens: r.tokens, cost: r.cost }]),
+    );
     const daily = dailyDates.map((date) => {
-      const entry = byDay.get(date);
+      const entry = dailyMap.get(date);
       return {
         date,
         tokens: entry?.tokens ?? '0',
         cost: entry?.cost ?? '0',
       };
     });
+
+    // model_breakdown 계산
+    const totalTokensNum = Number(totalRow?.tokens ?? '0');
+    const model_breakdown: ModelUsageItem[] = modelRows.map((row) => {
+      const { modelCode } = this.modelPricing.resolvePricing(undefined, row.agent_name);
+      const provider = resolveProvider(modelCode, row.agent_name);
+      const displayName = resolveDisplayName(modelCode, row.agent_name);
+      const tokensNum = Number(row.tokens);
+      const percentage =
+        totalTokensNum > 0 ? Math.round((tokensNum / totalTokensNum) * 1000) / 10 : 0;
+
+      return {
+        model_name: modelCode,
+        display_name: displayName,
+        provider,
+        tokens: String(row.tokens),
+        cost: String(row.cost),
+        run_count: Number(row.run_count),
+        percentage,
+      };
+    });
+    model_breakdown.sort((a, b) => Number(b.tokens) - Number(a.tokens));
 
     const recent_runs: SessionRunView[] = recentRuns.map((r) => ({
       id: r.id,
@@ -256,6 +379,9 @@ export class BudgetService {
       total_tokens: String(totalRow?.tokens ?? '0'),
       total_cost: String(totalRow?.cost ?? '0'),
       daily,
+      granularity: gran,
+      time_series,
+      model_breakdown,
       waste_insight: computeWasteInsight(recentRuns),
       recent_runs,
     };
@@ -306,6 +432,73 @@ function getDailyDates(days: number, tz: string): string[] {
   return dates;
 }
 
+/** 주어진 타임존 기준 최근 N시간의 YYYY-MM-DD HH:00 목록 생성 */
+function getHourlyBuckets(hours: number, tz: string): TimeSeriesBucket[] {
+  const buckets: TimeSeriesBucket[] = [];
+  const now = new Date();
+  for (let i = hours - 1; i >= 0; i--) {
+    const d = new Date(now.getTime() - i * 3600 * 1000);
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      hour12: false,
+    }).formatToParts(d);
+    const get = (t: string) => parts.find((p) => p.type === t)?.value;
+    const y = get('year') ?? '2026';
+    const m = get('month') ?? '01';
+    const day = get('day') ?? '01';
+    let h = get('hour') ?? '00';
+    if (h === '24') h = '00';
+    const key = `${y}-${m}-${day} ${h}:00`;
+    const label = `${h}:00`;
+    buckets.push({ key, label, tokens: '0', cost: '0.0000' });
+  }
+  return buckets;
+}
+
+/** 주어진 타임존 기준 최근 N일간의 TimeSeriesBucket 목록 생성 */
+function getDailyBuckets(days: number, tz: string): TimeSeriesBucket[] {
+  const buckets: TimeSeriesBucket[] = [];
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(now.getTime() - i * 24 * 3600 * 1000);
+    const key = formatter.format(d);
+    const label = key.slice(5).replace('-', '/'); // '09/17'
+    buckets.push({ key, label, tokens: '0', cost: '0.0000' });
+  }
+  return buckets;
+}
+
+/** 주어진 타임존 기준 최근 N개월간의 TimeSeriesBucket 목록 생성 */
+function getMonthlyBuckets(months: number, tz: string): TimeSeriesBucket[] {
+  const buckets: TimeSeriesBucket[] = [];
+  const now = new Date();
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+    }).formatToParts(d);
+    const get = (t: string) => parts.find((p) => p.type === t)?.value;
+    const y = get('year') ?? '2026';
+    const m = get('month') ?? '01';
+    const key = `${y}-${m}`;
+    const label = `${y.slice(2)}.${m}`; // '26.09'
+    buckets.push({ key, label, tokens: '0', cost: '0.0000' });
+  }
+  return buckets;
+}
+
 /** raw 쿼리 결과의 날짜를 'YYYY-MM-DD' 키로 정규화한다. */
 function toDateKey(value: Date | string): string {
   if (typeof value === 'string') {
@@ -313,6 +506,62 @@ function toDateKey(value: Date | string): string {
   }
   const d = value instanceof Date ? value : new Date(value);
   return d.toISOString().slice(0, 10);
+}
+
+/** raw 쿼리 결과의 버킷 키를 정규화한다. */
+function toBucketKey(value: Date | string): string {
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+  const d = value instanceof Date ? value : new Date(value);
+  return d.toISOString().slice(0, 10);
+}
+
+function resolveProvider(
+  modelCode: string,
+  agentName: string,
+): 'anthropic' | 'google' | 'openai' | 'deepseek' | 'other' {
+  const combined = `${modelCode} ${agentName}`.toLowerCase();
+  if (combined.includes('claude') || combined.includes('anthropic')) return 'anthropic';
+  if (
+    combined.includes('gemini') ||
+    combined.includes('antigravity') ||
+    combined.includes('google')
+  ) {
+    return 'google';
+  }
+  if (combined.includes('gpt') || combined.includes('openai')) return 'openai';
+  if (combined.includes('deepseek')) return 'deepseek';
+  return 'other';
+}
+
+function resolveDisplayName(modelCode: string, agentName: string): string {
+  const modelLabels: Record<string, string> = {
+    'gemini-3.8-flash': 'Gemini 3.8 Flash',
+    'gemini-3.7-flash': 'Gemini 3.7 Flash',
+    'gemini-3.6-flash': 'Gemini 3.6 Flash',
+    'gemini-3.1-flash-lite': 'Gemini 3.1 Flash Lite',
+    'gemini-2.5-pro': 'Gemini 2.5 Pro',
+    'claude-fable-5-1': 'Claude Fable 5.1',
+    'claude-fable-5': 'Claude Fable 5',
+    'claude-opus-5': 'Claude Opus 5',
+    'claude-sonnet-5': 'Claude Sonnet 5',
+    'claude-haiku-5': 'Claude Haiku 5',
+    'gpt-6-astra': 'GPT-6 Astra',
+    'gpt-6': 'GPT-6',
+    'gpt-5.6-sol': 'GPT-5.6 Sol',
+    'gpt-5.6-terra': 'GPT-5.6 Terra',
+    'gpt-5.6-luna': 'GPT-5.6 Luna',
+    'deepseek-chat': 'DeepSeek Chat',
+    'deepseek-reasoner': 'DeepSeek Reasoner',
+  };
+
+  const baseLabel = modelLabels[modelCode] || modelCode;
+  const cleanAgent = (agentName || '').trim();
+  if (cleanAgent && cleanAgent.toLowerCase() !== baseLabel.toLowerCase()) {
+    return `${baseLabel} (${cleanAgent})`;
+  }
+  return baseLabel;
 }
 
 /**

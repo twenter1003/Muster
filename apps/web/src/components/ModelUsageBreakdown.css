@@ -1,0 +1,213 @@
+/* 모델별 토큰 사용 현황 및 점유율 브레이크다운 컴포넌트 스타일 */
+
+.model-breakdown {
+  width: 100%;
+  background: var(--color-surface, #f9fafb);
+  border: 1px solid var(--color-rule, #e5e7eb);
+  border-radius: var(--radius, 6px);
+  padding: var(--space-3, 12px);
+  box-sizing: border-box;
+  margin-top: var(--space-3, 12px);
+}
+
+.model-breakdown--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4, 16px);
+}
+
+.model-breakdown__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2, 8px);
+  margin-bottom: var(--space-3, 12px);
+  padding-bottom: var(--space-2, 8px);
+  border-bottom: 1px solid var(--color-rule, #e5e7eb);
+}
+
+.model-breakdown__title-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+}
+
+.model-breakdown__title {
+  font-size: var(--font-size-body, 14px);
+  font-weight: 600;
+  color: var(--color-ink, #111827);
+}
+
+.model-breakdown__count-badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 12px;
+  background: var(--color-rule, #e5e7eb);
+  color: var(--color-ink-mid, #4b5563);
+}
+
+.model-breakdown__total-summary {
+  font-size: var(--font-size-meta, 12px);
+}
+
+.model-breakdown__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3, 12px);
+}
+
+.model-breakdown-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.model-breakdown-row__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.model-breakdown-row__left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.provider-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+}
+
+.provider-badge--anthropic {
+  background: #f5f3ff;
+  color: #6d28d9;
+  border-color: #ddd6fe;
+}
+
+.provider-badge--google {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+
+.provider-badge--openai {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+.provider-badge--deepseek {
+  background: #f0fdfa;
+  color: #0f766e;
+  border-color: #99f6e4;
+}
+
+.provider-badge--other {
+  background: #f3f4f6;
+  color: #374151;
+  border-color: #e5e7eb;
+}
+
+.model-breakdown-row__name {
+  font-size: var(--font-size-body, 13px);
+  font-weight: 600;
+  color: var(--color-ink, #111827);
+}
+
+.model-breakdown-row__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-meta, 12px);
+}
+
+.model-breakdown-row__tokens strong {
+  color: var(--color-ink, #111827);
+  font-weight: 600;
+}
+
+.model-breakdown-row__cost {
+  font-weight: 500;
+}
+
+.model-breakdown-row__runs {
+  font-size: 11px;
+}
+
+.model-breakdown-row__pct {
+  font-weight: 700;
+  color: var(--color-ink, #111827);
+  min-width: 42px;
+  text-align: right;
+}
+
+.model-breakdown-bar__track {
+  width: 100%;
+  height: 6px;
+  background: var(--color-rule, #e5e7eb);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.model-breakdown-bar__fill {
+  height: 100%;
+  border-radius: 9999px;
+  background: var(--color-cost, #059669);
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.model-breakdown-bar__fill--anthropic {
+  background: #8b5cf6;
+}
+
+.model-breakdown-bar__fill--google {
+  background: #3b82f6;
+}
+
+.model-breakdown-bar__fill--openai {
+  background: #10b981;
+}
+
+.model-breakdown-bar__fill--deepseek {
+  background: #06b6d4;
+}
+
+.model-breakdown-bar__fill--other {
+  background: #6b7280;
+}
+
+/* 640px 이하 모바일 최적화 */
+@media (max-width: 640px) {
+  .model-breakdown {
+    padding: var(--space-2, 8px);
+  }
+
+  .model-breakdown__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .model-breakdown-row__top {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .model-breakdown-row__right {
+    width: 100%;
+    justify-content: space-between;
+    font-size: 11px;
+  }
+}

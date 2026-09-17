@@ -15,7 +15,14 @@ import {
   toggleGoalChecklist,
 } from '../lib/goalChecklist';
 import { formatCost, formatTokenCount, getWasteBadge } from '../lib/tokenIntelligence';
-import { buildTokenUsageUrl, getAgentLabel, type AgentFilterType } from '../lib/agentFilter';
+import {
+  buildTokenUsageUrl,
+  getAgentLabel,
+  type AgentFilterType,
+  type TokenGranularity,
+} from '../lib/agentFilter';
+import { TokenStockChart } from '../components/TokenStockChart';
+import { ModelUsageBreakdown, type ModelUsageItem } from '../components/ModelUsageBreakdown';
 import { formatElapsedTime } from '../lib/projectListUtils';
 import { useSse } from '../lib/useSse';
 import { useApi } from '../lib/useApi';
@@ -93,6 +100,9 @@ interface UsageBreakdown {
   month_cost?: string;
   total_cost?: string;
   daily: Array<{ date: string; tokens: string; cost?: string }>;
+  granularity?: TokenGranularity;
+  time_series?: Array<{ key: string; label: string; tokens: string; cost: string }>;
+  model_breakdown?: ModelUsageItem[];
   waste_insight?: WasteInsightSummary;
   recent_runs?: SessionRunView[];
 }
@@ -122,28 +132,6 @@ function healthScore(data: Page<HealthSnapshotView> | null): Measurable<number> 
   if (!latest) return null;
   const score = Number(latest.composite_score);
   return Number.isFinite(score) ? score : null;
-}
-
-/** daily 사용량을 0~1로 정규화해 간단한 꺾은선으로 그린다. 값이 전부 0이면 바닥선만 남긴다. */
-function Sparkline({ daily }: { daily: Array<{ date: string; tokens: string }> }) {
-  const values = daily.map((d) => Number(d.tokens));
-  const max = Math.max(1, ...values);
-  const w = 240;
-  const h = 40;
-  const step = daily.length > 1 ? w / (daily.length - 1) : 0;
-  const points = values.map((v, i) => `${i * step},${h - (v / max) * (h - 4) - 2}`).join(' ');
-
-  return (
-    <svg
-      width="100%"
-      height={h}
-      viewBox={`0 0 ${w} ${h}`}
-      preserveAspectRatio="none"
-      className="detail__sparkline"
-    >
-      <polyline points={points} fill="none" stroke="currentColor" strokeWidth="2" />
-    </svg>
-  );
 }
 
 type DeleteMode = 'site' | 'repo';
@@ -665,7 +653,10 @@ export function ProjectDetailPage() {
     id ? `/projects/${id}/logs?limit=5${level ? `&level=${level}` : ''}` : null,
   );
   const tz = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Seoul', []);
-  const usage = useApi<UsageBreakdown>(id ? buildTokenUsageUrl(id, agentFilter, tz) : null);
+  const [chartGranularity, setChartGranularity] = useState<TokenGranularity>('day');
+  const usage = useApi<UsageBreakdown>(
+    id ? buildTokenUsageUrl(id, agentFilter, tz, chartGranularity) : null,
+  );
   const documents = useApi<Page<DocumentView>>(id ? `/projects/${id}/documents?limit=5` : null);
 
   const { events: sseEvents, state: sseState } = useSse(id ?? null);
@@ -992,14 +983,36 @@ export function ProjectDetailPage() {
                     )}
                   </span>
                 </p>
-                <Sparkline daily={usage.data.daily} />
-                <p className="meta">
+                <TokenStockChart
+                  data={
+                    usage.data.time_series && usage.data.time_series.length > 0
+                      ? usage.data.time_series
+                      : usage.data.daily.map((d) => ({
+                          key: d.date,
+                          label: d.date.slice(5).replace('-', '/'),
+                          tokens: d.tokens,
+                          cost: d.cost || '0.0000',
+                        }))
+                  }
+                  granularity={chartGranularity}
+                  onGranularityChange={setChartGranularity}
+                  isLoading={usage.loading}
+                />
+                <p className="meta" style={{ marginTop: 'var(--space-2)' }}>
                   오늘{' '}
                   <strong style={{ color: 'var(--color-ink)' }}>
                     {formatTokenCount(usage.data.today_tokens)} 토큰
                   </strong>{' '}
                   <span className="cost-text">({formatCost(usage.data.today_cost)})</span>
                 </p>
+
+                {usage.data.model_breakdown && usage.data.model_breakdown.length > 0 && (
+                  <ModelUsageBreakdown
+                    models={usage.data.model_breakdown}
+                    totalTokens={usage.data.total_tokens || usage.data.month_tokens}
+                    totalCost={usage.data.total_cost || usage.data.month_cost}
+                  />
+                )}
 
                 <div style={{ marginTop: 'var(--space-2)' }}>
                   <button

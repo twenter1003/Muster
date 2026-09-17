@@ -121,10 +121,11 @@ export class ProjectAgentsController {
   @UseGuards(ProjectMemberGuard)
   async getTokenUsage(
     @Param('id') projectId: string,
+    @Query('granularity') granularity?: 'hour' | 'day' | 'month',
     @Query('agent_name') agentName?: string,
     @Query('tz') tz?: string,
   ): Promise<UsageBreakdown> {
-    return this.budget.dailyUsage(projectId, agentName, tz);
+    return this.budget.dailyUsage(projectId, agentName, tz, granularity);
   }
 
   /**
