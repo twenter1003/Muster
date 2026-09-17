@@ -46,3 +46,18 @@ export function getWasteBadge(level?: WasteLevel): WasteBadgeInfo {
       return { text: '정상', className: 'badge' };
   }
 }
+
+/**
+ * USD 비용을 통화 형식($X.XX)으로 포맷팅한다.
+ * 1센트 미만의 소액인 경우 소수점 4자리까지 표기($0.0001)하여 정밀도를 보존한다.
+ */
+export function formatCost(cost?: number | string | null): string {
+  if (cost === undefined || cost === null) return '$0.00';
+  const num = typeof cost === 'string' ? Number(cost) : cost;
+  if (!Number.isFinite(num) || num <= 0) return '$0.00';
+
+  if (num < 0.01) {
+    return `$${num.toFixed(4)}`;
+  }
+  return `$${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}

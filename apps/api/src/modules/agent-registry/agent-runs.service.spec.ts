@@ -1,6 +1,7 @@
 import { Repository } from 'typeorm';
 import { AgentRunsService } from './agent-runs.service';
 import { BudgetService } from './budget.service';
+import { ModelPricingService } from './model-pricing.service';
 import { ApiException } from '../../common/errors/api.exception';
 import type { Agent, AgentRun, GitIntegration, ProjectMember } from '../../database/entities';
 
@@ -11,6 +12,7 @@ describe('AgentRunsService', () => {
   let membersRepo: Partial<Repository<ProjectMember>>;
   let gitIntegrationsRepo: Partial<Repository<GitIntegration>>;
   let budgetService: Partial<BudgetService>;
+  let modelPricingService: ModelPricingService;
 
   beforeEach(() => {
     runsRepo = {
@@ -21,7 +23,7 @@ describe('AgentRunsService', () => {
     agentsRepo = {
       create: jest.fn().mockImplementation((val) => val),
       save: jest.fn().mockImplementation(async (val) => ({ id: 'agent-new', ...val })),
-      findOneBy: jest.fn().mockResolvedValue({ id: 'agent-1', project_id: 'proj-1' } as Agent),
+      findOneBy: jest.fn().mockResolvedValue({ id: 'agent-1', name: 'claude-code', project_id: 'proj-1' } as Agent),
     };
     membersRepo = {
       find: jest.fn().mockResolvedValue([{ user_id: 'user-1', role: 'owner' }] as ProjectMember[]),
@@ -41,6 +43,7 @@ describe('AgentRunsService', () => {
       sumUsage: jest.fn().mockResolvedValue({ tokens: '100', cost: '0' }),
       recalculateAndAlert: jest.fn().mockResolvedValue(undefined),
     };
+    modelPricingService = new ModelPricingService();
 
     service = new AgentRunsService(
       runsRepo as Repository<AgentRun>,
@@ -48,6 +51,7 @@ describe('AgentRunsService', () => {
       membersRepo as Repository<ProjectMember>,
       gitIntegrationsRepo as Repository<GitIntegration>,
       budgetService as BudgetService,
+      modelPricingService,
     );
   });
 
@@ -95,6 +99,23 @@ describe('AgentRunsService', () => {
         cost: '0',
       });
       expect(run.id).toBe('run-1');
+    });
+
+    it('tokens_used가 주어졌으나 cost가 누락된 경우 모델 단가를 적용하여 cost를 자동 계산한다', async () => {
+      // agent-1은 claude-code이므로 claude-sonnet-5 (blended $3.60/1M)
+      // 100,000 토큰 = $0.3600
+      await service.start('agent-1', {
+        status: 'succeeded',
+        tokens_used: 100_000,
+      });
+
+      expect(runsRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agent_id: 'agent-1',
+          tokens_used: 100_000,
+          cost: '0.3600',
+        }),
+      );
     });
   });
 

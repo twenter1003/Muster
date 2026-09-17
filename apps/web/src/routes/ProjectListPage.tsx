@@ -5,7 +5,7 @@ import { HealthIndicator } from '../components/HealthIndicator';
 import { apiFetch, type Page } from '../lib/api';
 import { EM_DASH, type Measurable } from '../lib/domain';
 import { useApi } from '../lib/useApi';
-import { formatTokenCount } from '../lib/tokenIntelligence';
+import { formatCost, formatTokenCount } from '../lib/tokenIntelligence';
 import './ProjectListPage.css';
 
 interface ProjectView {
@@ -24,6 +24,7 @@ interface HealthSnapshotView {
 interface DeploymentEventView {
   kind: string;
   status: string;
+  commit_sha: string;
   occurred_at: string;
 }
 
@@ -36,12 +37,17 @@ interface UsageBreakdown {
   today_tokens: string;
   month_tokens: string;
   total_tokens?: string;
+  today_cost?: string;
+  month_cost?: string;
+  total_cost?: string;
 }
 
 interface TokenUsageSummary {
   today: string;
   total: string;
   month: string;
+  todayCost?: string;
+  totalCost?: string;
 }
 
 /* ───────────────────────── 점진적 채움 ─────────────────────────
@@ -150,6 +156,8 @@ export function ProjectListPage() {
           today: r.today_tokens ?? '0',
           total: r.total_tokens ?? r.month_tokens ?? r.today_tokens ?? '0',
           month: r.month_tokens ?? '0',
+          todayCost: r.today_cost ?? '0',
+          totalCost: r.total_cost ?? r.month_cost ?? r.today_cost ?? '0',
         }),
       ).then((tokens) => apply(p.id, { tokens }));
     }
@@ -209,24 +217,26 @@ export function ProjectListPage() {
                   <SlotCell slot={d.health} render={(score) => <HealthIndicator score={score} />} />
                   <SlotCell
                     slot={d.tokens}
-                    render={({ today, total }) => {
+                    render={({ today, total, todayCost, totalCost }) => {
                        const todayNum = Number(today);
+                       const totalCostStr = formatCost(totalCost);
+                       const todayCostStr = formatCost(todayCost);
                        if (todayNum > 0) {
                          return (
                            <span
                              className="plist__token-count"
-                             title={`총 ${formatTokenCount(total)} 토큰 · 오늘 ${formatTokenCount(today)} 토큰`}
+                             title={`총 ${formatTokenCount(total)} 토큰 (${totalCostStr}) · 오늘 ${formatTokenCount(today)} 토큰 (${todayCostStr})`}
                            >
-                             {formatTokenCount(total)} 토큰 (오늘 {formatTokenCount(today)})
+                             {formatTokenCount(total)} ({totalCostStr}) · 오늘 {formatTokenCount(today)} ({todayCostStr})
                            </span>
                          );
                        }
                        return (
                          <span
                            className="plist__token-count"
-                           title={`총 ${formatTokenCount(total)} 토큰`}
+                           title={`총 ${formatTokenCount(total)} 토큰 (${totalCostStr})`}
                          >
-                           {formatTokenCount(total)} 토큰
+                           {formatTokenCount(total)} 토큰 ({totalCostStr})
                          </span>
                        );
                      }}

@@ -1,4 +1,4 @@
-import { IsDateString, IsIn, IsInt, IsNumberString, IsOptional, Min } from 'class-validator';
+import { IsDateString, IsIn, IsInt, IsNumberString, IsOptional, IsString, Min } from 'class-validator';
 import { AGENT_RUN_STATUSES, type AgentRunStatus } from '../../../database/entities/enums';
 
 /**
@@ -16,6 +16,10 @@ export class CreateRunDto {
   @IsInt({ message: 'tokens_used는 정수여야 합니다.' })
   @Min(0)
   tokens_used?: number;
+
+  @IsOptional()
+  @IsString({ message: 'model은 문자열이어야 합니다.' })
+  model?: string;
 
   @IsOptional()
   @IsNumberString({ no_symbols: false }, { message: 'cost는 숫자 문자열이어야 합니다.' })

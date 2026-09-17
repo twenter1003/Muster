@@ -228,5 +228,33 @@ describe('BudgetService', () => {
       );
       expect(calledWithAgentName).toBe(false);
     });
+
+    it('dailyUsage 결과에 today_cost, month_cost, total_cost가 올바르게 매핑된다', async () => {
+      const qbMock = {
+        innerJoin: jest.fn().mockReturnThis(),
+        innerJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([]),
+        getRawOne: jest.fn().mockResolvedValue({ tokens: '50000', cost: '0.1800' }),
+        getMany: jest.fn().mockResolvedValue([]),
+      };
+
+      const runsRepo = {
+        createQueryBuilder: jest.fn().mockReturnValue(qbMock),
+      } as unknown as Repository<AgentRun>;
+
+      const service = new BudgetService({} as never, runsRepo, new EventEmitter2());
+
+      const result = await service.dailyUsage(PROJECT);
+
+      expect(result.month_cost).toBe('0.1800');
+      expect(result.total_cost).toBe('0.1800');
+    });
   });
 });

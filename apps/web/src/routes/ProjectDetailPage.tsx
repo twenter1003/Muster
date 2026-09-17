@@ -13,7 +13,7 @@ import {
   parseGoalChecklist,
   toggleGoalChecklist,
 } from '../lib/goalChecklist';
-import { formatTokenCount, getWasteBadge } from '../lib/tokenIntelligence';
+import { formatCost, formatTokenCount, getWasteBadge } from '../lib/tokenIntelligence';
 import { buildTokenUsageUrl, getAgentLabel, type AgentFilterType } from '../lib/agentFilter';
 import { useApi } from '../lib/useApi';
 import './ProjectDetailPage.css';
@@ -86,7 +86,10 @@ interface UsageBreakdown {
   today_tokens: string;
   month_tokens: string;
   total_tokens?: string;
-  daily: Array<{ date: string; tokens: string }>;
+  today_cost?: string;
+  month_cost?: string;
+  total_cost?: string;
+  daily: Array<{ date: string; tokens: string; cost?: string }>;
   waste_insight?: WasteInsightSummary;
   recent_runs?: SessionRunView[];
 }
@@ -755,15 +758,20 @@ export function ProjectDetailPage() {
               <>
                 <p className="detail__big">
                   {formatTokenCount(usage.data.month_tokens)}{' '}
+                  <span className="meta" style={{ fontSize: 'var(--font-size-base)', fontWeight: 'normal' }}>
+                    ({formatCost(usage.data.month_cost)})
+                  </span>{' '}
                   <span className="meta">
                     이번 달
                     {usage.data.total_tokens
-                      ? ` · 총 ${formatTokenCount(usage.data.total_tokens)}`
+                      ? ` · 총 ${formatTokenCount(usage.data.total_tokens)} (${formatCost(usage.data.total_cost)})`
                       : ''}
                   </span>
                 </p>
                 <Sparkline daily={usage.data.daily} />
-                <p className="meta">오늘 {formatTokenCount(usage.data.today_tokens)} 토큰</p>
+                <p className="meta">
+                  오늘 {formatTokenCount(usage.data.today_tokens)} 토큰 ({formatCost(usage.data.today_cost)})
+                </p>
 
                 <div style={{ marginTop: 'var(--space-2)' }}>
                   <button
@@ -815,7 +823,7 @@ export function ProjectDetailPage() {
                             {agentLabel}
                           </span>
                           <span className="detail__row-text">{r.agent_name}</span>
-                          <span className="meta">{formatTokenCount(r.tokens_used)}</span>
+                          <span className="meta">{formatTokenCount(r.tokens_used)} ({formatCost(r.cost)})</span>
                           <span className="meta">{formatDateTime(r.started_at)}</span>
                         </div>
                       );

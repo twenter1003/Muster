@@ -8,6 +8,7 @@ import {
 import { AgentsService } from './agents.service';
 import { AgentRunsService } from './agent-runs.service';
 import { BudgetService } from './budget.service';
+import { ModelPricingService } from './model-pricing.service';
 
 /**
  * AgentRegistry — 에이전트 설정(md), 실행 이력, 프로젝트 예산.
@@ -23,6 +24,7 @@ import { BudgetService } from './budget.service';
     AgentRunsController,
     ConnectScriptController,
   ],
-  providers: [AgentsService, AgentRunsService, BudgetService],
+  providers: [AgentsService, AgentRunsService, BudgetService, ModelPricingService],
+  exports: [ModelPricingService],
 })
 export class AgentRegistryModule {}

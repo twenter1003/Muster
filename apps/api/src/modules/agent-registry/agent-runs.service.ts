@@ -6,6 +6,7 @@ import { ApiException } from '../../common/errors/api.exception';
 import { buildPage, type Page, type PageRequest } from '../../common/pagination/paginate';
 import { normalizeGitRepoUrl } from '../project-core/repo-url';
 import { BudgetService } from './budget.service';
+import { ModelPricingService } from './model-pricing.service';
 import type { CreateRunDto } from './dto/create-run.dto';
 import type { RecordRunByRepoDto } from './dto/record-run-by-repo.dto';
 import type { UpdateRunDto } from './dto/update-run.dto';
@@ -22,6 +23,7 @@ export class AgentRunsService {
     @InjectRepository(ProjectMember) private readonly members: Repository<ProjectMember>,
     @InjectRepository(GitIntegration) private readonly gitIntegrations: Repository<GitIntegration>,
     private readonly budget: BudgetService,
+    private readonly modelPricing: ModelPricingService,
   ) {}
 
   /**
@@ -42,12 +44,24 @@ export class AgentRunsService {
     const projectId = agent?.project_id;
     const before = projectId && status !== 'running' ? await this.budget.sumUsage(projectId) : null;
 
+    const tokensUsed = dto?.tokens_used ?? 0;
+    let cost = dto?.cost;
+    if ((!cost || Number(cost) === 0) && tokensUsed > 0) {
+      cost = this.modelPricing.calculateCost({
+        tokens: tokensUsed,
+        agentName: agent?.name,
+        model: dto?.model,
+      });
+    } else if (!cost) {
+      cost = '0';
+    }
+
     const run = await this.runs.save(
       this.runs.create({
         agent_id: agentId,
         status,
-        tokens_used: dto?.tokens_used ?? 0,
-        cost: dto?.cost ?? '0',
+        tokens_used: tokensUsed,
+        cost,
         started_at: startedAt,
         ended_at: endedAt,
       }),
@@ -114,7 +128,8 @@ export class AgentRunsService {
     return this.start(agent.id, {
       status: dto.status ?? 'succeeded',
       tokens_used: dto.tokens_used,
-      cost: dto.cost ?? '0',
+      model: dto.model,
+      cost: dto.cost,
       started_at: dto.started_at,
       ended_at: dto.ended_at,
     });
@@ -143,7 +158,16 @@ export class AgentRunsService {
 
     if (dto.status !== undefined) run.status = dto.status;
     if (dto.tokens_used !== undefined) run.tokens_used = dto.tokens_used;
-    if (dto.cost !== undefined) run.cost = dto.cost;
+    if (dto.cost !== undefined) {
+      run.cost = dto.cost;
+    } else if ((!run.cost || Number(run.cost) === 0) && run.tokens_used > 0) {
+      const agent = await this.agents.findOneBy({ id: run.agent_id });
+      run.cost = this.modelPricing.calculateCost({
+        tokens: run.tokens_used,
+        agentName: agent?.name,
+        model: dto.model,
+      });
+    }
 
     // running이 아닌 상태로 옮겼는데 종료 시각이 없으면 "끝났지만 언제인지 모르는" 행이 남는다.
     if (run.status !== 'running' && !run.ended_at) run.ended_at = new Date();

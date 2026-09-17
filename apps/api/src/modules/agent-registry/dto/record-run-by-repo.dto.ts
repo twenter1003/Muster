@@ -29,6 +29,10 @@ export class RecordRunByRepoDto {
   tokens_used!: number;
 
   @IsOptional()
+  @IsString({ message: 'model은 문자열이어야 합니다.' })
+  model?: string;
+
+  @IsOptional()
   @IsNumberString({ no_symbols: false }, { message: 'cost는 숫자 문자열이어야 합니다.' })
   cost?: string;
 

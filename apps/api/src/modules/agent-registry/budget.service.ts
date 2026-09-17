@@ -44,8 +44,11 @@ export interface UsageBreakdown {
   today_tokens: string;
   month_tokens: string;
   total_tokens?: string;
+  today_cost?: string;
+  month_cost?: string;
+  total_cost?: string;
   /** 오래된 날짜부터 오늘까지, 값이 없는 날도 '0'으로 채워서 스파크라인이 끊기지 않게 한다. */
-  daily: Array<{ date: string; tokens: string }>;
+  daily: Array<{ date: string; tokens: string; cost?: string }>;
   waste_insight?: WasteInsightSummary;
   recent_runs?: SessionRunView[];
 }
@@ -182,6 +185,7 @@ export class BudgetService {
       })
       .select("to_char(COALESCE(r.ended_at, r.started_at) AT TIME ZONE :tz, 'YYYY-MM-DD')", 'day')
       .addSelect('COALESCE(SUM(r.tokens_used), 0)', 'tokens')
+      .addSelect('COALESCE(SUM(r.cost), 0)', 'cost')
       .groupBy("to_char(COALESCE(r.ended_at, r.started_at) AT TIME ZONE :tz, 'YYYY-MM-DD')");
 
     let monthQb = this.runs
@@ -192,13 +196,15 @@ export class BudgetService {
         "to_char(COALESCE(r.ended_at, r.started_at) AT TIME ZONE :tz, 'YYYY-MM') = :currentMonth",
         { currentMonth, tz },
       )
-      .select('COALESCE(SUM(r.tokens_used), 0)', 'tokens');
+      .select('COALESCE(SUM(r.tokens_used), 0)', 'tokens')
+      .addSelect('COALESCE(SUM(r.cost), 0)', 'cost');
 
     let totalQb = this.runs
       .createQueryBuilder('r')
       .innerJoin(Agent, 'a', 'a.id = r.agent_id')
       .where('a.project_id = :projectId', { projectId })
-      .select('COALESCE(SUM(r.tokens_used), 0)', 'tokens');
+      .select('COALESCE(SUM(r.tokens_used), 0)', 'tokens')
+      .addSelect('COALESCE(SUM(r.cost), 0)', 'cost');
 
     let recentQb = this.runs
       .createQueryBuilder('r')
@@ -215,17 +221,21 @@ export class BudgetService {
     }
 
     const [rows, monthRow, totalRow, recentRuns] = await Promise.all([
-      rowsQb.getRawMany<{ day: Date | string; tokens: string }>(),
-      monthQb.getRawOne<{ tokens: string }>(),
-      totalQb.getRawOne<{ tokens: string }>(),
+      rowsQb.getRawMany<{ day: Date | string; tokens: string; cost: string }>(),
+      monthQb.getRawOne<{ tokens: string; cost: string }>(),
+      totalQb.getRawOne<{ tokens: string; cost: string }>(),
       recentQb.getMany(),
     ]);
 
-    const byDay = new Map(rows.map((r) => [toDateKey(r.day), r.tokens]));
-    const daily = dailyDates.map((date) => ({
-      date,
-      tokens: byDay.get(date) ?? '0',
-    }));
+    const byDay = new Map(rows.map((r) => [toDateKey(r.day), { tokens: r.tokens, cost: r.cost }]));
+    const daily = dailyDates.map((date) => {
+      const entry = byDay.get(date);
+      return {
+        date,
+        tokens: entry?.tokens ?? '0',
+        cost: entry?.cost ?? '0',
+      };
+    });
 
     const recent_runs: SessionRunView[] = recentRuns.map((r) => ({
       id: r.id,
@@ -240,8 +250,11 @@ export class BudgetService {
 
     return {
       today_tokens: daily.at(-1)?.tokens ?? '0',
+      today_cost: daily.at(-1)?.cost ?? '0',
       month_tokens: String(monthRow?.tokens ?? '0'),
+      month_cost: String(monthRow?.cost ?? '0'),
       total_tokens: String(totalRow?.tokens ?? '0'),
+      total_cost: String(totalRow?.cost ?? '0'),
       daily,
       waste_insight: computeWasteInsight(recentRuns),
       recent_runs,

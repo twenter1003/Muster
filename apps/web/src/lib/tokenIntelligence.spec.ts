@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatTokenCount, getWasteBadge } from './tokenIntelligence';
+import { formatCost, formatTokenCount, getWasteBadge } from './tokenIntelligence';
 
 describe('tokenIntelligence', () => {
   describe('formatTokenCount', () => {
@@ -40,6 +40,29 @@ describe('tokenIntelligence', () => {
       const badge = getWasteBadge('NORMAL');
       expect(badge.text).toBe('정상');
       expect(badge.className).toBe('badge');
+    });
+  });
+
+  describe('formatCost', () => {
+    it('0 또는 잘못된 값은 $0.00을 반환한다', () => {
+      expect(formatCost(0)).toBe('$0.00');
+      expect(formatCost('0')).toBe('$0.00');
+      expect(formatCost(null)).toBe('$0.00');
+      expect(formatCost(undefined)).toBe('$0.00');
+      expect(formatCost(-5)).toBe('$0.00');
+      expect(formatCost('invalid')).toBe('$0.00');
+    });
+
+    it('1센트 미만 소액은 소수점 4자리까지 표시한다', () => {
+      expect(formatCost(0.0001)).toBe('$0.0001');
+      expect(formatCost('0.0045')).toBe('$0.0045');
+    });
+
+    it('일반 금액은 달러 센트 2자리로 포맷팅한다', () => {
+      expect(formatCost(0.05)).toBe('$0.05');
+      expect(formatCost(3.6)).toBe('$3.60');
+      expect(formatCost('19.44')).toBe('$19.44');
+      expect(formatCost(1234.56)).toBe('$1,234.56');
     });
   });
 });
