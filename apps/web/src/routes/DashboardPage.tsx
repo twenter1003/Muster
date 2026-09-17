@@ -19,6 +19,7 @@ import {
 } from '../lib/domain';
 import { useApi } from '../lib/useApi';
 import { useSse } from '../lib/useSse';
+import { formatTokenCount } from '../lib/tokenIntelligence';
 import './DashboardPage.css';
 
 /*
@@ -73,20 +74,14 @@ interface LogView {
 }
 
 /**
- * 토큰 수를 K/M으로 줄여 쓴다. KPI 카드 한 칸에 1325650이 그대로 들어가면 자릿수를 세게 된다.
- * 문자열로 받은 값을 BigInt로 다룬다 — number로 옮기면 큰 값에서 정밀도를 잃는다.
+ * 토큰 수를 B/M/K로 줄여 쓴다. KPI 카드 한 칸에 1325650이 그대로 들어가면 자릿수를 세게 된다.
  */
 function formatTokens(raw: string): string {
-  let n: bigint;
   try {
-    n = BigInt(raw);
+    return formatTokenCount(raw);
   } catch {
     return EM_DASH;
   }
-
-  if (n >= 1_000_000n) return `${(Number(n) / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000n) return `${(Number(n) / 1_000).toFixed(1)}K`;
-  return n.toString();
 }
 
 interface ReportSummaryView {

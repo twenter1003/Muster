@@ -5,6 +5,7 @@ import { HealthIndicator } from '../components/HealthIndicator';
 import { apiFetch, type Page } from '../lib/api';
 import { EM_DASH, type Measurable } from '../lib/domain';
 import { useApi } from '../lib/useApi';
+import { formatTokenCount } from '../lib/tokenIntelligence';
 import './ProjectListPage.css';
 
 interface ProjectView {
@@ -33,6 +34,14 @@ interface LogView {
 
 interface UsageBreakdown {
   today_tokens: string;
+  month_tokens: string;
+  total_tokens?: string;
+}
+
+interface TokenUsageSummary {
+  today: string;
+  total: string;
+  month: string;
 }
 
 /* ───────────────────────── 점진적 채움 ─────────────────────────
@@ -49,7 +58,7 @@ interface RowDetail {
   health: Slot<number>;
   deployStatus: Slot<string>;
   lastLog: Slot<string>;
-  tokens: Slot<string>;
+  tokens: Slot<TokenUsageSummary>;
 }
 
 const EMPTY_DETAIL: RowDetail = {
@@ -133,9 +142,13 @@ export function ProjectListPage() {
         return latest ? latest.message : null;
       }).then((lastLog) => apply(p.id, { lastLog }));
 
-      void slotFrom<UsageBreakdown, string>(
+      void slotFrom<UsageBreakdown, TokenUsageSummary>(
         `/projects/${p.id}/token-usage`,
-        (r) => r.today_tokens,
+        (r) => ({
+          today: r.today_tokens ?? '0',
+          total: r.total_tokens ?? r.month_tokens ?? r.today_tokens ?? '0',
+          month: r.month_tokens ?? '0',
+        }),
       ).then((tokens) => apply(p.id, { tokens }));
     }
 
@@ -192,7 +205,31 @@ export function ProjectListPage() {
                 </p>
                 <div className="plist__card-foot">
                   <SlotCell slot={d.health} render={(score) => <HealthIndicator score={score} />} />
-                  <SlotCell slot={d.tokens} render={(t) => `${t} 토큰 · 오늘`} />
+                  <SlotCell
+                    slot={d.tokens}
+                    render={({ today, total }) => {
+                      const todayNum = Number(today);
+                      const totalNum = Number(total);
+                      if (todayNum > 0 && totalNum > 0 && todayNum !== totalNum) {
+                        return (
+                          <span
+                            className="plist__token-count"
+                            title={`총 ${formatTokenCount(total)} 토큰 · 오늘 ${formatTokenCount(today)} 토큰`}
+                          >
+                            총 {formatTokenCount(total)} (오늘 {formatTokenCount(today)})
+                          </span>
+                        );
+                      }
+                      return (
+                        <span
+                          className="plist__token-count"
+                          title={`총 ${formatTokenCount(total)} 토큰`}
+                        >
+                          {formatTokenCount(total)} 토큰
+                        </span>
+                      );
+                    }}
+                  />
                 </div>
               </Link>
             );

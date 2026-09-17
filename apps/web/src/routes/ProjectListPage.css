@@ -71,6 +71,12 @@
   color: var(--color-ink-mid);
 }
 
+.plist__token-count {
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-mid);
+  white-space: nowrap;
+}
+
 @media (max-width: 767px) {
   .plist__grid {
     grid-template-columns: 1fr;
