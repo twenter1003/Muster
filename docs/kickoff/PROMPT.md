@@ -42,6 +42,15 @@ Claude Code/LLM 기반으로 여러 사이드 프로젝트를 진행하는 사�
 
 ## 최근 완료된 것 (최신순, 상세는 git log)
 
+- **에이전트별 실시간 토큰 소모 속도(Burn Rate) 추적 및 예산 급증(Budget Spike) 조기 경보 HUD 구축 (PR #65)**
+  - 백엔드 `burn-rate.ts`: 최근 15분 윈도우 및 활성 세션 기반 `computeBurnRate` 도메인 수식(SpikeLevel: normal/warning/critical, 임계치 30k, 60k tokens/min, $0.50/min) 및 recommendation 생성기 구현.
+  - `budget.service.ts`: `calculateBurnRate()` 메서드 신설 및 `dailyUsage()` 응답의 `UsageBreakdown` 내 `burn_rate` 필드 통합 제공.
+  - `agents.controller.ts`: `GET /projects/:id/burn-rate` 엔드포인트 신설.
+  - 프론트엔드 `burnRate.ts`: k/min, M/min 속도 포맷터, 스파이크 등급 평가, SSE 실시간 하트비트 결합 60fps 연산 유틸리티 구현.
+  - `TokenStockChart.tsx` & `.css`: 상단 HUD 실시간 Burn Rate 뱃지(Normal 에메랄드, Warning 앰버, Critical 레드 글로우 펄스) 및 에이전트별 세부 소모 속도 미니 팝오버 탑재.
+  - `ProjectDetailPage.tsx` & `.css`: 비정상 급증(Warning/Critical) 감지 시 상단 조기 경보 배너(`[data-testid="budget-spike-alert"]`) 렌더링.
+  - 테스트: API 489개 + Web 202개 + Connect 13개 등 총 704개 전수 유닛 테스트 100% 통과 (All Green).
+  - `graphify update .`를 통한 지식 그래프 최신화 동기화 완료 (3,172 노드, 7,673 엣지).
 - **TokenStockChart 마우스 호버 인터랙티브 플로팅 툴팁(Floating Tooltip) 및 다중 에이전트 수치 인포박스 구축**
   - 마우스/터치 호버 시 크로스헤어와 연동되는 2026 다크 글래스모피즘 플로팅 툴팁(`[data-testid="chart-floating-tooltip"]`) 구현.
   - 지능형 스마트 플립(Smart Flip & Clamping): 차트 우측에서는 좌측으로, 좌측에서는 우측으로 자동 전환 및 Y축 클램핑으로 뷰포트 경계 이탈 방지.
@@ -71,17 +80,19 @@ Claude Code/LLM 기반으로 여러 사이드 프로젝트를 진행하는 사�
 
 ## 차기 세션 최우선 착수 과제 (Current Priority Task)
 
-### 🚨 에이전트별 실시간 토큰 소모 속도(Burn Rate, tokens/min) 추적 및 예산 급증(Budget Spike) 조기 경보 HUD 구축
+### 🚨 PR #65 머지 및 차기 과제 인계
 
-**배경 & 필요성**:
-- 에이전트가 긴 루프에 빠지거나 대용량 파일을 반복 읽을 때 토큰과 비용이 비정상적으로 급증하는 문제를 조기에 감지할 필요성.
-- 최근 5분/15분 단위의 Burn Rate(분당 토큰 및 비용 소모 속도)를 계산하여 비정상 스파이크 감지 시 시각적 경보(Badge/Alert)와 권장 중단 조치를 실시간으로 제안.
-
-**4인 원팀 협업 계획**:
-1. **PM (오케스트레이터)**: Burn Rate 임계치(예: >50k tokens/min) 기준 수립 및 조기 경보 배지/토스트 UX 명세 정의.
-2. **백엔드 (Backend)**: `budget.service.ts`에 최근 시간 윈도우 기반 실시간 burn rate 계산 및 스파이크 탐지 엔드포인트/필드 추가.
-3. **프론트엔드 (Frontend)**: `TokenStockChart` 및 프로젝트 상단 HUD에 실시간 Burn Rate 게이지 및 급증 경보 배지 연동.
-4. **QA (품질 검증)**: 유닛 테스트 추가, 모의 부하 시나리오 스크린샷 캡처 및 `graphify update .` 수행.
+1. **PR #65 머지 및 로컬 main 동기화 (최우선)**:
+   - [PR #65](https://github.com/twenter1003/Muster/pull/65) (`feat/burn-rate-budget-spike-hud`)의 CI 통과를 확인하고 머지 진행 (`gh pr merge 65 --squash --delete-branch`).
+   - 머지 완료 후 로컬 main으로 전환하고 동기화:
+     ```bash
+     git checkout main && git pull origin main
+     ```
+2. **차기 고도화 과제: 에이전트 세션별 토큰/비용 낭비 이력 딥다이브 모달 및 원클릭 세션 중단(Kill/Abort) 기능 구축**:
+   - **배경**: Burn Rate 조기 경보 발생 시, 사용자가 어떤 세션/파일 읽기에서 토큰 폭주가 일어났는지 즉시 파악하고 불필요한 장기 세션을 대시보드에서 즉시 강제 종료(abort)할 수 있는 조치 수단 제공.
+   - **백엔드**: `AgentRunsController`에 `POST /agents/:agentId/runs/:runId/abort` 지원 (status -> 'cancelled' 및 감사 로그 기록).
+   - **프론트엔드**: 경보 배너 및 에이전트 상세 카드에 `[세션 중단]` 액션 버튼 및 세션 낭비 분석 딥다이브 모달 연동.
+   - **QA**: 취소 이벤트 및 SSE 갱신 테스트, 화면 스크린샷 캡처.
 
 ---
 
