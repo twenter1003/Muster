@@ -227,8 +227,10 @@ export function ProjectListPage() {
                             className="plist__token-count"
                             title={`총 ${formatTokenCount(total)} 토큰 (${totalCostStr}) · 오늘 ${formatTokenCount(today)} 토큰 (${todayCostStr})`}
                           >
-                            {formatTokenCount(total)} ({totalCostStr}) · 오늘{' '}
-                            {formatTokenCount(today)} ({todayCostStr})
+                            {formatTokenCount(total)} (
+                            <span className="cost-text">{totalCostStr}</span>) · 오늘{' '}
+                            {formatTokenCount(today)} (
+                            <span className="cost-text">{todayCostStr}</span>)
                           </span>
                         );
                       }
@@ -237,7 +239,8 @@ export function ProjectListPage() {
                           className="plist__token-count"
                           title={`총 ${formatTokenCount(total)} 토큰 (${totalCostStr})`}
                         >
-                          {formatTokenCount(total)} 토큰 ({totalCostStr})
+                          {formatTokenCount(total)} 토큰 (
+                          <span className="cost-text">{totalCostStr}</span>)
                         </span>
                       );
                     }}

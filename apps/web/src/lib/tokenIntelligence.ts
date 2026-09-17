@@ -38,12 +38,12 @@ export function formatTokenCount(tokens: number | string): string {
 export function getWasteBadge(level?: WasteLevel): WasteBadgeInfo {
   switch (level) {
     case 'HIGH_WASTE':
-      return { text: '낭비 위험', className: 'badge badge--signal' };
+      return { text: '낭비 위험', className: 'badge badge--warn' };
     case 'CAUTION':
-      return { text: '주의', className: 'badge' };
+      return { text: '주의', className: 'badge badge--caution' };
     case 'NORMAL':
     default:
-      return { text: '정상', className: 'badge' };
+      return { text: '정상', className: 'badge badge--ok' };
   }
 }
 

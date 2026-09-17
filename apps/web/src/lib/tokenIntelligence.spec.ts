@@ -30,16 +30,16 @@ describe('tokenIntelligence', () => {
   });
 
   describe('getWasteBadge', () => {
-    it('HIGH_WASTE는 signal 뱃지를 반환한다', () => {
+    it('HIGH_WASTE는 warn 뱃지를 반환한다', () => {
       const badge = getWasteBadge('HIGH_WASTE');
       expect(badge.text).toBe('낭비 위험');
-      expect(badge.className).toContain('badge--signal');
+      expect(badge.className).toContain('badge--warn');
     });
 
-    it('NORMAL 또는 미지정은 기본 badge를 반환한다', () => {
+    it('NORMAL 또는 미지정은 ok badge를 반환한다', () => {
       const badge = getWasteBadge('NORMAL');
       expect(badge.text).toBe('정상');
-      expect(badge.className).toBe('badge');
+      expect(badge.className).toContain('badge--ok');
     });
   });
 

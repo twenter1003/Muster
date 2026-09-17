@@ -632,7 +632,9 @@ export function ProjectDetailPage() {
           ← 프로젝트 목록
         </Link>
         <div className="detail__toprow-actions">
-          <Button onClick={() => setApiKeyModalOpen(true)}>API 키 관리</Button>
+          <Button className="btn--primary" onClick={() => setApiKeyModalOpen(true)}>
+            🔑 API 키 관리
+          </Button>
           <Button onClick={() => setDeleting(true)} disabled={!project.data}>
             프로젝트 삭제
           </Button>
@@ -642,8 +644,13 @@ export function ProjectDetailPage() {
       <header className="detail__head">
         <div className="detail__head-row">
           <h1 className="page__title">{project.data?.name ?? EM_DASH}</h1>
+          <span className="badge badge--operational">운영 중</span>
           {latestDeploy && (
-            <span className={latestDeploy.status === 'failure' ? 'badge badge--signal' : 'badge'}>
+            <span
+              className={
+                latestDeploy.status === 'failure' ? 'badge badge--warn' : 'badge badge--ok'
+              }
+            >
               {latestDeploy.status === 'success' ? '배포 성공' : '배포 실패'}
             </span>
           )}
@@ -799,22 +806,31 @@ export function ProjectDetailPage() {
                 <p className="detail__big">
                   {formatTokenCount(usage.data.month_tokens)}{' '}
                   <span
-                    className="meta"
+                    className="cost-text"
                     style={{ fontSize: 'var(--font-size-base)', fontWeight: 'normal' }}
                   >
                     ({formatCost(usage.data.month_cost)})
                   </span>{' '}
                   <span className="meta">
                     이번 달
-                    {usage.data.total_tokens
-                      ? ` · 총 ${formatTokenCount(usage.data.total_tokens)} (${formatCost(usage.data.total_cost)})`
-                      : ''}
+                    {usage.data.total_tokens ? (
+                      <>
+                        {' '}
+                        · 총 {formatTokenCount(usage.data.total_tokens)}{' '}
+                        <span className="cost-text">({formatCost(usage.data.total_cost)})</span>
+                      </>
+                    ) : (
+                      ''
+                    )}
                   </span>
                 </p>
                 <Sparkline daily={usage.data.daily} />
                 <p className="meta">
-                  오늘 {formatTokenCount(usage.data.today_tokens)} 토큰 (
-                  {formatCost(usage.data.today_cost)})
+                  오늘{' '}
+                  <strong style={{ color: 'var(--color-ink)' }}>
+                    {formatTokenCount(usage.data.today_tokens)} 토큰
+                  </strong>{' '}
+                  <span className="cost-text">({formatCost(usage.data.today_cost)})</span>
                 </p>
 
                 <div style={{ marginTop: 'var(--space-2)' }}>
@@ -843,9 +859,23 @@ export function ProjectDetailPage() {
 
                 {usage.data.recent_runs && usage.data.recent_runs.length > 0 && (
                   <div style={{ marginTop: 'var(--space-3)' }}>
-                    <p className="meta" style={{ marginBottom: 'var(--space-1)' }}>
-                      최근 세션 ({usage.data.recent_runs.length}건)
-                    </p>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: 'var(--space-1)',
+                      }}
+                    >
+                      <p className="meta" style={{ fontWeight: 600 }}>
+                        최근 세션 ({usage.data.recent_runs.length}건)
+                      </p>
+                      <span
+                        style={{ fontSize: 'var(--font-size-badge)', color: 'var(--color-cost)' }}
+                      >
+                        ● 자동 갱신 활성
+                      </span>
+                    </div>
                     {usage.data.recent_runs.slice(0, 4).map((r) => {
                       const isRunning = r.status === 'running';
                       const badge = isRunning
@@ -859,19 +889,11 @@ export function ProjectDetailPage() {
                           style={{ fontSize: 'var(--font-size-meta)' }}
                         >
                           <span className={badge.className}>{badge.text}</span>
-                          <span
-                            className="badge"
-                            style={{
-                              fontSize: '10px',
-                              padding: '0 4px',
-                              color: 'var(--color-ink-mid)',
-                            }}
-                          >
-                            {agentLabel}
-                          </span>
+                          <span className="badge badge--agent-tag">{agentLabel}</span>
                           <span className="detail__row-text">{r.agent_name}</span>
                           <span className="meta">
-                            {formatTokenCount(r.tokens_used)} ({formatCost(r.cost)})
+                            {formatTokenCount(r.tokens_used)}{' '}
+                            <span className="cost-text">({formatCost(r.cost)})</span>
                           </span>
                           <span className="meta">{formatDateTime(r.started_at)}</span>
                         </div>

@@ -25,6 +25,12 @@
    */
   --color-on-signal: #ffffff;
 
+  /* ── 포인트 컬러 (비용 $ 표기, 프라이머리 버튼, 상태 뱃지) ── */
+  --color-cost: #059669;
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-primary-text: #ffffff;
+
   /*
    * ── 타입 스케일 ──
    * 설계서 값(11 / 7.4 / 6.2 / 5.4 / 5.0 pt)은 포스터 스케일 캔버스의 pt다.
@@ -96,6 +102,10 @@
     --color-signal: #d98a8a;
     --color-signal-bg: #2a1c1d;
     --color-on-signal: #14161a;
+    --color-cost: #34d399;
+    --color-primary: #2563eb;
+    --color-primary-hover: #3b82f6;
+    --color-primary-text: #ffffff;
     color-scheme: dark;
   }
 }
@@ -109,5 +119,9 @@
   --color-signal: #d98a8a;
   --color-signal-bg: #2a1c1d;
   --color-on-signal: #14161a;
+  --color-cost: #34d399;
+  --color-primary: #2563eb;
+  --color-primary-hover: #3b82f6;
+  --color-primary-text: #ffffff;
   color-scheme: dark;
 }

@@ -54,6 +54,8 @@ Claude Code/LLM 기반으로 여러 사이드 프로젝트를 동시에 진행�
   `pnpm --filter @muster/api test:e2e`(246+, 로컬 DB 필요). 전부 통과하는 게 기본 전제 —
   실패한 채로 커밋하지 않는다.
 - **최근 완료된 것** (최신순, 상세는 git log):
+  - 모바일 반응형 레이아웃 깨짐 전면 개선 및 실시간 대시보드 UI 컬러 팔레트 통일 (뷰포트 줌아웃 방지 메타 적용, 상단바/헤더/목록/세션 행 모바일 완벽 1열 및 줄바꿈 최적화, 에메랄드 그린 비용($) 텍스트 및 블루 API 키 관리 버튼, 상태별 뱃지 컬러 일치화)
+  - GitHub Actions CI 정적 분석 실패 해결 및 포맷팅 자동 교정 (Prettier / ESLint 규칙 불일치 자동 정렬 및 CI 100% 그린 패스 달성, 커밋 `59e2378`)
   - SSE 기반 실시간 에이전트 세션 관제 및 대시보드 무새로고침 자동 갱신 (Running 세션 점멸 라이브 뱃지, EventSource 기반 실시간 도메인 이벤트 수신, 세션 종료 시 토큰·비용·상태 실시간 리로드, 커밋 `7b94f1f`)
   - 2026 프론티어 LLM 단가 엔진 구축 및 대시보드 실시간 비용($) 산출 (Claude Fable 5.1/Opus 5/Sonnet 5, Gemini 3.x, GPT-6/5.6, DeepSeek 단가표 매핑, ModelPricingService 및 세션·프로젝트·일별 비용($) 동시 표기, 커밋 `dc4709e`)
   - 무설치 1줄 연동 (`curl -fsSL .../connect.mjs | node -`) 및 ApiKeyModal 연동 가이드 개편 (템플릿 Base64 내장, 백엔드 connect.mjs 직접 서빙, 커밋 `1148025`)
