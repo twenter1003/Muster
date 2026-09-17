@@ -8,7 +8,18 @@ import {
   registerClaudeHooks,
   registerAntigravityHooks,
   saveMusterConfig,
+  EMBEDDED_CLAUDE_HOOK,
+  EMBEDDED_ANTIGRAVITY_HOOK,
 } from './muster-connect.mjs';
+
+test('muster-connect: embedded hooks', async (t) => {
+  await t.test('내장 훅 스크립트가 비어있지 않고 유효한 코드이다', () => {
+    assert.ok(EMBEDDED_CLAUDE_HOOK.length > 500);
+    assert.ok(EMBEDDED_ANTIGRAVITY_HOOK.length > 500);
+    assert.match(EMBEDDED_CLAUDE_HOOK, /SessionStart/);
+    assert.match(EMBEDDED_ANTIGRAVITY_HOOK, /parseProto/);
+  });
+});
 
 test('muster-connect: parseArgs', async (t) => {
   await t.test('CLI 인자를 올바르게 파싱한다', () => {

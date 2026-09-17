@@ -1,8 +1,11 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   Body,
   Controller,
   Delete,
   Get,
+  Header,
   HttpCode,
   HttpStatus,
   Param,
@@ -283,5 +286,36 @@ export class AgentRunsController {
   async recordByRepo(@Req() req: Request, @Body() dto: RecordRunByRepoDto): Promise<RunView> {
     const run = await this.runs.recordByRepo(req.apiKeyProjectId!, dto);
     return toRunView(run);
+  }
+}
+
+/**
+ * 1줄 원격 연동 스크립트 서빙 (GET /api/v1/connect.mjs).
+ * 클라이언트에 Muster 프로젝트 폴더가 없어도 `curl -fsSL ... | node -`로
+ * 즉시 전역 연동 스크립트를 다운로드하여 실행할 수 있도록 한다.
+ */
+@Controller('connect.mjs')
+export class ConnectScriptController {
+  @Get()
+  @Public()
+  @Header('Content-Type', 'text/javascript; charset=utf-8')
+  @Header('Cache-Control', 'public, max-age=300')
+  getScript(): string {
+    const candidatePaths = [
+      join(process.cwd(), 'scripts', 'muster-connect.mjs'),
+      join(process.cwd(), '..', '..', 'scripts', 'muster-connect.mjs'),
+      join(process.cwd(), 'apps', 'web', 'public', 'connect.mjs'),
+      join(__dirname, '..', '..', '..', '..', '..', 'scripts', 'muster-connect.mjs'),
+      join(__dirname, '..', '..', '..', '..', 'scripts', 'muster-connect.mjs'),
+      join(__dirname, '..', '..', 'scripts', 'muster-connect.mjs'),
+      join(__dirname, '..', 'web', 'connect.mjs'),
+      join(process.cwd(), 'web', 'connect.mjs'),
+    ];
+    for (const p of candidatePaths) {
+      if (existsSync(p)) {
+        return readFileSync(p, 'utf8');
+      }
+    }
+    return '// muster-connect script unavailable\n';
   }
 }

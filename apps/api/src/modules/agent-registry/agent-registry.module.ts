@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import {
   AgentRunsController,
   AgentsController,
+  ConnectScriptController,
   ProjectAgentsController,
 } from './agents.controller';
 import { AgentsService } from './agents.service';
@@ -16,7 +17,12 @@ import { BudgetService } from './budget.service';
  * 다른 모듈을 직접 부르지 않고 EventEmitter2로만 발행한다 (Part 2 §8).
  */
 @Module({
-  controllers: [ProjectAgentsController, AgentsController, AgentRunsController],
+  controllers: [
+    ProjectAgentsController,
+    AgentsController,
+    AgentRunsController,
+    ConnectScriptController,
+  ],
   providers: [AgentsService, AgentRunsService, BudgetService],
 })
 export class AgentRegistryModule {}

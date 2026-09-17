@@ -79,5 +79,6 @@ COPY --from=build /deploy/dist ./dist
 COPY --from=build /deploy/package.json ./package.json
 # main.ts가 __dirname/../web에서 찾는다. dist가 /app/dist이므로 /app/web이다.
 COPY --from=web-build /app/apps/web/dist ./web
+COPY scripts ./scripts
 EXPOSE 8080
 CMD ["node", "dist/main.js"]
