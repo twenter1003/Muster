@@ -20,3 +20,7 @@ coverage/
 # 시드된 캔버스 페이지는 에디터 런타임 2MB가 통째로 들어간 산출물이다.
 # 아트보드(.dc.html)와 canvas.json만 원본이고, 이 파일은 거기서 다시 만든다.
 muster-user-guide.html
+
+# graphify 산출물 및 로컬 에이전트 설정
+graphify-out/
+.claude/
