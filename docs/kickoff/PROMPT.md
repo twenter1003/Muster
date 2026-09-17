@@ -42,6 +42,26 @@ Claude Code/LLM 기반으로 여러 사이드 프로젝트를 진행하는 사�
 
 ## 최근 완료된 것 (최신순, 상세는 git log)
 
+- **에이전트 세션별 토큰/비용 낭비 이력 내보내기(Export) 및 캐싱 절감 ROI 시뮬레이션 리포트 다운로드 구축 (PR #67)**
+  - 백엔드:
+    - `budget.service.ts`:
+      - `generateWasteReportJson(projectId)`: 최근 세션 낭비 상세 목록(최대 100건), 총 집계 메트릭, 프롬프트 캐싱 ROI 시뮬레이션 데이터 생성.
+      - `generateWasteReportCsv(projectId)`: Excel 호환 RFC 4180 및 UTF-8 BOM(`\uFEFF`) 준수 CSV 직렬화, 세션 행 및 요약 행(`[SUMMARY]`) 출력.
+    - `agents.controller.ts`:
+      - `@Get(':id/waste-report.csv')`, `@Get(':id/waste-report.json')` 엔드포인트 구현 (적절한 `Content-Type`, `Content-Disposition: attachment; filename=...` 헤더 제공).
+    - 유닛 테스트: `budget.service.spec.ts` 2건 추가, `agents-report.controller.spec.ts` 신설 2건 추가.
+  - 프론트엔드:
+    - `exportUtils.ts` 신설: `downloadReportFile(path, defaultFilename)` (RFC 5987 / Content-Disposition 파싱, Blob 생성 및 가상 링크 다운로드 트리거, window/document 가드).
+    - `exportUtils.spec.ts` 신설: 7건 단위 테스트 전수 통과.
+    - `TokenWasteIntelligenceCard.tsx` & `.css`: 상단 헤더에 `[📥 CSV 리포트]`, `[📥 JSON]` 버튼 그룹 및 다운로드 상태 피드백 배너(`exportNotice`) 탑재.
+    - `SessionWasteModal.tsx` & `.css`: 하단 footer 액션바에 `[📥 전체 리포트 (CSV)]`, `[📥 JSON]` 버튼 및 다운로드 상태 피드백 탑재.
+    - `ProjectDetailPage.tsx`: `TokenWasteIntelligenceCard` 및 `SessionWasteModal`에 `projectId={id}` 바인딩.
+    - `TokenWasteIntelligenceCard.spec.ts` 3건 및 `SessionWasteModal.spec.ts` 2건 테스트 추가.
+  - 전수 검증:
+    - API 498개 + Web 218개 + Connect 13개 = **총 729개 전수 유닛 테스트 100% 통과 (All Green)**.
+    - `pnpm -r build` (Nest build + Vite build) 0 error, 100% 성공.
+    - Chrome CDP 기반 29종 스크린샷 캡처 완료 (`desktop-waste-report-export.png`, `mobile-waste-report-export.png`, `desktop-modal-waste-report.png` 등).
+    - 지식 그래프 `graphify update .` 최신화 동기화 완료 (3,200 노드, 7,821 엣지, 183 커뮤니티).
 - **에이전트 세션별 토큰/비용 낭비 이력 딥다이브 모달 및 원클릭 세션 중단(Kill/Abort) 기능 구축 (PR #66)**
   - 백엔드:
     - `AUDIT_ACTIONS`에 `'agent_run.abort'` 추가 및 감사 추적 기록 연동.
@@ -67,27 +87,8 @@ Claude Code/LLM 기반으로 여러 사이드 프로젝트를 진행하는 사�
   - 테스트: API 489개 + Web 202개 + Connect 13개 등 총 704개 전수 유닛 테스트 100% 통과 (All Green).
   - `graphify update .`를 통한 지식 그래프 최신화 동기화 완료 (3,172 노드, 7,673 엣지).
 - **TokenStockChart 마우스 호버 인터랙티브 플로팅 툴팁(Floating Tooltip) 및 다중 에이전트 수치 인포박스 구축**
-  - 마우스/터치 호버 시 크로스헤어와 연동되는 2026 다크 글래스모피즘 플로팅 툴팁(`[data-testid="chart-floating-tooltip"]`) 구현.
-  - 지능형 스마트 플립(Smart Flip & Clamping): 차트 우측에서는 좌측으로, 좌측에서는 우측으로 자동 전환 및 Y축 클램핑으로 뷰포트 경계 이탈 방지.
-  - 단일 뷰(전체 토큰, 비용, 라이브 틱) 및 에이전트 비교 뷰(에이전트별 테마 컬러 도트, 라벨, 토큰량, 비용, 점유율 %) 완벽 지원.
-  - `TokenStockChart.spec.ts` 단위 테스트 4종 추가 (총 679개 유닛 테스트 100% 통과).
-  - Chrome CDP 기반 22종 스크린샷 캡처(데스크톱/모바일 플로팅 툴팁 뷰) 시각적 검증 완료.
-  - `graphify update .`를 통한 지식 그래프(3,144개 노드, 7,596개 엣지) 최신화 동기화 완료.
 - **프로젝트 상세 에이전트별(Claude Code vs Antigravity/Gemini vs Cursor) 토큰 사용량 비교 필터링 및 TokenStockChart 오버레이 강화**
-  - 백엔드 `dailyUsage` 복수 에이전트 필터(`a.name IN (...)`) 지원 및 `agent_series`, `available_agents`, 버킷별 `agent_tokens`/`agent_cost` 단일 집계 쿼리 최적화 (`budget.service.ts`).
-  - 프론트엔드 `agentFilter.ts` 내 `Cursor` 에이전트 추가, 다중 에이전트 파라미터 직렬화, `AGENT_THEMES` 컬러 매핑 구축.
-  - `TokenStockChart.tsx`: `📊 에이전트 비교` 멀티라인 SVG 오버레이, 인터랙티브 On/Off 범례(Legend), 에이전트별 크로스헤어 도트, 하단 실시간 비용 서브 HUD 칩 탑재.
-  - `ProjectDetailPage.tsx`: `[Cursor]` 필터 칩 추가 및 차트 오버레이 연동.
-  - 테스트: API 480개 + Web 182개 + muster-connect 13개 등 총 675개 유닛 테스트 All Green.
-  - Chrome CDP 20종 스크린샷 캡처(데스크톱/모바일 비교 오버레이 뷰, Cursor 필터 뷰 포함) 시각적 검증 완료.
-  - `graphify update .`를 통한 지식 그래프 최신화 동기화 완료 (3,142 노드, 7,596 엣지).
 - **에이전트 토큰 낭비 인텔리전스 및 2026 프롬프트 캐싱(Prompt Caching) 최적화 가이드 대시보드 구축**
-  - 최신 2026 프론티어 모델(Claude Sonnet 5, Gemini 3.8/3.6 Flash, GPT-5.6 Terra 등)의 90% 캐시 읽기 할인 시뮬레이션 엔진 및 `computeTokenWasteIntelligence` 도메인 수식 구현.
-  - `GET /projects/:id/token-waste-intelligence` API 및 `budget.service.ts` 확장.
-  - 웹 대시보드 `TokenWasteIntelligenceCard` 컴포넌트(절감 잠재액 HUD, 캐시 적중률 프로그레스 바, 팽창 토큰 진단, 2026 모델 단가 칩, 3대 최적화 실천 가이드 모달) 탑재.
-  - API 유닛 478개 / Web 175개 / muster-connect 13개 등 총 666개 유닛 테스트 All Green.
-  - Chrome CDP 데스크톱/모바일 17종 스크린샷 시각적 검증 완료.
-  - `graphify update .`를 통한 코드베이스 지식 그래프(3,136개 노드, 7,587개 엣지) 최신화 동기화 완료.
 - **에이전트 세션 실시간 중간 토큰(Heartbeat) 스트리밍 연동 & 대시보드 라이브 틱(Tick) 갱신 (Cloud Run 배포 완료)**
 - **코드베이스 전체 지식 그래프(Knowledge Graph) 구축 (`/graphify .`)**
 
@@ -95,67 +96,60 @@ Claude Code/LLM 기반으로 여러 사이드 프로젝트를 진행하는 사�
 
 ## 차기 세션 최우선 착수 과제 (Current Priority Task)
 
-### 📊 세션별 토큰/비용 낭비 이력 내보내기(Export) 및 캐싱 절감 ROI 시뮬레이션 리포트 다운로드 기능 구축
+### 📊 최근 세션 낭비 탐색기(Session Waste Explorer) 구축: 고낭비 세션 필터(High-Waste/Caution/Normal)·에이전트별/상태별 필터링·검색 및 페이징 고도화
 
-> **상태 알림**: PR #66 머지 및 로컬 `main` 동기화 완료 (`a2729d5`), 전체 715개 테스트 All Green 상태.
+> **상태 알림**: PR #67 머지 및 로컬 `main` 동기화 완료 (`19cd598`), 전체 729개 테스트 All Green 상태.
 > **다음 세션 에이전트는 본 프롬프트를 확인한 즉시 아래 설계서에 따라 브랜치 생성 및 구현에 착수할 것.**
 
 #### 1. 👥 4인 원팀 확정 설계 명세
 
 - **📌 PM (기획 및 인터페이스 계약)**:
-  - **배경**: AI 에이전트 비용 지출 결재 및 팀 내부 보고를 위해, 세션별 토큰 낭비 내역(Burn Rate, 초과 토큰, 추정 낭비액) 및 프롬프트 캐싱 최적화 적용 시 절감 효과(ROI)를 CSV/JSON으로 즉시 내려받을 수 있는 내보내기(Export) 기능 요구.
-  - **API 계약**:
-    1. `GET /api/v1/projects/:id/waste-report.csv`:
-       - 세션 ID, 에이전트명, 시작 시각, 소요 시간(초), 총 토큰, 비용($), 낭비 위험도(`NORMAL`/`CAUTION`/`HIGH_WASTE`), 낭비 토큰, 낭비 비용, 분당 소모 속도(Burn Rate)를 RFC 4180 호환 CSV로 스트리밍 반환 (`Content-Disposition: attachment; filename=...`).
-    2. `GET /api/v1/projects/:id/waste-report.json`:
-       - 상세 JSON 포맷 및 2026 프롬프트 캐싱 전/후 절감 잠재액(`potential_savings`, `savings_percentage`), 모델별 캐시 할인율 비교 요약 포함.
-  - **UI 인터랙션**:
-    - `TokenWasteIntelligenceCard` 및 `SessionWasteModal` 상단에 `[📥 리포트 내보내기]` 드롭다운 또는 버튼(`[CSV]`, `[JSON]`) 배치.
-    - 다운로드 시 사용자에게 토스트 알림("낭비 분석 리포트가 다운로드되었습니다") 제공.
+  - **배경**: 현재 최근 세션 카드(`recent-runs-card`)는 상위 4개 세션만 고정 노출(`slice(0, 4)`)되어, 수십 개의 세션 중 실제 토큰과 예산을 낭비하는 `HIGH_WASTE` 세션만을 골라내거나, 현재 실행 중(`running`)인 세션만을 선별하여 중단(Abort)하기 어려움.
+  - **핵심 요구사항**:
+    1. **위험도 탭/칩 필터**: `전체`, `🚨 고낭비(High Waste)`, `⚠️ 주의(Caution)`, `정상(Normal)` 즉시 필터링.
+    2. **에이전트 및 상태 필터**: 에이전트(`All`, `Claude Code`, `Antigravity`, `Cursor`), 상태(`All`, `실행 중(running)`, `완료(completed)`, `중단(cancelled)`).
+    3. **실시간 검색**: 세션 ID 앞자리 또는 모델명 인라인 검색.
+    4. **정렬 및 페이지네이션**: 비용순(Cost), 토큰순(Tokens), 최신순(Recent) 정렬 토글 및 5/10/20개 단위 페이지네이션 또는 '더보기' 확장.
+    5. **원클릭 액션 연동**: 각 행 클릭 시 `SessionWasteModal` 딥다이브 오픈, `running` 행 인라인 `[중단]` 연동.
 
 - **⚙️ 백엔드 (Backend)**:
   - `apps/api/src/modules/agent-registry/budget.service.ts`:
-    - `generateWasteReportCsv(projectId: string)`: 최근 세션 목록과 낭비 계산 결과를 결합하여 CSV 문자열 생성.
-    - `generateWasteReportJson(projectId: string)`: 낭비 인텔리전스 및 세션 메트릭 구조화 데이터 생성.
-  - `apps/api/src/modules/agent-registry/agents.controller.ts`:
-    - `@Get(':id/waste-report.csv')`, `@Get(':id/waste-report.json')` 엔드포인트 추가 (적절한 `Content-Type`, `Content-Disposition` 헤더 세팅).
-  - 유닛 테스트 추가: CSV 헤더 및 행 포맷팅 검증, 특수 문자/쉼표 이스케이프 검증.
+    - `dailyUsage` 응답의 `recent_runs` 데이터가 충분한 세션 수(최대 50~100건)와 진단 메트릭(`waste_level`, `wasted_tokens`, `burn_rate`, `model`)을 일관되게 제공하는지 확인 및 보강.
+    - 필요 시 세션 목록 조회 쿼리 파라미터 지원.
 
 - **🎨 프론트엔드 (Frontend - Minimalist UI & Emil Kowalski 스타일)**:
-  - `apps/web/src/components/TokenWasteIntelligenceCard.tsx` & `SessionWasteModal.tsx`:
-    - 절제되고 세련된 `[📥 리포트 내보내기]` 버튼 배치.
-    - 클릭 시 원클릭 Blob 다운로드 유틸리티(`downloadFile(url, filename)`) 연동.
-  - `apps/web/src/lib/exportUtils.ts`:
-    - CSV/JSON 다운로드 트리거 및 에러 핸들링 유틸리티 작성.
-  - 인터랙션 가이드: 버튼 클릭 시 부드러운 프레스 모션 (`transform: scale(0.97)`), 다운로드 완료 상태 뱃지 전환.
+  - `apps/web/src/components/SessionWasteExplorer.tsx` 신설:
+    - 감각적인 다크 글래스모피즘 툴바: 필터 탭(All, High Waste, Caution, Running), 에이전트 선택 드롭다운/칩, 검색 인풋.
+    - 세션 목록: 데스크톱에서는 낭비율/비용/토큰/소요시간/속도/상태 컬럼 정렬 테이블, 모바일에서는 스택 카드 레이아웃.
+    - 각 항목 호버/클릭 시 미세한 스케일 트랜지션 및 `SessionWasteModal` 오픈.
+    - `SessionWasteExplorer.spec.ts` 단위 테스트 작성.
+  - `apps/web/src/routes/ProjectDetailPage.tsx`:
+    - 기존 4건 고정 슬라이스 영역을 `SessionWasteExplorer` 컴포넌트로 깔끔하게 교체.
 
 - **🧪 QA (검증 및 시각적 증거)**:
-  - 백엔드 CSV/JSON 엔드포인트 단위 테스트 All Green (기존 494개 + 신규 4개 이상).
-  - 프론트엔드 다운로드 유틸 및 컴포넌트 단위 테스트 All Green (기존 208개 + 신규 3개 이상).
+  - 프론트엔드 필터/검색/정렬 단위 테스트 All Green (729개 + 신규 테스트 통과).
   - 전체 워크스페이스 빌드(`pnpm -r build`) 0 error, 0 warning.
-  - Chrome CDP 기반 데스크톱/모바일 리포트 내보내기 UI 스크린샷 캡처.
+  - Chrome CDP 기반 데스크톱 & 모바일 필터링 화면 스크린샷 캡처.
   - `graphify update .` 지식 그래프 최신화.
 
 #### 2. 🚀 차기 세션 실행 절차 (Turn-Key Runbook)
 1. **브랜치 생성**:
    ```bash
    git checkout main && git pull origin main
-   git checkout -b feat/waste-report-export
+   git checkout -b feat/session-waste-explorer
    ```
-2. **백엔드 구현 및 테스트**:
-   - `budget.service.ts`, `agents.controller.ts` 수정 및 테스트 작성.
-   - `pnpm --filter @muster/api test` 통과 확인.
-3. **프론트엔드 구현 및 테스트**:
-   - `exportUtils.ts` 작성, `TokenWasteIntelligenceCard.tsx`, `SessionWasteModal.tsx`에 내보내기 버튼 연동.
-   - `pnpm --filter @muster/web test` 통과 확인.
-4. **전수 검증, 포맷팅, 빌드**:
+2. **프론트엔드 & 백엔드 구현 및 테스트**:
+   - `SessionWasteExplorer.tsx`, `SessionWasteExplorer.css`, `SessionWasteExplorer.spec.ts` 작성.
+   - `ProjectDetailPage.tsx` 연동.
+   - `pnpm -r test` 통과 확인.
+3. **전수 검증, 포맷팅, 빌드**:
    - `pnpm format && pnpm -r test && pnpm -r build`
-5. **화면 캡처 (Chrome CDP)**:
-   - 데스크톱 & 모바일 뷰 캡처 및 아티팩트 디렉터리 저장.
-6. **지식 그래프 동기화**:
+4. **화면 캡처 (Chrome CDP)**:
+   - `node scripts/qa-server-and-capture.mjs` 실행 (신규 캡처 스텝 추가).
+5. **지식 그래프 동기화**:
    - `graphify update .`
-7. **PR 생성, CI 통과, 머지, main 동기화**:
-   - `git push origin feat/waste-report-export`
+6. **PR 생성, CI 통과, 머지, main 동기화**:
+   - `git push origin feat/session-waste-explorer`
    - `gh pr create ...` → CI 확인 → `gh pr merge ... --squash --delete-branch` → `git checkout main && git pull origin main`
 
 ---
