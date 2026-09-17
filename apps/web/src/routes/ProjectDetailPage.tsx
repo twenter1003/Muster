@@ -705,17 +705,8 @@ export function ProjectDetailPage() {
         </div>
 
         <div className="panel">
-          <div
-            className="panel__head"
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: 'var(--space-2)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+          <div className="panel__head detail__agent-head">
+            <div className="detail__agent-head-title">
               <span>에이전트 토큰 관제</span>
               {activeAgents.length > 0 ? (
                 <span className="badge badge--pulse" style={{ fontSize: '11px' }}>
@@ -731,37 +722,22 @@ export function ProjectDetailPage() {
                 </span>
               ) : null}
             </div>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 'var(--space-2)',
-                flexWrap: 'wrap',
-              }}
-            >
+            <div className="detail__agent-head-actions">
               <button
                 type="button"
-                className="chip"
-                style={{
-                  padding: '2px 8px',
-                  fontSize: 'var(--font-size-meta)',
-                  borderColor: 'var(--color-brand, #3b82f6)',
-                  color: 'var(--color-brand, #3b82f6)',
-                  cursor: 'pointer',
-                }}
+                className="chip detail__agent-key-btn"
                 onClick={() => setApiKeyModalOpen(true)}
               >
                 🔑 API 키 연동
               </button>
-              <div className="chip-row" role="group" aria-label="에이전트 필터">
+              <div
+                className="chip-row detail__agent-filter-chips"
+                role="group"
+                aria-label="에이전트 필터"
+              >
                 <button
                   type="button"
                   className="chip"
-                  style={{
-                    padding: '2px 8px',
-                    fontSize: 'var(--font-size-meta)',
-                    transition: 'border-color 100ms ease-out, color 100ms ease-out',
-                  }}
                   aria-pressed={agentFilter === 'all'}
                   onClick={() => setAgentFilter('all')}
                 >
@@ -770,11 +746,6 @@ export function ProjectDetailPage() {
                 <button
                   type="button"
                   className="chip"
-                  style={{
-                    padding: '2px 8px',
-                    fontSize: 'var(--font-size-meta)',
-                    transition: 'border-color 100ms ease-out, color 100ms ease-out',
-                  }}
                   aria-pressed={agentFilter === 'claude-code'}
                   onClick={() => setAgentFilter('claude-code')}
                 >
@@ -783,11 +754,6 @@ export function ProjectDetailPage() {
                 <button
                   type="button"
                   className="chip"
-                  style={{
-                    padding: '2px 8px',
-                    fontSize: 'var(--font-size-meta)',
-                    transition: 'border-color 100ms ease-out, color 100ms ease-out',
-                  }}
                   aria-pressed={agentFilter === 'antigravity'}
                   onClick={() => setAgentFilter('antigravity')}
                 >

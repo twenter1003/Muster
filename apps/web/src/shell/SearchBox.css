@@ -67,9 +67,9 @@
   white-space: nowrap;
 }
 
-/* <768: 상단바에서 검색을 감추는 규칙(app.css)은 그대로 둔다. 상자도 함께 사라져야 한다. */
-@media (max-width: 767px) {
+/* <=1024px: 태블릿·모바일·데스크톱 모드 모바일에서 상단바가 밀리지 않도록 검색창 숨김 */
+@media (max-width: 1024px) {
   .searchbox {
-    display: none;
+    display: none !important;
   }
 }

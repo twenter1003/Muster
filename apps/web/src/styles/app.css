@@ -10,8 +10,23 @@
   box-sizing: border-box;
 }
 
+html,
 body {
+  width: 100%;
+  max-width: 100vw;
   margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
+#root {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+body {
   background: var(--color-bg);
   color: var(--color-ink);
   font-family:
@@ -44,6 +59,10 @@ a {
     'topbar'
     'main';
   min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 .shell__sidebar {
@@ -227,6 +246,19 @@ a {
  * 설계서 09가 말하는 "모바일은 이동 중의 과업만" 기준으로, 검색은 그 과업이 아니고
  * 좁은 상단바에서 경로 표기를 밀어내기만 한다.
  */
+@media (max-width: 1024px) {
+  .topbar__search,
+  .topbar__crumb {
+    display: none !important;
+  }
+
+  /* 태블릿 및 모바일 데스크톱 모드(980px)에서도 긴 SSE 라벨 및 사용자명 숨겨 버튼 밀림 방지 */
+  .topbar__right > span:nth-of-type(2),
+  .topbar__right > span:nth-of-type(3) {
+    display: none !important;
+  }
+}
+
 @media (max-width: 767px) {
   .shell__topbar {
     padding: 0 var(--space-3);
@@ -239,27 +271,9 @@ a {
     font-size: 18px;
   }
 
-  .topbar__search {
-    display: none;
-  }
-
-  .topbar__crumb {
-    display: none;
-  }
-
   .topbar__right {
     gap: var(--space-2);
     font-size: 12px;
-  }
-
-  /* 모바일에서는 긴 'SSE 연결됨' 텍스트 숨기고 상태 점(●)만 유지 */
-  .topbar__right > span:nth-of-type(2) {
-    display: none;
-  }
-
-  /* 모바일 상단바에서는 공간 확보를 위해 유저명 숨김 */
-  .topbar__right > span:nth-of-type(3) {
-    display: none;
   }
 
   .theme-toggle {
