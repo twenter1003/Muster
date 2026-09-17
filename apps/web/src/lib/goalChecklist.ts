@@ -2,10 +2,21 @@ export interface GoalCheckItem {
   index: number;
   title: string;
   completed: boolean;
+  section?: string;
+}
+
+export interface GoalSection {
+  id: string;
+  title: string;
+  items: GoalCheckItem[];
+  completedCount: number;
+  totalCount: number;
+  percent: number;
 }
 
 const TASK_ITEM_REGEX = /^(\s*[-*]\s*\[)([ xX])(\]\s+)(.+)$/;
 const BULLET_ITEM_REGEX = /^(\s*(?:[-*]|\d+\.)\s+)(.+)$/;
+const HEADING_REGEX = /^(#{1,6})\s+(.+)$/;
 
 /**
  * 마크다운 목표 문서에서 체크리스트 목록을 파싱한다.
@@ -102,4 +113,78 @@ export function getGoalsProgressStats(contentMd: string | null | undefined): {
     completed,
     percent,
   };
+}
+
+/**
+ * 마크다운 목표 문서에서 헤더(#, ##, ...)를 기준으로 섹션(마일스톤)별 체크리스트 목록을 파싱한다.
+ * 헤더가 없는 경우 단일 섹션(title: '')으로 반환된다.
+ * 각 항목의 index는 문서 전체 기준의 고유 인덱스를 유지하여 toggleGoalChecklist와 완벽히 호환된다.
+ */
+export function parseGoalChecklistSections(
+  contentMd: string | null | undefined,
+): GoalSection[] {
+  if (!contentMd || contentMd.trim() === '') {
+    return [];
+  }
+
+  const lines = contentMd.split('\n');
+  const hasAnyCheckbox = lines.some((line) => TASK_ITEM_REGEX.test(line));
+
+  const sections: GoalSection[] = [];
+  let currentSectionTitle = '';
+  let currentSectionItems: GoalCheckItem[] = [];
+  let sectionIndex = 0;
+  let globalIndex = 0;
+
+  const pushCurrentSection = () => {
+    if (currentSectionItems.length > 0) {
+      const completedCount = currentSectionItems.filter((i) => i.completed).length;
+      const totalCount = currentSectionItems.length;
+      const percent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+      sections.push({
+        id: `sec-${sectionIndex++}`,
+        title: currentSectionTitle,
+        items: currentSectionItems,
+        completedCount,
+        totalCount,
+        percent,
+      });
+      currentSectionItems = [];
+    }
+  };
+
+  for (const line of lines) {
+    const headingMatch = line.match(HEADING_REGEX);
+    if (headingMatch) {
+      pushCurrentSection();
+      currentSectionTitle = headingMatch[2].trim();
+      continue;
+    }
+
+    if (hasAnyCheckbox) {
+      const match = line.match(TASK_ITEM_REGEX);
+      if (match) {
+        const isChecked = match[2].toLowerCase() === 'x';
+        currentSectionItems.push({
+          index: globalIndex++,
+          title: match[4].trim(),
+          completed: isChecked,
+          section: currentSectionTitle || undefined,
+        });
+      }
+    } else {
+      const match = line.match(BULLET_ITEM_REGEX);
+      if (match) {
+        currentSectionItems.push({
+          index: globalIndex++,
+          title: match[2].trim(),
+          completed: false,
+          section: currentSectionTitle || undefined,
+        });
+      }
+    }
+  }
+
+  pushCurrentSection();
+  return sections;
 }

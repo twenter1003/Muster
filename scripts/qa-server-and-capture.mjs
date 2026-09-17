@@ -285,7 +285,7 @@ const server = http.createServer((req, res) => {
       res.end(
         JSON.stringify({
           content_md:
-            '- [x] N+1 REST Waterfall API 최적화 완료\n- [x] Variant A/B 실시간 HUD 대시보드 컴포넌트 탑재\n- [x] 즉시 렌더링을 통한 레이아웃 시프트 100% 제거\n- [ ] 전역 배포 파이프라인 자동화 룰 추가',
+            '# Phase 1: 아키텍처 및 성능 최적화\n- [x] N+1 REST Waterfall API 최적화 완료\n- [x] Variant A/B 실시간 HUD 대시보드 컴포넌트 탑재\n- [x] 즉시 렌더링을 통한 레이아웃 시프트 100% 제거\n- [x] SessionService 60초 인메모리 세션 캐시 도입\n\n# Phase 2: 대용량 UX 및 관제 자동화\n- [ ] 목표 체크리스트 전용 슬라이드 드로어 및 바텀시트 구축\n- [ ] 실시간 태스크 키워드 검색 및 상태 필터 칩 적용\n- [ ] 전역 배포 파이프라인 자동화 룰 추가\n- [ ] SSE 기반 도메인 이벤트 실시간 리로드 연동\n- [ ] 모바일 터치 제스처 및 바텀시트 스크롤 최적화\n- [ ] 토큰 사용량 일별/월별 추세 차트 연동\n- [ ] Cloud Run 트래픽 1초 롤백 자동화 스크립트 구축',
           updated_at: new Date().toISOString(),
         }),
       );
@@ -465,7 +465,15 @@ async function runCaptures() {
   await sendCdp('Page.enable');
   await sendCdp('Network.enable');
 
-  const captureItem = async ({ url, outName, width, height, isMobile, waitMs = 1200 }) => {
+  const captureItem = async ({
+    url,
+    outName,
+    width,
+    height,
+    isMobile,
+    waitMs = 1200,
+    evalScript,
+  }) => {
     console.log(
       `📸 CDP 캡처 진행 중: [${width}x${height} ${isMobile ? 'MOBILE' : 'DESKTOP'}] ${outName} ...`,
     );
@@ -488,6 +496,11 @@ async function runCaptures() {
     // 페이지 이동
     await sendCdp('Page.navigate', { url });
     await new Promise((r) => setTimeout(r, waitMs));
+
+    if (evalScript) {
+      await sendCdp('Runtime.evaluate', { expression: evalScript });
+      await new Promise((r) => setTimeout(r, 600));
+    }
 
     // 스크린샷 캡처
     const shot = await sendCdp('Page.captureScreenshot', {
@@ -545,7 +558,7 @@ async function runCaptures() {
       waitMs: 1500,
     });
 
-    // 5. 데스크톱 뷰포트 (1280x800) - 프로젝트 상세 페이지 (ProjectDetailPage)
+    // 5. 데스크톱 뷰포트 (1280x800) - 프로젝트 상세 페이지 (ProjectDetailPage) - 목표 HUD 축소 뷰
     await captureItem({
       url: 'http://127.0.0.1:8765/projects/proj-001',
       outName: 'desktop-project-detail.png',
@@ -555,7 +568,18 @@ async function runCaptures() {
       waitMs: 1500,
     });
 
-    // 6. 모바일 뷰포트 (390x844) - 프로젝트 상세 페이지 모바일 뷰
+    // 6. 데스크톱 뷰포트 (1280x800) - 프로젝트 목표 전용 슬라이드 드로어 열림 상태
+    await captureItem({
+      url: 'http://127.0.0.1:8765/projects/proj-001',
+      outName: 'desktop-goal-drawer.png',
+      width: 1280,
+      height: 800,
+      isMobile: false,
+      waitMs: 1500,
+      evalScript: `document.querySelector('.detail__goals-cta-btn')?.click()`,
+    });
+
+    // 7. 모바일 뷰포트 (390x844) - 프로젝트 상세 페이지 모바일 뷰
     await captureItem({
       url: 'http://127.0.0.1:8765/projects/proj-001',
       outName: 'mobile-project-detail.png',
@@ -565,7 +589,18 @@ async function runCaptures() {
       waitMs: 1500,
     });
 
-    // 7. 데스크톱 뷰포트 (1280x800) - 로그인 페이지 (순수 미인증 상태)
+    // 8. 모바일 뷰포트 (390x844) - 프로젝트 목표 전용 바텀 시트 열림 상태
+    await captureItem({
+      url: 'http://127.0.0.1:8765/projects/proj-001',
+      outName: 'mobile-goal-drawer.png',
+      width: 390,
+      height: 844,
+      isMobile: true,
+      waitMs: 1500,
+      evalScript: `document.querySelector('.detail__goals-cta-btn')?.click()`,
+    });
+
+    // 9. 데스크톱 뷰포트 (1280x800) - 로그인 페이지 (순수 미인증 상태)
     await captureItem({
       url: 'http://127.0.0.1:8765/login?unauth=true',
       outName: 'desktop-login-page.png',
@@ -575,7 +610,7 @@ async function runCaptures() {
       waitMs: 1000,
     });
 
-    // 8. 모바일 뷰포트 (390x844) - 로그인 페이지 모바일 뷰 (순수 미인증 상태)
+    // 10. 모바일 뷰포트 (390x844) - 로그인 페이지 모바일 뷰 (순수 미인증 상태)
     await captureItem({
       url: 'http://127.0.0.1:8765/login?unauth=true',
       outName: 'mobile-login-page.png',
@@ -585,7 +620,7 @@ async function runCaptures() {
       waitMs: 1000,
     });
 
-    console.log('\n🎉 모든 뷰포트 및 A/B 테스트 시각적 증거(스크린샷 8종) 완벽 캡처 완료!');
+    console.log('\n🎉 모든 뷰포트 및 A/B 테스트/목표 드로어 시각적 증거(스크린샷 10종) 완벽 캡처 완료!');
   } finally {
     ws.close();
     chrome.kill();

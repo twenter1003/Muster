@@ -1,0 +1,480 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+ * GoalChecklistDrawer — 목표 체크리스트 슬라이드 드로어 & 모바일 바텀시트
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+.goal-drawer {
+  padding: 0;
+  border: none;
+  border-left: 1px solid var(--color-rule, rgba(255, 255, 255, 0.12));
+  background: var(--color-surface, #181b21);
+  color: var(--color-ink, #f1f5f9);
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0 0 0 auto;
+  height: 100vh;
+  max-height: 100vh;
+  width: 460px;
+  max-width: 100vw;
+  box-shadow: -4px 0 28px rgba(0, 0, 0, 0.38);
+  animation: drawer-slide-in 220ms cubic-bezier(0.23, 1, 0.32, 1);
+  overflow: hidden;
+}
+
+.goal-drawer::backdrop {
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  animation: drawer-backdrop-fade 200ms ease-out;
+}
+
+@keyframes drawer-slide-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes drawer-backdrop-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.goal-drawer__panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+/* 모바일 바텀시트 상단 그랩 핸들 (데스크톱에서는 숨김) */
+.goal-drawer__grab-handle-wrap {
+  display: none;
+  justify-content: center;
+  align-items: center;
+  padding: 10px 0 4px;
+}
+
+.goal-drawer__grab-handle {
+  width: 38px;
+  height: 4px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+/* ──────── 헤더 ──────── */
+.goal-drawer__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3, 16px) var(--space-4, 20px);
+  border-bottom: 1px solid var(--color-rule, rgba(255, 255, 255, 0.08));
+  gap: var(--space-2, 8px);
+}
+
+.goal-drawer__title-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  flex-wrap: wrap;
+}
+
+.goal-drawer__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.goal-drawer__summary-badge {
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.32);
+  border-radius: 9999px;
+  padding: 2px 8px;
+  letter-spacing: 0.02em;
+}
+
+.goal-drawer__close-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-ink-mid, #94a3b8);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--radius, 4px);
+  transition: color 150ms ease, background 150ms ease, transform 150ms ease;
+}
+
+.goal-drawer__close-btn:hover {
+  color: var(--color-ink, #f1f5f9);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.goal-drawer__close-btn:active {
+  transform: scale(0.92);
+}
+
+/* ──────── 진행률 바 ──────── */
+.goal-drawer__progress-bar-wrap {
+  width: 100%;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.goal-drawer__progress-bar-fill {
+  height: 100%;
+  background: #10b981;
+  transition: width 240ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* ──────── 툴바 (검색 및 필터) ──────── */
+.goal-drawer__toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2, 10px);
+  padding: var(--space-3, 12px) var(--space-4, 20px);
+  border-bottom: 1px solid var(--color-rule, rgba(255, 255, 255, 0.06));
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.goal-drawer__search-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.goal-drawer__search-input {
+  width: 100%;
+  height: 32px;
+  font-size: 12px;
+  padding: 4px 28px 4px 10px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--color-rule, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius, 6px);
+  color: var(--color-ink, #f1f5f9);
+  outline: none;
+  transition: border-color 150ms ease;
+}
+
+.goal-drawer__search-input:focus {
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.goal-drawer__search-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: var(--color-ink-mid, #94a3b8);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+}
+
+.goal-drawer__search-clear:hover {
+  color: var(--color-ink, #f1f5f9);
+}
+
+.goal-drawer__filter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2, 8px);
+  flex-wrap: wrap;
+}
+
+.goal-drawer__chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.goal-drawer__chips .chip {
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 9px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--color-rule, rgba(255, 255, 255, 0.1));
+  color: var(--color-ink-mid, #94a3b8);
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.goal-drawer__chips .chip:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--color-ink, #f1f5f9);
+}
+
+.goal-drawer__chips .chip:active {
+  transform: scale(0.97);
+}
+
+.goal-drawer__chips .chip--active {
+  background: var(--color-card, #282f3c);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.28);
+  font-weight: 600;
+}
+
+.goal-drawer__hide-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--color-ink-mid, #94a3b8);
+  cursor: pointer;
+  user-select: none;
+}
+
+.goal-drawer__hide-toggle input[type='checkbox'] {
+  cursor: pointer;
+}
+
+.goal-drawer__section-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.goal-drawer__text-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-ink-mid, #94a3b8);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  transition: color 150ms ease;
+}
+
+.goal-drawer__text-btn:hover {
+  color: var(--color-ink, #f1f5f9);
+}
+
+/* ──────── 스크롤 본문 ──────── */
+.goal-drawer__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-3, 12px) var(--space-4, 20px);
+  scrollbar-width: thin;
+}
+
+.goal-drawer__sections-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.goal-drawer__section-card {
+  background: rgba(0, 0, 0, 0.16);
+  border: 1px solid var(--color-rule, rgba(255, 255, 255, 0.07));
+  border-radius: var(--radius, 6px);
+  overflow: hidden;
+}
+
+.goal-drawer__section-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  color: var(--color-ink, #f1f5f9);
+  cursor: pointer;
+  text-align: left;
+  transition: background 150ms ease;
+}
+
+.goal-drawer__section-head:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.goal-drawer__section-head:active {
+  transform: scale(0.99);
+}
+
+.goal-drawer__section-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.goal-drawer__section-chevron {
+  display: inline-block;
+  font-size: 10px;
+  color: var(--color-ink-mid, #94a3b8);
+  transition: transform 180ms ease;
+}
+
+.goal-drawer__section-chevron--open {
+  transform: rotate(90deg);
+}
+
+.goal-drawer__section-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.goal-drawer__section-stat {
+  font-size: 11px;
+  color: var(--color-ink-mid, #94a3b8);
+  flex-shrink: 0;
+}
+
+.goal-drawer__item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.goal-drawer__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius, 4px);
+  background: var(--color-surface, #1e222b);
+  border: 1px solid transparent;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 120ms ease, opacity 120ms ease, border-color 120ms ease;
+}
+
+.goal-drawer__item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.goal-drawer__item input[type='checkbox'] {
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.goal-drawer__item-title {
+  flex: 1;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
+.goal-drawer__item--done .goal-drawer__item-title {
+  text-decoration: line-through;
+  color: var(--color-ink-mid, #94a3b8);
+}
+
+.goal-drawer__empty-msg {
+  text-align: center;
+  padding: var(--space-4, 24px) 0;
+  font-size: 12px;
+  color: var(--color-ink-mid, #94a3b8);
+}
+
+/* ──────── 푸터 ──────── */
+.goal-drawer__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3, 14px) var(--space-4, 20px);
+  border-top: 1px solid var(--color-rule, rgba(255, 255, 255, 0.08));
+  gap: var(--space-2, 8px);
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.goal-drawer__foot-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+}
+
+.goal-drawer__foot-btn {
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: var(--radius, 4px);
+  cursor: pointer;
+  transition: transform 150ms ease, background 150ms ease;
+}
+
+.goal-drawer__foot-btn:active {
+  transform: scale(0.97);
+}
+
+/* ───────────────────────── 모바일 반응형 (바텀 시트) ───────────────────────── */
+@media (max-width: 767px) {
+  .goal-drawer {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin: 0;
+    width: 100%;
+    max-width: 100vw;
+    height: auto;
+    max-height: 85vh;
+    border-left: none;
+    border-top: 1px solid var(--color-rule, rgba(255, 255, 255, 0.15));
+    border-radius: 16px 16px 0 0;
+    animation: drawer-slide-up 240ms cubic-bezier(0.23, 1, 0.32, 1);
+    box-shadow: 0 -6px 28px rgba(0, 0, 0, 0.45);
+  }
+
+  @keyframes drawer-slide-up {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  .goal-drawer__grab-handle-wrap {
+    display: flex;
+  }
+
+  .goal-drawer__head {
+    padding: var(--space-2, 8px) var(--space-3, 16px) var(--space-3, 12px);
+  }
+
+  .goal-drawer__toolbar {
+    padding: var(--space-2, 8px) var(--space-3, 16px);
+  }
+
+  .goal-drawer__body {
+    padding: var(--space-2, 8px) var(--space-3, 16px);
+  }
+
+  .goal-drawer__foot {
+    padding: var(--space-3, 12px) var(--space-3, 16px);
+    flex-wrap: wrap;
+  }
+
+  .goal-drawer__foot-left {
+    flex: 1;
+  }
+
+  .goal-drawer__item {
+    min-height: 38px;
+  }
+}
