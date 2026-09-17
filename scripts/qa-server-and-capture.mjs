@@ -7,9 +7,9 @@ import { MOCK_PROJECTS } from './benchmark-ab-test.mjs';
 const CHROME_PATH = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const DIST_DIR = path.resolve('/Users/kimtaewoo/Muster/apps/web/dist');
 const ARTIFACT_DIR_PARENT =
-  '/Users/kimtaewoo/.gemini/antigravity/brain/e8458c2c-bf26-4777-b66f-1e307f2ffeaf';
-const ARTIFACT_DIR_CURRENT =
   '/Users/kimtaewoo/.gemini/antigravity/brain/75deec8b-784a-416e-8455-0bc4fc2de628';
+const ARTIFACT_DIR_CURRENT =
+  '/Users/kimtaewoo/.gemini/antigravity/brain/59af4d8d-bdc2-4137-9515-1e864441b8e9';
 
 fs.mkdirSync(ARTIFACT_DIR_PARENT, { recursive: true });
 fs.mkdirSync(ARTIFACT_DIR_CURRENT, { recursive: true });
@@ -344,6 +344,56 @@ const server = http.createServer((req, res) => {
             { date: '2026-03-16', tokens: '135000', cost: '$0.40' },
             { date: '2026-03-17', tokens: proj.tokens.today, cost: proj.tokens.todayCost },
           ],
+          waste_intelligence: {
+            cache_efficiency: {
+              hit_rate_percentage: 65,
+              current_estimated_cost: '14.2000',
+              optimized_cost: '4.8200',
+              potential_savings: '9.3800',
+              savings_percentage: 66,
+            },
+            waste_breakdown: {
+              level: 'CAUTION',
+              total_wasted_tokens: 850000,
+              waste_percentage: 21,
+              context_bloat_tokens: 850000,
+              duplicate_reads_tokens: 618000,
+              high_waste_sessions_count: 1,
+            },
+            optimization_guides: [
+              {
+                id: 'prompt-cache-pinning',
+                title: '공통 컨텍스트 상단 배치 (Prompt Cache Pinning)',
+                description:
+                  'README, API 명세, 설계서 등 변하지 않는 핵심 문서를 시스템 프롬프트 최상단에 배치하면 2026 최신 모델(Claude/Gemini)에서 90% 캐시 읽기 할인이 적용됩니다.',
+                impact: 'HIGH',
+                action_hint: '시스템 프롬프트의 가변 컨텍스트를 맨 뒤로 이동하세요.',
+              },
+              {
+                id: 'session-compaction',
+                title: '100턴 단위 세션 분할 또는 컴팩션 (/compact)',
+                description:
+                  '100턴을 초과하는 대형 세션은 매 턴마다 전체 대화 히스토리가 누적 입력 토큰으로 재전송되어 비용이 기하급수적으로 증가합니다.',
+                impact: 'HIGH',
+                action_hint: '장기 세션은 새 세션으로 분기하거나 주기적으로 요약 압축하세요.',
+              },
+              {
+                id: 'subagent-delegation',
+                title: '경량 탐색 작업은 Flash/Haiku 서브에이전트로 위임',
+                description:
+                  '단순 코드 검색, 파일 목록 조사 등은 Gemini 3.1 Flash-Lite($0.15/1M)나 Claude Haiku 5($0.40/1M) 서브에이전트로 분리하여 주력 모델의 입력 토큰을 절약하세요.',
+                impact: 'MEDIUM',
+                action_hint: '단순 탐색 시 경량 모델 서브에이전트를 적극 활용하세요.',
+              },
+            ],
+            model_cache_benchmarks: [
+              { model: 'Claude Sonnet 5', discount: '90% 할인', readPrice: '$0.20 / 1M' },
+              { model: 'Gemini 3.8 Flash', discount: '90% 할인', readPrice: '$0.075 / 1M' },
+              { model: 'GPT-5.6 Terra', discount: '90% 할인', readPrice: '$0.20 / 1M' },
+              { model: 'Claude Fable 5.1', discount: '97.5% 파격 할인', readPrice: '$0.25 / 1M' },
+              { model: 'Gemini 3.6 Flash', discount: '90% 할인', readPrice: '$0.050 / 1M' },
+            ],
+          },
           recent_runs: [
             {
               id: 'run-1',
@@ -753,7 +803,40 @@ async function runCaptures() {
       waitMs: 2500,
     });
 
-    console.log('\n🎉 모든 뷰포트 및 실시간 하트비트 스트리밍 시각적 증거(스크린샷 14종) 완벽 캡처 완료!');
+    // 15. 데스크톱 뷰포트 (1280x900) - 2026 프롬프트 캐싱 인텔리전스 카드 포커스
+    await captureItem({
+      url: 'http://127.0.0.1:8765/projects/proj-001',
+      outName: 'desktop-prompt-caching-intelligence.png',
+      width: 1280,
+      height: 900,
+      isMobile: false,
+      waitMs: 1500,
+      evalScript: `document.querySelector('.token-waste-card')?.scrollIntoView({ block: 'center' })`,
+    });
+
+    // 16. 데스크톱 뷰포트 (1280x900) - 프롬프트 캐싱 최적화 가이드 모달 열림 상태
+    await captureItem({
+      url: 'http://127.0.0.1:8765/projects/proj-001',
+      outName: 'desktop-cache-guide-modal.png',
+      width: 1280,
+      height: 900,
+      isMobile: false,
+      waitMs: 1500,
+      evalScript: `document.querySelector('.token-waste-card__guide-btn')?.click()`,
+    });
+
+    // 17. 모바일 뷰포트 (390x844) - 2026 프롬프트 캐싱 인텔리전스 카드 모바일 반응형 뷰
+    await captureItem({
+      url: 'http://127.0.0.1:8765/projects/proj-001',
+      outName: 'mobile-prompt-caching-intelligence.png',
+      width: 390,
+      height: 844,
+      isMobile: true,
+      waitMs: 1500,
+      evalScript: `document.querySelector('.token-waste-card')?.scrollIntoView({ block: 'start' })`,
+    });
+
+    console.log('\n🎉 모든 뷰포트 및 프롬프트 캐싱 인텔리전스 시각적 증거(스크린샷 17종) 완벽 캡처 완료!');
   } finally {
     ws.close();
     chrome.kill();

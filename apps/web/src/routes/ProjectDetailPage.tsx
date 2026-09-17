@@ -14,7 +14,12 @@ import {
   parseGoalChecklist,
   toggleGoalChecklist,
 } from '../lib/goalChecklist';
-import { formatCost, formatTokenCount, getWasteBadge } from '../lib/tokenIntelligence';
+import {
+  formatCost,
+  formatTokenCount,
+  getWasteBadge,
+  type TokenWasteIntelligence,
+} from '../lib/tokenIntelligence';
 import {
   buildTokenUsageUrl,
   getAgentLabel,
@@ -23,6 +28,7 @@ import {
 } from '../lib/agentFilter';
 import { TokenStockChart } from '../components/TokenStockChart';
 import { ModelUsageBreakdown, type ModelUsageItem } from '../components/ModelUsageBreakdown';
+import { TokenWasteIntelligenceCard } from '../components/TokenWasteIntelligenceCard';
 import { formatElapsedTime } from '../lib/projectListUtils';
 import { useSse } from '../lib/useSse';
 import { useApi } from '../lib/useApi';
@@ -104,6 +110,7 @@ interface UsageBreakdown {
   time_series?: Array<{ key: string; label: string; tokens: string; cost: string }>;
   model_breakdown?: ModelUsageItem[];
   waste_insight?: WasteInsightSummary;
+  waste_intelligence?: TokenWasteIntelligence;
   recent_runs?: SessionRunView[];
 }
 
@@ -1120,6 +1127,14 @@ export function ProjectDetailPage() {
                   />
                 )}
 
+                {usage.data.waste_intelligence && (
+                  <TokenWasteIntelligenceCard
+                    intelligence={usage.data.waste_intelligence}
+                    totalTokens={usage.data.total_tokens || usage.data.month_tokens}
+                    totalCost={usage.data.total_cost || usage.data.month_cost}
+                  />
+                )}
+
                 <div style={{ marginTop: 'var(--space-2)' }}>
                   <button
                     type="button"
@@ -1130,7 +1145,8 @@ export function ProjectDetailPage() {
                   </button>
                 </div>
 
-                {usage.data.waste_insight &&
+                {!usage.data.waste_intelligence &&
+                  usage.data.waste_insight &&
                   usage.data.waste_insight.high_waste_sessions_count > 0 && (
                     <div
                       className="detail__goals-remaining"
