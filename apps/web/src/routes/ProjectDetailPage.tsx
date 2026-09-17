@@ -567,7 +567,8 @@ export function ProjectDetailPage() {
   const logs = useApi<Page<LogView>>(
     id ? `/projects/${id}/logs?limit=5${level ? `&level=${level}` : ''}` : null,
   );
-  const usage = useApi<UsageBreakdown>(id ? buildTokenUsageUrl(id, agentFilter) : null);
+  const tz = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Seoul', []);
+  const usage = useApi<UsageBreakdown>(id ? buildTokenUsageUrl(id, agentFilter, tz) : null);
   const documents = useApi<Page<DocumentView>>(id ? `/projects/${id}/documents?limit=5` : null);
 
   const deploys = useMemo(

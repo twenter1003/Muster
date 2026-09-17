@@ -20,6 +20,15 @@ describe('agentFilter', () => {
         '/projects/proj-123/token-usage?agent_name=antigravity',
       );
     });
+
+    it('tz가 주어지면 쿼리에 tz를 붙인다', () => {
+      expect(buildTokenUsageUrl(projectId, 'all', 'Asia/Seoul')).toBe(
+        '/projects/proj-123/token-usage?tz=Asia%2FSeoul',
+      );
+      expect(buildTokenUsageUrl(projectId, 'claude-code', 'Asia/Seoul')).toBe(
+        '/projects/proj-123/token-usage?agent_name=claude-code&tz=Asia%2FSeoul',
+      );
+    });
   });
 
   describe('getAgentLabel', () => {

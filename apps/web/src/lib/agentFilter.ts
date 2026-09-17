@@ -1,10 +1,19 @@
 export type AgentFilterType = 'all' | 'claude-code' | 'antigravity';
 
-export function buildTokenUsageUrl(projectId: string, filter: AgentFilterType): string {
-  if (filter === 'all') {
-    return `/projects/${projectId}/token-usage`;
+export function buildTokenUsageUrl(
+  projectId: string,
+  filter: AgentFilterType,
+  tz?: string,
+): string {
+  const params = new URLSearchParams();
+  if (filter !== 'all') {
+    params.set('agent_name', filter);
   }
-  return `/projects/${projectId}/token-usage?agent_name=${filter}`;
+  if (tz) {
+    params.set('tz', tz);
+  }
+  const qs = params.toString();
+  return `/projects/${projectId}/token-usage${qs ? `?${qs}` : ''}`;
 }
 
 export function getAgentLabel(agentName: string): string {

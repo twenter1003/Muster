@@ -119,8 +119,9 @@ export class ProjectAgentsController {
   async getTokenUsage(
     @Param('id') projectId: string,
     @Query('agent_name') agentName?: string,
+    @Query('tz') tz?: string,
   ): Promise<UsageBreakdown> {
-    return this.budget.dailyUsage(projectId, agentName);
+    return this.budget.dailyUsage(projectId, agentName, tz);
   }
 
   /**

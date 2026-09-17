@@ -157,31 +157,41 @@ export class BudgetService {
    * 목록 카드는 today_tokens만, 상세 화면은 daily까지 써서 스파크라인을 그린다.
    *
    * 날짜 경계는 UTC 기준이다(date_trunc의 기본 세션 타임존). 사용자별 시간대를 반영하지
-   * 않는 근사치이지만, "오늘 얼마나 썼는지" 감을 주는 용도라 이 정도 오차는 감수한다.
+  /**
+   * 프로젝트 목록·상세 화면의 "토큰 사용량" 카드가 쓰는 일별 집계.
+   * 한국(Asia/Seoul) 등 클라이언트 타임존 기준으로 하루 경계를 계산한다.
    */
-  async dailyUsage(projectId: string, agentName?: string): Promise<UsageBreakdown> {
-    const since = new Date();
-    since.setUTCDate(since.getUTCDate() - (DAILY_WINDOW_DAYS - 1));
-    since.setUTCHours(0, 0, 0, 0);
-
-    const monthStart = new Date();
-    monthStart.setUTCDate(1);
-    monthStart.setUTCHours(0, 0, 0, 0);
+  async dailyUsage(
+    projectId: string,
+    agentName?: string,
+    timeZone = 'Asia/Seoul',
+  ): Promise<UsageBreakdown> {
+    const tz = sanitizeTimeZone(timeZone);
+    const now = new Date();
+    const dailyDates = getDailyDates(DAILY_WINDOW_DAYS, tz);
+    const since = new Date(now.getTime() - (DAILY_WINDOW_DAYS + 1) * 24 * 3600 * 1000);
+    const currentMonth = dailyDates.at(-1)!.slice(0, 7);
 
     let rowsQb = this.runs
       .createQueryBuilder('r')
       .innerJoin(Agent, 'a', 'a.id = r.agent_id')
       .where('a.project_id = :projectId', { projectId })
-      .andWhere('r.started_at >= :since', { since })
-      .select("date_trunc('day', r.started_at)", 'day')
+      .andWhere('(r.started_at >= :since OR (r.ended_at IS NOT NULL AND r.ended_at >= :since))', {
+        since,
+        tz,
+      })
+      .select("to_char(COALESCE(r.ended_at, r.started_at) AT TIME ZONE :tz, 'YYYY-MM-DD')", 'day')
       .addSelect('COALESCE(SUM(r.tokens_used), 0)', 'tokens')
-      .groupBy('day');
+      .groupBy("to_char(COALESCE(r.ended_at, r.started_at) AT TIME ZONE :tz, 'YYYY-MM-DD')");
 
     let monthQb = this.runs
       .createQueryBuilder('r')
       .innerJoin(Agent, 'a', 'a.id = r.agent_id')
       .where('a.project_id = :projectId', { projectId })
-      .andWhere('r.started_at >= :monthStart', { monthStart })
+      .andWhere(
+        "to_char(COALESCE(r.ended_at, r.started_at) AT TIME ZONE :tz, 'YYYY-MM') = :currentMonth",
+        { currentMonth, tz },
+      )
       .select('COALESCE(SUM(r.tokens_used), 0)', 'tokens');
 
     let totalQb = this.runs
@@ -205,19 +215,17 @@ export class BudgetService {
     }
 
     const [rows, monthRow, totalRow, recentRuns] = await Promise.all([
-      rowsQb.getRawMany<{ day: Date; tokens: string }>(),
+      rowsQb.getRawMany<{ day: Date | string; tokens: string }>(),
       monthQb.getRawOne<{ tokens: string }>(),
       totalQb.getRawOne<{ tokens: string }>(),
       recentQb.getMany(),
     ]);
 
     const byDay = new Map(rows.map((r) => [toDateKey(r.day), r.tokens]));
-    const daily = Array.from({ length: DAILY_WINDOW_DAYS }, (_, i) => {
-      const day = new Date(since);
-      day.setUTCDate(day.getUTCDate() + i);
-      const date = toDateKey(day);
-      return { date, tokens: byDay.get(date) ?? '0' };
-    });
+    const daily = dailyDates.map((date) => ({
+      date,
+      tokens: byDay.get(date) ?? '0',
+    }));
 
     const recent_runs: SessionRunView[] = recentRuns.map((r) => ({
       id: r.id,
@@ -257,8 +265,39 @@ export class BudgetService {
   }
 }
 
-/** raw 쿼리 결과의 날짜를 'YYYY-MM-DD' 키로 정규화한다. pg 드라이버가 Date로 주지 않을 수도 있다. */
+/** 타임존 문자열 검증 및 fallback */
+function sanitizeTimeZone(tz?: string): string {
+  if (!tz) return 'Asia/Seoul';
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: tz });
+    return tz;
+  } catch {
+    return 'Asia/Seoul';
+  }
+}
+
+/** 주어진 타임존 기준 최근 N일간의 YYYY-MM-DD 목록 생성 */
+function getDailyDates(days: number, tz: string): string[] {
+  const dates: string[] = [];
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(now.getTime() - i * 24 * 3600 * 1000);
+    dates.push(formatter.format(d));
+  }
+  return dates;
+}
+
+/** raw 쿼리 결과의 날짜를 'YYYY-MM-DD' 키로 정규화한다. */
 function toDateKey(value: Date | string): string {
+  if (typeof value === 'string') {
+    return value.slice(0, 10);
+  }
   const d = value instanceof Date ? value : new Date(value);
   return d.toISOString().slice(0, 10);
 }
