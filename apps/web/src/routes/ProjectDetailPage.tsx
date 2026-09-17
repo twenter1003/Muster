@@ -310,14 +310,8 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
     () => getGoalsProgressStats(goals.data?.content_md),
     [goals.data?.content_md],
   );
-  const upNextItems = useMemo(
-    () => getUpNextItems(checklistItems, 3),
-    [checklistItems],
-  );
-  const remainingPendingCount = Math.max(
-    0,
-    stats.total - stats.completed - upNextItems.length,
-  );
+  const upNextItems = useMemo(() => getUpNextItems(checklistItems, 3), [checklistItems]);
+  const remainingPendingCount = Math.max(0, stats.total - stats.completed - upNextItems.length);
 
   const startEditing = () => {
     setDraftText(goals.data?.content_md ?? '');
@@ -409,7 +403,9 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
   return (
     <div className="panel detail__panel--wide detail__goals-panel">
       <div className="detail__goals-card-head">
-        <span className="panel__head" style={{ margin: 0 }}>목표 · 진행률</span>
+        <span className="panel__head" style={{ margin: 0 }}>
+          목표 · 진행률
+        </span>
         {stats.total > 0 && (
           <button
             type="button"

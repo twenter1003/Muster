@@ -120,9 +120,7 @@ export function getGoalsProgressStats(contentMd: string | null | undefined): {
  * 헤더가 없는 경우 단일 섹션(title: '')으로 반환된다.
  * 각 항목의 index는 문서 전체 기준의 고유 인덱스를 유지하여 toggleGoalChecklist와 완벽히 호환된다.
  */
-export function parseGoalChecklistSections(
-  contentMd: string | null | undefined,
-): GoalSection[] {
+export function parseGoalChecklistSections(contentMd: string | null | undefined): GoalSection[] {
   if (!contentMd || contentMd.trim() === '') {
     return [];
   }

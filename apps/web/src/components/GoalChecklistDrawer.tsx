@@ -174,10 +174,7 @@ export function GoalChecklistDrawer({
 
         {/* 진행률 바 */}
         <div className="goal-drawer__progress-bar-wrap" aria-hidden="true">
-          <div
-            className="goal-drawer__progress-bar-fill"
-            style={{ width: `${stats.percent}%` }}
-          />
+          <div className="goal-drawer__progress-bar-fill" style={{ width: `${stats.percent}%` }} />
         </div>
 
         {/* 스마트 툴바: 검색 및 필터 칩 */}
@@ -334,9 +331,7 @@ export function GoalChecklistDrawer({
               {filteredFlatItems.map((item) => (
                 <label
                   key={item.index}
-                  className={`goal-drawer__item ${
-                    item.completed ? 'goal-drawer__item--done' : ''
-                  }`}
+                  className={`goal-drawer__item ${item.completed ? 'goal-drawer__item--done' : ''}`}
                 >
                   <input
                     type="checkbox"

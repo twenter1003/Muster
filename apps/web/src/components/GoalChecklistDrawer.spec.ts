@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { GoalCheckItem } from '../lib/goalChecklist';
-import {
-  filterDrawerItems,
-  formatProgressSummary,
-  getUpNextItems,
-} from './GoalChecklistDrawer';
+import { filterDrawerItems, formatProgressSummary, getUpNextItems } from './GoalChecklistDrawer';
 
 const mockItems: GoalCheckItem[] = [
   { index: 0, title: '기본 DB 스키마 마이그레이션', completed: true },

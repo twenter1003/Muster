@@ -112,7 +112,10 @@
   cursor: pointer;
   padding: 4px 8px;
   border-radius: var(--radius, 4px);
-  transition: color 150ms ease, background 150ms ease, transform 150ms ease;
+  transition:
+    color 150ms ease,
+    background 150ms ease,
+    transform 150ms ease;
 }
 
 .goal-drawer__close-btn:hover {
@@ -361,7 +364,10 @@
   font-size: 13px;
   cursor: pointer;
   user-select: none;
-  transition: background 120ms ease, opacity 120ms ease, border-color 120ms ease;
+  transition:
+    background 120ms ease,
+    opacity 120ms ease,
+    border-color 120ms ease;
 }
 
 .goal-drawer__item:hover {
@@ -414,7 +420,9 @@
   padding: 5px 12px;
   border-radius: var(--radius, 4px);
   cursor: pointer;
-  transition: transform 150ms ease, background 150ms ease;
+  transition:
+    transform 150ms ease,
+    background 150ms ease;
 }
 
 .goal-drawer__foot-btn:active {
