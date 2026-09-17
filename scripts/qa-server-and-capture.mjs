@@ -911,7 +911,49 @@ async function runCaptures() {
       evalScript: `document.querySelector('.token-stock-chart')?.scrollIntoView({ block: 'start' }); document.querySelector('[data-testid="overlay-toggle-button"]')?.click();`,
     });
 
-    console.log('\n🎉 모든 뷰포트 및 에이전트별 비교 오버레이 시각적 증거(스크린샷 20종) 완벽 캡처 완료!');
+    // 21. 데스크톱 뷰포트 (1280x900) - 마우스 호버 시 인터랙티브 플로팅 툴팁 (Floating Tooltip)
+    await captureItem({
+      url: 'http://127.0.0.1:8765/projects/proj-001',
+      outName: 'desktop-token-chart-floating-tooltip.png',
+      width: 1280,
+      height: 900,
+      isMobile: false,
+      waitMs: 1500,
+      evalScript: `
+        document.querySelector('.token-stock-chart')?.scrollIntoView({ block: 'center' });
+        document.querySelector('[data-testid="overlay-toggle-button"]')?.click();
+        const svg = document.querySelector('.token-stock-chart__svg');
+        if (svg) {
+          const rect = svg.getBoundingClientRect();
+          const clientX = rect.left + rect.width * 0.45;
+          const clientY = rect.top + rect.height * 0.5;
+          svg.dispatchEvent(new MouseEvent('mousemove', { clientX, clientY, bubbles: true }));
+        }
+      `,
+    });
+
+    // 22. 모바일 뷰포트 (390x844) - 모바일 터치/호버 시 인터랙티브 플로팅 툴팁 (Floating Tooltip)
+    await captureItem({
+      url: 'http://127.0.0.1:8765/projects/proj-001',
+      outName: 'mobile-token-chart-floating-tooltip.png',
+      width: 390,
+      height: 844,
+      isMobile: true,
+      waitMs: 1500,
+      evalScript: `
+        document.querySelector('.token-stock-chart')?.scrollIntoView({ block: 'start' });
+        document.querySelector('[data-testid="overlay-toggle-button"]')?.click();
+        const svg = document.querySelector('.token-stock-chart__svg');
+        if (svg) {
+          const rect = svg.getBoundingClientRect();
+          const clientX = rect.left + rect.width * 0.45;
+          const clientY = rect.top + rect.height * 0.5;
+          svg.dispatchEvent(new MouseEvent('mousemove', { clientX, clientY, bubbles: true }));
+        }
+      `,
+    });
+
+    console.log('\n🎉 모든 뷰포트 및 인터랙티브 플로팅 툴팁 시각적 증거(스크린샷 22종) 완벽 캡처 완료!');
   } finally {
     ws.close();
     chrome.kill();

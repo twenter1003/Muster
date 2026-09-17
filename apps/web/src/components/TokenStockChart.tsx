@@ -338,166 +338,256 @@ export function TokenStockChart({
             <p className="meta">집계 데이터가 없습니다.</p>
           </div>
         ) : (
-          <svg
-            className="token-stock-chart__svg"
-            viewBox={`0 0 ${SVG_WIDTH} ${height}`}
-            preserveAspectRatio="none"
-            onMouseMove={(e) => handlePointerMove(e.clientX, e.currentTarget)}
-            onMouseLeave={() => setHoveredIdx(null)}
-            onTouchMove={(e) => {
-              if (e.touches[0]) handlePointerMove(e.touches[0].clientX, e.currentTarget);
-            }}
-            onTouchEnd={() => setHoveredIdx(null)}
-          >
-            <defs>
-              <linearGradient id={`areaGrad-${gradId}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--color-cost, #059669)" stopOpacity="0.32" />
-                <stop offset="70%" stopColor="var(--color-cost, #059669)" stopOpacity="0.08" />
-                <stop offset="100%" stopColor="var(--color-cost, #059669)" stopOpacity="0.0" />
-              </linearGradient>
-            </defs>
+          <>
+            <svg
+              className="token-stock-chart__svg"
+              viewBox={`0 0 ${SVG_WIDTH} ${height}`}
+              preserveAspectRatio="none"
+              onMouseMove={(e) => handlePointerMove(e.clientX, e.currentTarget)}
+              onMouseLeave={() => setHoveredIdx(null)}
+              onTouchMove={(e) => {
+                if (e.touches[0]) handlePointerMove(e.touches[0].clientX, e.currentTarget);
+              }}
+              onTouchEnd={() => setHoveredIdx(null)}
+            >
+              <defs>
+                <linearGradient id={`areaGrad-${gradId}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--color-cost, #059669)" stopOpacity="0.32" />
+                  <stop offset="70%" stopColor="var(--color-cost, #059669)" stopOpacity="0.08" />
+                  <stop offset="100%" stopColor="var(--color-cost, #059669)" stopOpacity="0.0" />
+                </linearGradient>
+              </defs>
 
-            {/* 수평 보조 격자선 (Top, Middle, Bottom) */}
-            <line
-              x1={PADDING.left}
-              y1={PADDING.top}
-              x2={SVG_WIDTH - PADDING.right}
-              y2={PADDING.top}
-              className="chart-gridline"
-            />
-            <line
-              x1={PADDING.left}
-              y1={PADDING.top + chartH / 2}
-              x2={SVG_WIDTH - PADDING.right}
-              y2={PADDING.top + chartH / 2}
-              className="chart-gridline"
-            />
-            <line
-              x1={PADDING.left}
-              y1={PADDING.top + chartH}
-              x2={SVG_WIDTH - PADDING.right}
-              y2={PADDING.top + chartH}
-              className="chart-gridline chart-gridline--base"
-            />
-
-            {/* 하단 볼륨 바 (하단 20% 영역에 거래량 스타일 표현) */}
-            {points.map((p) => {
-              const barMaxH = chartH * 0.22;
-              const barH = p.val > 0 ? Math.max((p.val / maxVal) * barMaxH, 2) : 0;
-              const barW = Math.max(chartW / (points.length * 2.2), 2);
-              const isHovered = hoveredIdx === p.i;
-              return (
-                <rect
-                  key={`bar-${p.i}`}
-                  x={p.x - barW / 2}
-                  y={PADDING.top + chartH - barH}
-                  width={barW}
-                  height={barH}
-                  rx="1"
-                  className={`stock-bar ${isHovered ? 'stock-bar--active' : ''}`}
-                />
-              );
-            })}
-
-            {/* Area 그라데이션 채우기 (전체 합계) */}
-            {showTotalLine && (!effectiveOverlay || visibleAgents.size === 0) && (
-              <polygon
-                points={polygonPoints}
-                fill={`url(#areaGrad-${gradId})`}
-                className="chart-area"
+              {/* 수평 보조 격자선 (Top, Middle, Bottom) */}
+              <line
+                x1={PADDING.left}
+                y1={PADDING.top}
+                x2={SVG_WIDTH - PADDING.right}
+                y2={PADDING.top}
+                className="chart-gridline"
               />
-            )}
-
-            {/* 메인 스트로크 폴리라인 (전체 합계) */}
-            {showTotalLine && (
-              <polyline
-                points={polylinePoints}
-                fill="none"
-                className={`chart-polyline ${effectiveOverlay ? 'chart-polyline--total-dim' : ''}`}
+              <line
+                x1={PADDING.left}
+                y1={PADDING.top + chartH / 2}
+                x2={SVG_WIDTH - PADDING.right}
+                y2={PADDING.top + chartH / 2}
+                className="chart-gridline"
               />
-            )}
+              <line
+                x1={PADDING.left}
+                y1={PADDING.top + chartH}
+                x2={SVG_WIDTH - PADDING.right}
+                y2={PADDING.top + chartH}
+                className="chart-gridline chart-gridline--base"
+              />
 
-            {/* 에이전트별 비교 멀티 폴리라인 */}
-            {effectiveOverlay &&
-              activeAgents.map((agent) => {
-                if (!isAgentVisible(agent)) return null;
-                const theme = getAgentTheme(agent);
-                const polyline = agentPolylines[agent];
-                if (!polyline) return null;
+              {/* 하단 볼륨 바 (하단 20% 영역에 거래량 스타일 표현) */}
+              {points.map((p) => {
+                const barMaxH = chartH * 0.22;
+                const barH = p.val > 0 ? Math.max((p.val / maxVal) * barMaxH, 2) : 0;
+                const barW = Math.max(chartW / (points.length * 2.2), 2);
+                const isHovered = hoveredIdx === p.i;
                 return (
-                  <polyline
-                    key={`line-${agent}`}
-                    points={polyline}
-                    fill="none"
-                    stroke={theme.color}
-                    className="chart-polyline chart-polyline--agent"
-                    data-agent={agent}
+                  <rect
+                    key={`bar-${p.i}`}
+                    x={p.x - barW / 2}
+                    y={PADDING.top + chartH - barH}
+                    width={barW}
+                    height={barH}
+                    rx="1"
+                    className={`stock-bar ${isHovered ? 'stock-bar--active' : ''}`}
                   />
                 );
               })}
 
-            {/* 크로스헤어 및 하이라이트 도트 */}
-            {activePoint && (
-              <g className="chart-crosshair">
-                <line
-                  x1={activePoint.x}
-                  y1={PADDING.top}
-                  x2={activePoint.x}
-                  y2={PADDING.top + chartH}
-                  className="chart-crosshair__line"
+              {/* Area 그라데이션 채우기 (전체 합계) */}
+              {showTotalLine && (!effectiveOverlay || visibleAgents.size === 0) && (
+                <polygon
+                  points={polygonPoints}
+                  fill={`url(#areaGrad-${gradId})`}
+                  className="chart-area"
                 />
+              )}
 
-                {/* 전체 합계 도트 */}
-                {showTotalLine && (
-                  <circle
-                    cx={activePoint.x}
-                    cy={activePoint.y}
-                    r="4.5"
-                    className="chart-crosshair__dot"
+              {/* 메인 스트로크 폴리라인 (전체 합계) */}
+              {showTotalLine && (
+                <polyline
+                  points={polylinePoints}
+                  fill="none"
+                  className={`chart-polyline ${effectiveOverlay ? 'chart-polyline--total-dim' : ''}`}
+                />
+              )}
+
+              {/* 에이전트별 비교 멀티 폴리라인 */}
+              {effectiveOverlay &&
+                activeAgents.map((agent) => {
+                  if (!isAgentVisible(agent)) return null;
+                  const theme = getAgentTheme(agent);
+                  const polyline = agentPolylines[agent];
+                  if (!polyline) return null;
+                  return (
+                    <polyline
+                      key={`line-${agent}`}
+                      points={polyline}
+                      fill="none"
+                      stroke={theme.color}
+                      className="chart-polyline chart-polyline--agent"
+                      data-agent={agent}
+                    />
+                  );
+                })}
+
+              {/* 크로스헤어 및 하이라이트 도트 */}
+              {activePoint && (
+                <g className="chart-crosshair">
+                  <line
+                    x1={activePoint.x}
+                    y1={PADDING.top}
+                    x2={activePoint.x}
+                    y2={PADDING.top + chartH}
+                    className="chart-crosshair__line"
                   />
-                )}
 
-                {/* 에이전트별 도트 */}
-                {effectiveOverlay &&
-                  activeAgents.map((agent) => {
-                    if (!isAgentVisible(agent)) return null;
-                    const pts = agentPointsMap[agent];
-                    if (!pts || !pts[activePoint.i]) return null;
-                    const pt = pts[activePoint.i];
-                    const theme = getAgentTheme(agent);
-                    return (
-                      <circle
-                        key={`dot-${agent}`}
-                        cx={pt.x}
-                        cy={pt.y}
-                        r="3.5"
-                        fill={theme.color}
-                        stroke="#ffffff"
-                        strokeWidth="1.5"
-                        className="chart-crosshair__agent-dot"
-                      />
-                    );
-                  })}
-              </g>
+                  {/* 전체 합계 도트 */}
+                  {showTotalLine && (
+                    <circle
+                      cx={activePoint.x}
+                      cy={activePoint.y}
+                      r="4.5"
+                      className="chart-crosshair__dot"
+                    />
+                  )}
+
+                  {/* 에이전트별 도트 */}
+                  {effectiveOverlay &&
+                    activeAgents.map((agent) => {
+                      if (!isAgentVisible(agent)) return null;
+                      const pts = agentPointsMap[agent];
+                      if (!pts || !pts[activePoint.i]) return null;
+                      const pt = pts[activePoint.i];
+                      const theme = getAgentTheme(agent);
+                      return (
+                        <circle
+                          key={`dot-${agent}`}
+                          cx={pt.x}
+                          cy={pt.y}
+                          r="3.5"
+                          fill={theme.color}
+                          stroke="#ffffff"
+                          strokeWidth="1.5"
+                          className="chart-crosshair__agent-dot"
+                        />
+                      );
+                    })}
+                </g>
+              )}
+
+              {/* X축 시간/날짜 라벨 */}
+              {points.map((p) => {
+                if (!visibleLabelIndices.has(p.i)) return null;
+                const isHovered = hoveredIdx === p.i;
+                return (
+                  <text
+                    key={`label-${p.i}`}
+                    x={p.x}
+                    y={height - 8}
+                    textAnchor="middle"
+                    className={`chart-axis-label ${isHovered ? 'chart-axis-label--active' : ''}`}
+                  >
+                    {p.d.label}
+                  </text>
+                );
+              })}
+            </svg>
+
+            {/* 마우스 호버 시 포인트 위치에 부유하는 인터랙티브 플로팅 툴팁 */}
+            {hoveredIdx !== null && activePoint && (
+              <div
+                className={`token-stock-chart__tooltip ${
+                  activePoint.x > SVG_WIDTH * 0.52
+                    ? 'token-stock-chart__tooltip--left'
+                    : 'token-stock-chart__tooltip--right'
+                }`}
+                style={{
+                  left: `${(activePoint.x / SVG_WIDTH) * 100}%`,
+                  top: `${Math.min(Math.max((activePoint.y / height) * 100, 16), 74)}%`,
+                }}
+                data-testid="chart-floating-tooltip"
+              >
+                <div className="stock-tooltip__header">
+                  <span className="stock-tooltip__date">{activePoint.d.key}</span>
+                  {hoveredIdx === points.length - 1 && (
+                    <span className="stock-tooltip__badge">최신</span>
+                  )}
+                </div>
+
+                <div className="stock-tooltip__body">
+                  <div className="stock-tooltip__row stock-tooltip__row--total">
+                    <span className="stock-tooltip__label">전체 토큰</span>
+                    <span className="stock-tooltip__value">
+                      <strong>{formatTokenCount(activePoint.d.tokens)}</strong>
+                      <span className="stock-tooltip__cost">
+                        ({formatCost(activePoint.d.cost)})
+                      </span>
+                    </span>
+                  </div>
+
+                  {effectiveOverlay && activeAgents.length > 0 && (
+                    <div className="stock-tooltip__agents">
+                      <div className="stock-tooltip__divider" />
+                      {activeAgents.map((agent) => {
+                        if (!isAgentVisible(agent)) return null;
+                        const theme = getAgentTheme(agent);
+                        const series = agentSeries ? agentSeries[agent] : undefined;
+                        const pt =
+                          series && series[activePoint.i] ? series[activePoint.i] : undefined;
+                        const tokenVal = pt ? pt.tokens : '0';
+                        const costVal = pt ? pt.cost : '0.0000';
+                        const totalNum = Number(activePoint.d.tokens) || 0;
+                        const agentNum = Number(tokenVal) || 0;
+                        const pct = totalNum > 0 ? Math.round((agentNum / totalNum) * 100) : 0;
+
+                        return (
+                          <div
+                            key={`tooltip-agent-${agent}`}
+                            className="stock-tooltip__row stock-tooltip__row--agent"
+                          >
+                            <span className="stock-tooltip__agent-meta">
+                              <span
+                                className="stock-tooltip__dot"
+                                style={{ backgroundColor: theme.color }}
+                              />
+                              <span className="stock-tooltip__agent-name">
+                                {getAgentLabel(agent)}
+                              </span>
+                            </span>
+                            <span className="stock-tooltip__agent-values">
+                              <span className="stock-tooltip__agent-tokens">
+                                {formatTokenCount(tokenVal)}
+                              </span>
+                              <span className="stock-tooltip__agent-cost">
+                                ({formatCost(costVal)})
+                              </span>
+                              <span className="stock-tooltip__agent-pct">{pct}%</span>
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {livePendingTokens !== undefined &&
+                    livePendingTokens > 0 &&
+                    hoveredIdx === points.length - 1 && (
+                      <div className="stock-tooltip__live">
+                        ⚡ 라이브 +{formatTokenCount(livePendingTokens)} (
+                        {formatCost(livePendingCost || '0')})
+                      </div>
+                    )}
+                </div>
+              </div>
             )}
-
-            {/* X축 시간/날짜 라벨 */}
-            {points.map((p) => {
-              if (!visibleLabelIndices.has(p.i)) return null;
-              const isHovered = hoveredIdx === p.i;
-              return (
-                <text
-                  key={`label-${p.i}`}
-                  x={p.x}
-                  y={height - 8}
-                  textAnchor="middle"
-                  className={`chart-axis-label ${isHovered ? 'chart-axis-label--active' : ''}`}
-                >
-                  {p.d.label}
-                </text>
-              );
-            })}
-          </svg>
+          </>
         )}
       </div>
 

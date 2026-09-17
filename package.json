@@ -15,7 +15,7 @@
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
-    "format": "prettier --write \"apps/**/*.{ts,tsx,json,md}\"",
+    "format": "prettier --write \"apps/**/*.{ts,tsx,css,json,md}\"",
     "up": "docker compose up -d --build",
     "down": "docker compose down"
   },

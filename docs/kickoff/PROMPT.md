@@ -42,6 +42,13 @@ Claude Code/LLM 기반으로 여러 사이드 프로젝트를 진행하는 사�
 
 ## 최근 완료된 것 (최신순, 상세는 git log)
 
+- **TokenStockChart 마우스 호버 인터랙티브 플로팅 툴팁(Floating Tooltip) 및 다중 에이전트 수치 인포박스 구축**
+  - 마우스/터치 호버 시 크로스헤어와 연동되는 2026 다크 글래스모피즘 플로팅 툴팁(`[data-testid="chart-floating-tooltip"]`) 구현.
+  - 지능형 스마트 플립(Smart Flip & Clamping): 차트 우측에서는 좌측으로, 좌측에서는 우측으로 자동 전환 및 Y축 클램핑으로 뷰포트 경계 이탈 방지.
+  - 단일 뷰(전체 토큰, 비용, 라이브 틱) 및 에이전트 비교 뷰(에이전트별 테마 컬러 도트, 라벨, 토큰량, 비용, 점유율 %) 완벽 지원.
+  - `TokenStockChart.spec.ts` 단위 테스트 4종 추가 (총 679개 유닛 테스트 100% 통과).
+  - Chrome CDP 기반 22종 스크린샷 캡처(데스크톱/모바일 플로팅 툴팁 뷰) 시각적 검증 완료.
+  - `graphify update .`를 통한 지식 그래프(3,144개 노드, 7,596개 엣지) 최신화 동기화 완료.
 - **프로젝트 상세 에이전트별(Claude Code vs Antigravity/Gemini vs Cursor) 토큰 사용량 비교 필터링 및 TokenStockChart 오버레이 강화**
   - 백엔드 `dailyUsage` 복수 에이전트 필터(`a.name IN (...)`) 지원 및 `agent_series`, `available_agents`, 버킷별 `agent_tokens`/`agent_cost` 단일 집계 쿼리 최적화 (`budget.service.ts`).
   - 프론트엔드 `agentFilter.ts` 내 `Cursor` 에이전트 추가, 다중 에이전트 파라미터 직렬화, `AGENT_THEMES` 컬러 매핑 구축.
