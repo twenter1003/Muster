@@ -115,4 +115,34 @@ describe('StreamService', () => {
       jest.useRealTimers();
     }
   });
+
+  it('agent_run_started 및 agent_run_finished 이벤트를 올바른 타입으로 스트리밍한다', async () => {
+    const received = firstValueFrom(service.forProject(MINE).pipe(take(2), toArray()));
+
+    emitter.emit(DomainEvent.AGENT_RUN_STARTED, {
+      project_id: MINE,
+      agent_id: 'a-1',
+      agent_name: 'claude-code',
+      run_id: 'r-1',
+      status: 'running',
+      started_at: '2026-09-17T03:00:00.000Z',
+    });
+
+    emitter.emit(DomainEvent.AGENT_RUN_FINISHED, {
+      project_id: MINE,
+      agent_id: 'a-1',
+      agent_name: 'claude-code',
+      run_id: 'r-1',
+      status: 'succeeded',
+      tokens_used: 50000,
+      cost: '0.1800',
+      started_at: '2026-09-17T03:00:00.000Z',
+      ended_at: '2026-09-17T03:05:00.000Z',
+    });
+
+    const events = await received;
+    expect(events.map((e) => e.type)).toEqual(['agent_run_started', 'agent_run_finished']);
+    expect(events[0].data).toEqual(expect.objectContaining({ agent_name: 'claude-code', status: 'running' }));
+    expect(events[1].data).toEqual(expect.objectContaining({ tokens_used: 50000, cost: '0.1800' }));
+  });
 });

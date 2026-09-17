@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '../../database/inject-repository.decorator';
 import { Agent, AgentRun, GitIntegration, ProjectMember } from '../../database/entities';
+import { DomainEvent } from '../../common/events/domain-events';
 import { ApiException } from '../../common/errors/api.exception';
 import { buildPage, type Page, type PageRequest } from '../../common/pagination/paginate';
 import { normalizeGitRepoUrl } from '../project-core/repo-url';
@@ -24,6 +26,7 @@ export class AgentRunsService {
     @InjectRepository(GitIntegration) private readonly gitIntegrations: Repository<GitIntegration>,
     private readonly budget: BudgetService,
     private readonly modelPricing: ModelPricingService,
+    private readonly events: EventEmitter2,
   ) {}
 
   /**
@@ -69,6 +72,31 @@ export class AgentRunsService {
 
     if (projectId && before) {
       await this.budget.recalculateAndAlert(projectId, before);
+    }
+
+    if (projectId) {
+      if (status === 'running') {
+        this.events.emit(DomainEvent.AGENT_RUN_STARTED, {
+          project_id: projectId,
+          agent_id: agentId,
+          agent_name: agent?.name ?? 'agent',
+          run_id: run.id,
+          status: 'running',
+          started_at: run.started_at.toISOString(),
+        });
+      } else {
+        this.events.emit(DomainEvent.AGENT_RUN_FINISHED, {
+          project_id: projectId,
+          agent_id: agentId,
+          agent_name: agent?.name ?? 'agent',
+          run_id: run.id,
+          status: run.status,
+          tokens_used: run.tokens_used,
+          cost: run.cost,
+          started_at: run.started_at.toISOString(),
+          ended_at: (run.ended_at ?? new Date()).toISOString(),
+        });
+      }
     }
 
     return run;
@@ -174,6 +202,19 @@ export class AgentRunsService {
 
     const saved = await this.runs.save(run);
     await this.budget.recalculateAndAlert(projectId, before);
+
+    const agent = await this.agents.findOneBy({ id: saved.agent_id });
+    this.events.emit(DomainEvent.AGENT_RUN_FINISHED, {
+      project_id: projectId,
+      agent_id: saved.agent_id,
+      agent_name: agent?.name ?? 'agent',
+      run_id: saved.id,
+      status: saved.status,
+      tokens_used: saved.tokens_used,
+      cost: saved.cost,
+      started_at: saved.started_at.toISOString(),
+      ended_at: (saved.ended_at ?? new Date()).toISOString(),
+    });
 
     return saved;
   }

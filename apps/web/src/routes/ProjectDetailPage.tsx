@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { HealthIndicator } from '../components/HealthIndicator';
 import { Button } from '../components/Button';
@@ -15,6 +15,7 @@ import {
 } from '../lib/goalChecklist';
 import { formatCost, formatTokenCount, getWasteBadge } from '../lib/tokenIntelligence';
 import { buildTokenUsageUrl, getAgentLabel, type AgentFilterType } from '../lib/agentFilter';
+import { useSse } from '../lib/useSse';
 import { useApi } from '../lib/useApi';
 import './ProjectDetailPage.css';
 
@@ -574,6 +575,30 @@ export function ProjectDetailPage() {
   const usage = useApi<UsageBreakdown>(id ? buildTokenUsageUrl(id, agentFilter, tz) : null);
   const documents = useApi<Page<DocumentView>>(id ? `/projects/${id}/documents?limit=5` : null);
 
+  const { events: sseEvents, state: sseState } = useSse(id ?? null);
+  const [activeAgents, setActiveAgents] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!sseEvents.length) return;
+    const latest = sseEvents[0];
+    if (latest.type === 'agent_run_started') {
+      const payload = latest.data as { agent_name?: string };
+      const name = payload?.agent_name ?? 'agent';
+      setActiveAgents((prev) => (prev.includes(name) ? prev : [...prev, name]));
+      usage.reload();
+    } else if (latest.type === 'agent_run_finished') {
+      const payload = latest.data as { agent_name?: string };
+      const name = payload?.agent_name ?? 'agent';
+      setActiveAgents((prev) => prev.filter((a) => a !== name));
+      usage.reload();
+      health.reload();
+    } else if (latest.type === 'log') {
+      logs.reload();
+    } else if (latest.type === 'health_update') {
+      health.reload();
+    }
+  }, [sseEvents]);
+
   const deploys = useMemo(
     () => (deployments.data?.items ?? []).filter((e) => e.kind === 'deployment').slice(0, 4),
     [deployments.data],
@@ -683,7 +708,18 @@ export function ProjectDetailPage() {
               gap: 'var(--space-2)',
             }}
           >
-            <span>에이전트 토큰 관제</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+              <span>에이전트 토큰 관제</span>
+              {activeAgents.length > 0 ? (
+                <span className="badge badge--pulse" style={{ fontSize: '11px' }}>
+                  ● {activeAgents.join(', ')} 작업 중…
+                </span>
+              ) : sseState === 'open' ? (
+                <span className="badge badge--live" style={{ fontSize: '10px' }} title="실시간 SSE 연결됨">
+                  ● 라이브
+                </span>
+              ) : null}
+            </div>
             <div
               style={{
                 display: 'flex',
@@ -803,7 +839,10 @@ export function ProjectDetailPage() {
                       최근 세션 ({usage.data.recent_runs.length}건)
                     </p>
                     {usage.data.recent_runs.slice(0, 4).map((r) => {
-                      const badge = getWasteBadge(r.waste?.level);
+                      const isRunning = r.status === 'running';
+                      const badge = isRunning
+                        ? { text: '작업 중', className: 'badge badge--pulse' }
+                        : getWasteBadge(r.waste?.level);
                       const agentLabel = getAgentLabel(r.agent_name);
                       return (
                         <div

@@ -3,6 +3,8 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { filter, fromEvent, interval, map, merge, type Observable } from 'rxjs';
 import {
   DomainEvent,
+  type AgentRunFinishedEvent,
+  type AgentRunStartedEvent,
   type BudgetThresholdExceededEvent,
   type HealthSnapshotCreatedEvent,
   type LogAppendedEvent,
@@ -50,13 +52,30 @@ export class StreamService {
         'budget_alert',
         projectId,
       ),
+      // 에이전트 세션 실시간 관제 (Running 시작 점멸 및 수치 즉시 갱신)
+      this.typed<AgentRunStartedEvent>(
+        DomainEvent.AGENT_RUN_STARTED,
+        'agent_run_started',
+        projectId,
+      ),
+      this.typed<AgentRunFinishedEvent>(
+        DomainEvent.AGENT_RUN_FINISHED,
+        'agent_run_finished',
+        projectId,
+      ),
       this.heartbeat(),
     );
   }
 
   private typed<T extends { project_id: string }>(
     name: string,
-    type: 'log' | 'health_update' | 'stage_change' | 'budget_alert',
+    type:
+      | 'log'
+      | 'health_update'
+      | 'stage_change'
+      | 'budget_alert'
+      | 'agent_run_started'
+      | 'agent_run_finished',
     projectId: string,
   ): Observable<MessageEvent> {
     return fromEvent<T>(this.events, name).pipe(

@@ -11,6 +11,10 @@ export const DomainEvent = {
   PROJECT_STAGE_CHANGED: 'ingest.project.stage_changed',
   /** 프로젝트 예산 사용률이 알림 임계치를 넘어선 순간 (설계서 Part 4 §6). */
   BUDGET_THRESHOLD_EXCEEDED: 'agent-registry.budget.threshold_exceeded',
+  /** 에이전트 세션 실행이 시작된 순간 (SSE 실시간 점멸 관제). */
+  AGENT_RUN_STARTED: 'agent-registry.run.started',
+  /** 에이전트 세션 실행이 완료/종료된 순간 (SSE 실시간 수치 갱신). */
+  AGENT_RUN_FINISHED: 'agent-registry.run.finished',
   /** GitHub Actions 실행 하나가 끝난 순간. 환경 구성 실행 결과가 이 경로로 돌아온다. */
   WORKFLOW_RUN_COMPLETED: 'ingest.workflow_run.completed',
 } as const;
@@ -69,6 +73,27 @@ export interface WorkflowRunCompletedEvent {
   occurred_at: string;
 }
 
+export interface AgentRunStartedEvent {
+  project_id: string;
+  agent_id: string;
+  agent_name: string;
+  run_id: string;
+  status: 'running';
+  started_at: string;
+}
+
+export interface AgentRunFinishedEvent {
+  project_id: string;
+  agent_id: string;
+  agent_name: string;
+  run_id: string;
+  status: string;
+  tokens_used: number;
+  cost: string;
+  started_at: string;
+  ended_at: string;
+}
+
 /** 이벤트 이름 -> 페이로드 매핑. 구독 측에서 타입을 잃지 않게 한다. */
 export interface DomainEventPayloads {
   [DomainEvent.LOG_APPENDED]: LogAppendedEvent;
@@ -76,4 +101,6 @@ export interface DomainEventPayloads {
   [DomainEvent.PROJECT_STAGE_CHANGED]: ProjectStageChangedEvent;
   [DomainEvent.BUDGET_THRESHOLD_EXCEEDED]: BudgetThresholdExceededEvent;
   [DomainEvent.WORKFLOW_RUN_COMPLETED]: WorkflowRunCompletedEvent;
+  [DomainEvent.AGENT_RUN_STARTED]: AgentRunStartedEvent;
+  [DomainEvent.AGENT_RUN_FINISHED]: AgentRunFinishedEvent;
 }

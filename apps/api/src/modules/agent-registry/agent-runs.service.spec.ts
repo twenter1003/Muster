@@ -1,7 +1,9 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Repository } from 'typeorm';
 import { AgentRunsService } from './agent-runs.service';
 import { BudgetService } from './budget.service';
 import { ModelPricingService } from './model-pricing.service';
+import { DomainEvent } from '../../common/events/domain-events';
 import { ApiException } from '../../common/errors/api.exception';
 import type { Agent, AgentRun, GitIntegration, ProjectMember } from '../../database/entities';
 
@@ -13,6 +15,7 @@ describe('AgentRunsService', () => {
   let gitIntegrationsRepo: Partial<Repository<GitIntegration>>;
   let budgetService: Partial<BudgetService>;
   let modelPricingService: ModelPricingService;
+  let events: EventEmitter2;
 
   beforeEach(() => {
     runsRepo = {
@@ -44,6 +47,8 @@ describe('AgentRunsService', () => {
       recalculateAndAlert: jest.fn().mockResolvedValue(undefined),
     };
     modelPricingService = new ModelPricingService();
+    events = new EventEmitter2();
+    jest.spyOn(events, 'emit');
 
     service = new AgentRunsService(
       runsRepo as Repository<AgentRun>,
@@ -52,6 +57,7 @@ describe('AgentRunsService', () => {
       gitIntegrationsRepo as Repository<GitIntegration>,
       budgetService as BudgetService,
       modelPricingService,
+      events,
     );
   });
 
@@ -114,6 +120,19 @@ describe('AgentRunsService', () => {
           agent_id: 'agent-1',
           tokens_used: 100_000,
           cost: '0.3600',
+        }),
+      );
+    });
+
+    it('running 상태로 실행을 시작하면 AGENT_RUN_STARTED 이벤트를 발행한다', async () => {
+      await service.start('agent-1', { status: 'running' });
+
+      expect(events.emit).toHaveBeenCalledWith(
+        DomainEvent.AGENT_RUN_STARTED,
+        expect.objectContaining({
+          project_id: 'proj-1',
+          agent_name: 'claude-code',
+          status: 'running',
         }),
       );
     });
