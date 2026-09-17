@@ -115,31 +115,34 @@ export class ProjectsService {
         // 2. health_snapshots: 프로젝트별 최신 1개 composite_score (없으면 null)
         this.healthSnapshots
           .createQueryBuilder('h')
-          .select('DISTINCT ON (h.project_id) h.project_id', 'project_id')
+          .distinctOn(['h.project_id'])
+          .select('h.project_id', 'project_id')
           .addSelect('h.composite_score', 'composite_score')
           .where('h.project_id IN (:...projectIds)', { projectIds })
-          .orderBy('h.project_id')
+          .orderBy('h.project_id', 'ASC')
           .addOrderBy('h.measured_at', 'DESC')
           .getRawMany<{ project_id: string; composite_score: string }>(),
 
         // 3. deployment_events: 프로젝트별 최신 1개 kind = 'deployment'의 status (없으면 null)
         this.deploymentEvents
           .createQueryBuilder('e')
-          .select('DISTINCT ON (e.project_id) e.project_id', 'project_id')
+          .distinctOn(['e.project_id'])
+          .select('e.project_id', 'project_id')
           .addSelect('e.status', 'status')
           .where('e.project_id IN (:...projectIds)', { projectIds })
           .andWhere('e.kind = :kind', { kind: 'deployment' })
-          .orderBy('e.project_id')
+          .orderBy('e.project_id', 'ASC')
           .addOrderBy('e.occurred_at', 'DESC')
           .getRawMany<{ project_id: string; status: string }>(),
 
         // 4. log_entries: 프로젝트별 최신 1개 message (없으면 null)
         this.logEntries
           .createQueryBuilder('l')
-          .select('DISTINCT ON (l.project_id) l.project_id', 'project_id')
+          .distinctOn(['l.project_id'])
+          .select('l.project_id', 'project_id')
           .addSelect('l.message', 'message')
           .where('l.project_id IN (:...projectIds)', { projectIds })
-          .orderBy('l.project_id')
+          .orderBy('l.project_id', 'ASC')
           .addOrderBy('l.created_at', 'DESC')
           .getRawMany<{ project_id: string; message: string }>(),
 

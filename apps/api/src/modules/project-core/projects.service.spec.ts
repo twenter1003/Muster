@@ -21,6 +21,7 @@ function createMockQb(results: { raw?: unknown[]; many?: unknown[] }) {
   const chain = () => qb;
   for (const method of [
     'innerJoin',
+    'distinctOn',
     'select',
     'addSelect',
     'where',
