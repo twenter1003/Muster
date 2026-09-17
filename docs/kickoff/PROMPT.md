@@ -54,6 +54,9 @@ Claude Code/LLM 기반으로 여러 사이드 프로젝트를 동시에 진행�
   `pnpm --filter @muster/api test:e2e`(246+, 로컬 DB 필요). 전부 통과하는 게 기본 전제 —
   실패한 채로 커밋하지 않는다.
 - **최근 완료된 것** (최신순, 상세는 git log):
+  - SSE 기반 실시간 에이전트 세션 관제 및 대시보드 무새로고침 자동 갱신 (Running 세션 점멸 라이브 뱃지, EventSource 기반 실시간 도메인 이벤트 수신, 세션 종료 시 토큰·비용·상태 실시간 리로드, 커밋 `7b94f1f`)
+  - 2026 프론티어 LLM 단가 엔진 구축 및 대시보드 실시간 비용($) 산출 (Claude Fable 5.1/Opus 5/Sonnet 5, Gemini 3.x, GPT-6/5.6, DeepSeek 단가표 매핑, ModelPricingService 및 세션·프로젝트·일별 비용($) 동시 표기, 커밋 `dc4709e`)
+  - 무설치 1줄 연동 (`curl -fsSL .../connect.mjs | node -`) 및 ApiKeyModal 연동 가이드 개편 (템플릿 Base64 내장, 백엔드 connect.mjs 직접 서빙, 커밋 `1148025`)
   - 프로젝트 상세 화면(`ProjectDetailPage`) API 키 관리 모달(`ApiKeyModal`) 복원 및 모바일 최적화 (상단 탑로우, 헤더 링크, 에이전트 토큰 관제 패널에 연동 진입점 추가, PR #52, #53, Cloud Run 배포 완료)
   - Git remote 기반 에이전트 토큰 자동 라우팅 및 맥북 전역 1회 연동 지원 (`POST /agent-runs/by-repo`, `scripts/muster-connect.mjs --global`, PR #52)
   - Muster 프로젝트 Antigravity 실측 토큰 연동 및 백필 완료 (Muster 프로젝트 API 키 발급, `antigravity` 에이전트 생성, 로컬 2개 세션 총 1,467만 토큰 백필 적재, `~/.gemini/config/hooks.json` 및 `.muster/config.json` 연동 완료)
@@ -77,8 +80,9 @@ Claude Code/LLM 기반으로 여러 사이드 프로젝트를 동시에 진행�
 ## 알려진 백로그 (우선순위는 매번 사용자에게 다시 물을 것 — 여기 순서는 순위가 아니다)
 
 - **에이전트 토큰/실행 상태 실시간 스트리밍 & 모델별 비용 세분화**:
-  - 장기 실행 세션의 실시간 진행 상황 관제(SSE 또는 웹소켓).
-  - 모델 패밀리(Gemini 3.x, Claude Sonnet 5/Opus 5/Fable 5.1, GPT-5.6/6 등)별 단가 테이블 매핑을 통한 자동 비용 산출 고도화.
+  - [완료됨] 2026 프론티어 LLM 단가표 기반 자동 비용 계산 및 대시보드 비용($) 표기 완료.
+  - [완료됨] SSE 기반 에이전트 실행 시작/종료 실시간 감지 및 대시보드 라이브 뱃지/무새로고침 수치 갱신 완료.
+  - (추후 확장) 세션 진행 중 실시간 중간 토큰(Heartbeat) 스트리밍 연동.
 - **실사용 기반 UX 개선을 계속 수집하는 중** — 사용자가 실제로 써보면서 불편한 점을
   하나씩 얘기해 주는 방식으로 진행 중이었다. 이 문서를 넘겨받은 시점에 이 대화를
   이어가거나, 새로 물어볼 것.
