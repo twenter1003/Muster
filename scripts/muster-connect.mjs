@@ -23,6 +23,7 @@ import { join, resolve, basename } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 import { parseProto } from './antigravity-hooks/report-agent-usage.mjs';
+import { getGitRemoteUrl } from './claude-code-hooks/report-agent-usage.mjs';
 
 const require = createRequire(import.meta.url);
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
@@ -39,6 +40,7 @@ export function parseArgs(argv) {
     yes: false,
     noBackfill: false,
     global: false,
+    cwd: null,
     help: false,
   };
 
@@ -51,6 +53,7 @@ export function parseArgs(argv) {
     else if (arg.startsWith('--key=')) result.key = arg.slice(6);
     else if (arg.startsWith('--project=')) result.project = arg.slice(10);
     else if (arg.startsWith('--tools=')) result.tools = arg.slice(8);
+    else if (arg.startsWith('--cwd=')) result.cwd = arg.slice(6);
   }
 
   return result;
@@ -90,9 +93,16 @@ export function installGlobalHookScripts() {
     copyFileSync(antigravitySrc, antigravityDst);
   }
 
+  const selfSrc = resolve(__dirname, 'muster-connect.mjs');
+  const selfDst = join(homedir(), '.muster', 'muster-connect.mjs');
+  if (existsSync(selfSrc)) {
+    copyFileSync(selfSrc, selfDst);
+  }
+
   return {
     claudeScript: existsSync(claudeDst) ? claudeDst : claudeSrc,
     antigravityScript: existsSync(antigravityDst) ? antigravityDst : antigravitySrc,
+    musterConnectScript: existsSync(selfDst) ? selfDst : selfSrc,
   };
 }
 
@@ -145,10 +155,16 @@ export function registerClaudeHooks(scriptPath, settingsPath) {
 
   for (const event of ['SessionStart', 'SessionEnd']) {
     settings.hooks[event] = settings.hooks[event] || [];
-    const exists = settings.hooks[event].some((h) =>
-      h.hooks?.some((inner) => inner.command?.includes('report-agent-usage.mjs')),
-    );
-    if (!exists) {
+    let updated = false;
+    for (const h of settings.hooks[event]) {
+      for (const inner of h.hooks || []) {
+        if (inner.command?.includes('report-agent-usage.mjs')) {
+          inner.command = hookCmd;
+          updated = true;
+        }
+      }
+    }
+    if (!updated) {
       settings.hooks[event].push({
         matcher: '',
         hooks: [{ type: 'command', command: hookCmd }],
@@ -179,11 +195,15 @@ export function registerAntigravityHooks(scriptPath, hooksPath) {
   config['muster-reporter'] = config['muster-reporter'] || {};
   config['muster-reporter'].Stop = config['muster-reporter'].Stop || [];
 
-  const exists = config['muster-reporter'].Stop.some((h) =>
-    h.command?.includes('report-agent-usage.mjs'),
-  );
+  let updated = false;
+  for (const h of config['muster-reporter'].Stop) {
+    if (h.command?.includes('report-agent-usage.mjs')) {
+      h.command = hookCmd;
+      updated = true;
+    }
+  }
 
-  if (!exists) {
+  if (!updated) {
     config['muster-reporter'].Stop.push({
       type: 'command',
       command: hookCmd,
@@ -355,10 +375,9 @@ async function fetchApi(apiUrl, apiKey, path, method = 'GET', body = undefined) 
   return res.json();
 }
 
-/** 대화형 메인 실행 함수 */
 export async function runInteractive(args) {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
-  const cwd = process.cwd();
+  const cwd = args.cwd ? resolve(args.cwd) : process.cwd();
   const projectName = basename(cwd);
 
   try {
@@ -467,19 +486,64 @@ export async function runInteractive(args) {
       toolChoice.toLowerCase() === 'antigravity';
 
     const agentsMap = { ...(existingConfig.agents || {}) };
+    const gitRemote = getGitRemoteUrl(cwd);
 
     // 6. 에이전트 등록 확인/생성
+    if (gitRemote) {
+      if (enableClaude && !agentsMap['claude-code']) {
+        try {
+          const res = await fetchApi(apiUrl, apiKey, '/agent-runs/by-repo', 'POST', {
+            repo_url: gitRemote,
+            agent_name: 'claude-code',
+            tokens_used: 0,
+            status: 'succeeded',
+          });
+          if (res.agent_id) {
+            agentsMap['claude-code'] = res.agent_id;
+            console.log(`✓ Claude Code 에이전트 연결 완료 (${res.agent_id})`);
+          }
+        } catch {}
+      }
+
+      if (enableAntigravity && !agentsMap.antigravity) {
+        try {
+          const res = await fetchApi(apiUrl, apiKey, '/agent-runs/by-repo', 'POST', {
+            repo_url: gitRemote,
+            agent_name: 'antigravity',
+            tokens_used: 0,
+            status: 'succeeded',
+          });
+          if (res.agent_id) {
+            agentsMap.antigravity = res.agent_id;
+            console.log(`✓ Antigravity 에이전트 연결 완료 (${res.agent_id})`);
+          }
+        } catch {}
+      }
+    }
+
+    let agentsList = [];
+    try {
+      const agentsRes = await fetchApi(apiUrl, apiKey, `/projects/${projectId}/agents`);
+      agentsList = agentsRes.items || (Array.isArray(agentsRes) ? agentsRes : []);
+    } catch {
+      agentsList = [];
+    }
+
     if (enableClaude && !agentsMap['claude-code']) {
       const existing = agentsList.find((a) => a.name === 'claude-code');
       if (existing) {
         agentsMap['claude-code'] = existing.id;
       } else {
-        const created = await fetchApi(apiUrl, apiKey, `/projects/${projectId}/agents`, 'POST', {
-          name: 'claude-code',
-          config_md: '# Claude Code CLI Agent',
-        });
-        agentsMap['claude-code'] = created.id;
-        console.log(`✓ Claude Code 에이전트 생성 완료 (${created.id})`);
+        try {
+          const created = await fetchApi(apiUrl, apiKey, `/projects/${projectId}/agents`, 'POST', {
+            name: 'claude-code',
+            config_md: '# Claude Code CLI Agent',
+          });
+          agentsMap['claude-code'] = created.id;
+          console.log(`✓ Claude Code 에이전트 생성 완료 (${created.id})`);
+        } catch {
+          agentsMap['claude-code'] = projectId;
+        }
       }
     }
 
@@ -488,12 +552,16 @@ export async function runInteractive(args) {
       if (existing) {
         agentsMap.antigravity = existing.id;
       } else {
-        const created = await fetchApi(apiUrl, apiKey, `/projects/${projectId}/agents`, 'POST', {
-          name: 'antigravity',
-          config_md: '# Google Antigravity Agent',
-        });
-        agentsMap.antigravity = created.id;
-        console.log(`✓ Antigravity 에이전트 생성 완료 (${created.id})`);
+        try {
+          const created = await fetchApi(apiUrl, apiKey, `/projects/${projectId}/agents`, 'POST', {
+            name: 'antigravity',
+            config_md: '# Google Antigravity Agent',
+          });
+          agentsMap.antigravity = created.id;
+          console.log(`✓ Antigravity 에이전트 생성 완료 (${created.id})`);
+        } catch {
+          agentsMap.antigravity = projectId;
+        }
       }
     }
 
@@ -507,21 +575,16 @@ export async function runInteractive(args) {
     console.log(`✓ .muster/config.json 설정 파일 저장 완료 (.gitignore 등록됨)`);
 
     // 8. 훅 등록
+    const { claudeScript, antigravityScript } = installGlobalHookScripts();
     if (enableClaude) {
-      const claudeHookScript = resolve(__dirname, 'claude-code-hooks', 'report-agent-usage.mjs');
-      registerClaudeHooks(claudeHookScript);
+      registerClaudeHooks(claudeScript);
       console.log(`✓ Claude Code 전역 훅 등록 완료 (~/.claude/settings.json)`);
     }
 
     if (enableAntigravity) {
-      const antigravityHookScript = resolve(
-        __dirname,
-        'antigravity-hooks',
-        'report-agent-usage.mjs',
-      );
-      registerAntigravityHooks(antigravityHookScript);
+      registerAntigravityHooks(antigravityScript);
       // 프로젝트 로컬 .agents/hooks.json에도 등록
-      registerAntigravityHooks(antigravityHookScript, join(cwd, '.agents', 'hooks.json'));
+      registerAntigravityHooks(antigravityScript, join(cwd, '.agents', 'hooks.json'));
       console.log(`✓ Antigravity 훅 등록 완료 (~/.gemini/config/hooks.json & .agents/hooks.json)`);
     }
 

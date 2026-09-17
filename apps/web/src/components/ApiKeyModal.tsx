@@ -127,11 +127,11 @@ export function ApiKeyModal({
       : 'https://muster-54275961665.asia-northeast3.run.app';
 
   const globalCmd = issued
-    ? `cd ~/Muster && node scripts/muster-connect.mjs --global --url="${apiOrigin}" --key="${issued.key}" --tools=both --yes`
+    ? `node ~/Muster/scripts/muster-connect.mjs --global --url="${apiOrigin}" --key="${issued.key}" --tools=both --yes`
     : '';
 
   const projectCmd = issued
-    ? `cd ~/Muster && node scripts/muster-connect.mjs --project="${projectId}" --url="${apiOrigin}" --key="${issued.key}" --tools=both --yes`
+    ? `node ~/Muster/scripts/muster-connect.mjs --project="${projectId}" --url="${apiOrigin}" --key="${issued.key}" --tools=both --yes`
     : '';
 
   return (
@@ -173,8 +173,7 @@ export function ApiKeyModal({
                   <div className="akm__cmd-desc">
                     <strong>🚀 전역 1회 자동 라우팅 연동 (가장 추천)</strong>
                     <span>
-                      Muster 폴더에서 1회 실행하면 모든 레포에서 작업 시 Git 주소 기반으로 자동
-                      집계됩니다.
+                      어느 위치에서든 1회 실행하면 홈 디렉터리(~/.muster)에 저장되며, 모든 레포 작업 시 Git 주소 기반으로 자동 집계됩니다.
                     </span>
                   </div>
                   <pre className="akm__cmd-code">{globalCmd}</pre>
@@ -188,7 +187,9 @@ export function ApiKeyModal({
                 <div className="akm__cmd-item">
                   <div className="akm__cmd-desc">
                     <strong>📁 현재 레포 전용 연동</strong>
-                    <span>해당 레포 폴더에만 설정(.muster/config.json)을 생성합니다.</span>
+                    <span>
+                      연동할 프로젝트 폴더(예: ~/Twshop)에서 실행하면 해당 폴더에 .muster/config.json을 생성합니다.
+                    </span>
                   </div>
                   <pre className="akm__cmd-code">{projectCmd}</pre>
                   <Button
