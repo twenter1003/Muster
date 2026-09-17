@@ -715,7 +715,11 @@ export function ProjectDetailPage() {
                   ● {activeAgents.join(', ')} 작업 중…
                 </span>
               ) : sseState === 'open' ? (
-                <span className="badge badge--live" style={{ fontSize: '10px' }} title="실시간 SSE 연결됨">
+                <span
+                  className="badge badge--live"
+                  style={{ fontSize: '10px' }}
+                  title="실시간 SSE 연결됨"
+                >
                   ● 라이브
                 </span>
               ) : null}
@@ -794,7 +798,10 @@ export function ProjectDetailPage() {
               <>
                 <p className="detail__big">
                   {formatTokenCount(usage.data.month_tokens)}{' '}
-                  <span className="meta" style={{ fontSize: 'var(--font-size-base)', fontWeight: 'normal' }}>
+                  <span
+                    className="meta"
+                    style={{ fontSize: 'var(--font-size-base)', fontWeight: 'normal' }}
+                  >
                     ({formatCost(usage.data.month_cost)})
                   </span>{' '}
                   <span className="meta">
@@ -806,7 +813,8 @@ export function ProjectDetailPage() {
                 </p>
                 <Sparkline daily={usage.data.daily} />
                 <p className="meta">
-                  오늘 {formatTokenCount(usage.data.today_tokens)} 토큰 ({formatCost(usage.data.today_cost)})
+                  오늘 {formatTokenCount(usage.data.today_tokens)} 토큰 (
+                  {formatCost(usage.data.today_cost)})
                 </p>
 
                 <div style={{ marginTop: 'var(--space-2)' }}>
@@ -862,7 +870,9 @@ export function ProjectDetailPage() {
                             {agentLabel}
                           </span>
                           <span className="detail__row-text">{r.agent_name}</span>
-                          <span className="meta">{formatTokenCount(r.tokens_used)} ({formatCost(r.cost)})</span>
+                          <span className="meta">
+                            {formatTokenCount(r.tokens_used)} ({formatCost(r.cost)})
+                          </span>
                           <span className="meta">{formatDateTime(r.started_at)}</span>
                         </div>
                       );

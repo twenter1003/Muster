@@ -142,7 +142,9 @@ describe('StreamService', () => {
 
     const events = await received;
     expect(events.map((e) => e.type)).toEqual(['agent_run_started', 'agent_run_finished']);
-    expect(events[0].data).toEqual(expect.objectContaining({ agent_name: 'claude-code', status: 'running' }));
+    expect(events[0].data).toEqual(
+      expect.objectContaining({ agent_name: 'claude-code', status: 'running' }),
+    );
     expect(events[1].data).toEqual(expect.objectContaining({ tokens_used: 50000, cost: '0.1800' }));
   });
 });

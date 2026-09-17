@@ -218,29 +218,30 @@ export function ProjectListPage() {
                   <SlotCell
                     slot={d.tokens}
                     render={({ today, total, todayCost, totalCost }) => {
-                       const todayNum = Number(today);
-                       const totalCostStr = formatCost(totalCost);
-                       const todayCostStr = formatCost(todayCost);
-                       if (todayNum > 0) {
-                         return (
-                           <span
-                             className="plist__token-count"
-                             title={`총 ${formatTokenCount(total)} 토큰 (${totalCostStr}) · 오늘 ${formatTokenCount(today)} 토큰 (${todayCostStr})`}
-                           >
-                             {formatTokenCount(total)} ({totalCostStr}) · 오늘 {formatTokenCount(today)} ({todayCostStr})
-                           </span>
-                         );
-                       }
-                       return (
-                         <span
-                           className="plist__token-count"
-                           title={`총 ${formatTokenCount(total)} 토큰 (${totalCostStr})`}
-                         >
-                           {formatTokenCount(total)} 토큰 ({totalCostStr})
-                         </span>
-                       );
-                     }}
-                   />
+                      const todayNum = Number(today);
+                      const totalCostStr = formatCost(totalCost);
+                      const todayCostStr = formatCost(todayCost);
+                      if (todayNum > 0) {
+                        return (
+                          <span
+                            className="plist__token-count"
+                            title={`총 ${formatTokenCount(total)} 토큰 (${totalCostStr}) · 오늘 ${formatTokenCount(today)} 토큰 (${todayCostStr})`}
+                          >
+                            {formatTokenCount(total)} ({totalCostStr}) · 오늘{' '}
+                            {formatTokenCount(today)} ({todayCostStr})
+                          </span>
+                        );
+                      }
+                      return (
+                        <span
+                          className="plist__token-count"
+                          title={`총 ${formatTokenCount(total)} 토큰 (${totalCostStr})`}
+                        >
+                          {formatTokenCount(total)} 토큰 ({totalCostStr})
+                        </span>
+                      );
+                    }}
+                  />
                 </div>
               </Link>
             );

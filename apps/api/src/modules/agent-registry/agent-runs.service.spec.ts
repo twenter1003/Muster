@@ -26,7 +26,9 @@ describe('AgentRunsService', () => {
     agentsRepo = {
       create: jest.fn().mockImplementation((val) => val),
       save: jest.fn().mockImplementation(async (val) => ({ id: 'agent-new', ...val })),
-      findOneBy: jest.fn().mockResolvedValue({ id: 'agent-1', name: 'claude-code', project_id: 'proj-1' } as Agent),
+      findOneBy: jest
+        .fn()
+        .mockResolvedValue({ id: 'agent-1', name: 'claude-code', project_id: 'proj-1' } as Agent),
     };
     membersRepo = {
       find: jest.fn().mockResolvedValue([{ user_id: 'user-1', role: 'owner' }] as ProjectMember[]),

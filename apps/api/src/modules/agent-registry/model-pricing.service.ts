@@ -18,7 +18,11 @@ export const LLM_PRICING_TABLE: Record<string, ModelPricing> = {
   'gemini-3.8-flash': { inputPerMillion: 0.75, outputPerMillion: 3.75, blendedPerMillion: 1.35 },
   'gemini-3.7-flash': { inputPerMillion: 0.75, outputPerMillion: 3.75, blendedPerMillion: 1.35 },
   'gemini-3.6-flash': { inputPerMillion: 0.5, outputPerMillion: 2.5, blendedPerMillion: 0.9 },
-  'gemini-3.1-flash-lite': { inputPerMillion: 0.15, outputPerMillion: 0.6, blendedPerMillion: 0.24 },
+  'gemini-3.1-flash-lite': {
+    inputPerMillion: 0.15,
+    outputPerMillion: 0.6,
+    blendedPerMillion: 0.24,
+  },
   'gemini-2.5-pro': { inputPerMillion: 1.25, outputPerMillion: 5.0, blendedPerMillion: 2.0 },
 
   // Anthropic Claude 시리즈
@@ -107,7 +111,11 @@ export class ModelPricingService {
     const inputTokens = options.inputTokens;
     const outputTokens = options.outputTokens;
 
-    if (totalTokens <= 0 && (!inputTokens || inputTokens <= 0) && (!outputTokens || outputTokens <= 0)) {
+    if (
+      totalTokens <= 0 &&
+      (!inputTokens || inputTokens <= 0) &&
+      (!outputTokens || outputTokens <= 0)
+    ) {
       return '0.0000';
     }
 

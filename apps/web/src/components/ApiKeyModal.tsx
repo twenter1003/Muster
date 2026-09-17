@@ -173,7 +173,8 @@ export function ApiKeyModal({
                   <div className="akm__cmd-desc">
                     <strong>🚀 전역 1회 자동 라우팅 연동 (가장 추천)</strong>
                     <span>
-                      어느 위치에서든 1회 실행하면 홈 디렉터리(~/.muster)에 저장되며, 모든 레포 작업 시 Git 주소 기반으로 자동 집계됩니다.
+                      어느 위치에서든 1회 실행하면 홈 디렉터리(~/.muster)에 저장되며, 모든 레포 작업
+                      시 Git 주소 기반으로 자동 집계됩니다.
                     </span>
                   </div>
                   <pre className="akm__cmd-code">{globalCmd}</pre>
@@ -188,7 +189,8 @@ export function ApiKeyModal({
                   <div className="akm__cmd-desc">
                     <strong>📁 현재 레포 전용 연동</strong>
                     <span>
-                      연동할 프로젝트 폴더(예: ~/Twshop)에서 실행하면 해당 폴더에 .muster/config.json을 생성합니다.
+                      연동할 프로젝트 폴더(예: ~/Twshop)에서 실행하면 해당 폴더에
+                      .muster/config.json을 생성합니다.
                     </span>
                   </div>
                   <pre className="akm__cmd-code">{projectCmd}</pre>
