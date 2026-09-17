@@ -14,7 +14,15 @@ import {
   type WasteInsightSummary,
   type TokenWasteIntelligence,
 } from './token-waste';
+import {
+  computeBurnRate,
+  type BurnRateStatus,
+  type AgentBurnRate,
+  type SpikeLevel,
+} from './burn-rate';
 import { ModelPricingService } from './model-pricing.service';
+
+export type { BurnRateStatus, AgentBurnRate, SpikeLevel };
 
 export interface BudgetUsage {
   token_limit: string | null;
@@ -80,6 +88,7 @@ export interface UsageBreakdown {
   model_breakdown?: ModelUsageItem[];
   waste_insight?: WasteInsightSummary;
   waste_intelligence?: TokenWasteIntelligence;
+  burn_rate?: BurnRateStatus;
   recent_runs?: SessionRunView[];
 }
 
@@ -319,7 +328,7 @@ export class BudgetService {
       modelQb = modelQb.andWhere('a.name IN (:...agentNames)', { agentNames: filterAgents });
     }
 
-    const [timeSeriesRows, dailyRows, monthRow, totalRow, recentRuns, modelRows] =
+    const [timeSeriesRows, dailyRows, monthRow, totalRow, recentRuns, modelRows, burn_rate] =
       await Promise.all([
         timeSeriesQb.getRawMany<{
           bucket: Date | string;
@@ -337,6 +346,7 @@ export class BudgetService {
           cost: string;
           run_count: string | number;
         }>(),
+        this.calculateBurnRate(projectId),
       ]);
 
     const safeModelRows = modelRows || [];
@@ -486,8 +496,42 @@ export class BudgetService {
           agent_name: r.agent?.name,
         })),
       ),
+      burn_rate,
       recent_runs,
     };
+  }
+
+  /**
+   * 최근 15분 윈도우 및 활성 세션의 실행 데이터를 바탕으로
+   * 에이전트별 실시간 Burn Rate(tokens/min, cost/min) 및 비정상 스파이크를 진단한다.
+   */
+  async calculateBurnRate(projectId: string, windowMinutes = 15): Promise<BurnRateStatus> {
+    const now = new Date();
+    const since = new Date(now.getTime() - windowMinutes * 60 * 1000);
+
+    const runs = await this.runs
+      .createQueryBuilder('r')
+      .innerJoinAndSelect('r.agent', 'a')
+      .where('a.project_id = :projectId', { projectId })
+      .andWhere(
+        '(r.started_at >= :since OR (r.ended_at IS NOT NULL AND r.ended_at >= :since) OR r.status = :runningStatus)',
+        { since, runningStatus: 'running' },
+      )
+      .orderBy('r.started_at', 'DESC')
+      .getMany();
+
+    return computeBurnRate(
+      runs.map((r) => ({
+        agent_name: r.agent?.name,
+        tokens_used: r.tokens_used,
+        cost: r.cost,
+        status: r.status,
+        started_at: r.started_at,
+        ended_at: r.ended_at,
+      })),
+      windowMinutes,
+      now,
+    );
   }
 
   /**

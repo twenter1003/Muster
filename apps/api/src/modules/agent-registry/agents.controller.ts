@@ -25,7 +25,12 @@ import { toPageRequest, withProjectName, type Page } from '../../common/paginati
 import { ProjectMemberGuard } from '../../common/auth/project-member.guard';
 import { AgentsService } from './agents.service';
 import { AgentRunsService } from './agent-runs.service';
-import { BudgetService, type BudgetUsage, type UsageBreakdown } from './budget.service';
+import {
+  BudgetService,
+  type BudgetUsage,
+  type UsageBreakdown,
+  type BurnRateStatus,
+} from './budget.service';
 import type { TokenWasteIntelligence } from './token-waste';
 import { ApiKeyOrSessionGuard } from '../../common/auth/api-key-or-session.guard';
 import { ApiKeyGuard } from '../../common/auth/api-key.guard';
@@ -138,6 +143,20 @@ export class ProjectAgentsController {
   @UseGuards(ProjectMemberGuard)
   async getTokenWasteIntelligence(@Param('id') projectId: string): Promise<TokenWasteIntelligence> {
     return this.budget.getTokenWasteIntelligence(projectId);
+  }
+
+  /**
+   * 실시간 에이전트 토큰 소모 속도(Burn Rate) 및 예산 급증(Budget Spike) 조기 경보 리포트.
+   */
+  @Get(':id/burn-rate')
+  @UseGuards(ProjectMemberGuard)
+  async getBurnRate(
+    @Param('id') projectId: string,
+    @Query('window_minutes') windowMinutes?: string,
+  ): Promise<BurnRateStatus> {
+    const parsedMinutes = windowMinutes ? parseInt(windowMinutes, 10) : 15;
+    const minutes = Number.isNaN(parsedMinutes) || parsedMinutes <= 0 ? 15 : parsedMinutes;
+    return this.budget.calculateBurnRate(projectId, minutes);
   }
 
   /**

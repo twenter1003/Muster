@@ -1,6 +1,13 @@
-import { useState, useId, useMemo } from 'react';
+import { useState, useId, useMemo, useRef, useEffect } from 'react';
 import { formatCost, formatTokenCount } from '../lib/tokenIntelligence';
 import { getAgentTheme, getAgentLabel } from '../lib/agentFilter';
+import {
+  formatBurnRate,
+  formatCostPerMin,
+  getSpikeIcon,
+  getSpikeLabel,
+  type BurnRateStatus,
+} from '../lib/burnRate';
 import './TokenStockChart.css';
 
 export type TokenGranularity = 'hour' | 'day' | 'month';
@@ -26,6 +33,7 @@ export interface TokenStockChartProps {
   livePendingCost?: string;
   isOverlay?: boolean;
   onOverlayToggle?: (isOverlay: boolean) => void;
+  burnRate?: BurnRateStatus;
 }
 
 const SVG_WIDTH = 600;
@@ -44,12 +52,27 @@ export function TokenStockChart({
   livePendingCost,
   isOverlay,
   onOverlayToggle,
+  burnRate,
 }: TokenStockChartProps) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const [internalOverlay, setInternalOverlay] = useState(false);
   const [visibleAgents, setVisibleAgents] = useState<Set<string>>(() => new Set());
   const [showTotalLine, setShowTotalLine] = useState(true);
+  const [showBurnRatePopover, setShowBurnRatePopover] = useState(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const gradId = useId();
+
+  // 바깥 클릭 시 팝오버 닫기
+  useEffect(() => {
+    if (!showBurnRatePopover) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setShowBurnRatePopover(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showBurnRatePopover]);
 
   const effectiveOverlay = isOverlay !== undefined ? isOverlay : internalOverlay;
   const handleToggleOverlay = () => {
@@ -274,6 +297,105 @@ export function TokenStockChart({
                 ⚡ 라이브 +{formatTokenCount(livePendingTokens)} (
                 {formatCost(livePendingCost || '0')})
               </span>
+            )}
+
+            {burnRate && (
+              <div className="stock-hud__burn-rate-wrapper" ref={popoverRef}>
+                <button
+                  type="button"
+                  className={`stock-hud__burn-rate stock-hud__burn-rate--${burnRate.spike_level}`}
+                  data-testid="chart-burn-rate-badge"
+                  aria-label={`Burn Rate: ${formatBurnRate(burnRate.current_tokens_per_min)} ${getSpikeLabel(burnRate.spike_level)}`}
+                  onClick={() => setShowBurnRatePopover((prev) => !prev)}
+                >
+                  <span className="burn-rate__icon">{getSpikeIcon(burnRate.spike_level)}</span>
+                  <span className="burn-rate__speed">
+                    {formatBurnRate(burnRate.current_tokens_per_min)}
+                  </span>
+                  {burnRate.is_spike && (
+                    <span className="burn-rate__badge-tag">
+                      {burnRate.spike_level === 'critical' ? '급증' : '주의'}
+                    </span>
+                  )}
+                </button>
+
+                {showBurnRatePopover && (
+                  <div
+                    className="stock-hud__burn-rate-popover"
+                    data-testid="burn-rate-popover"
+                    role="dialog"
+                    aria-label="실시간 Burn Rate 상세"
+                  >
+                    <div className="burn-rate-popover__header">
+                      <div className="burn-rate-popover__title">
+                        <span>실시간 Burn Rate</span>
+                        <span
+                          className={`burn-rate-popover__level-badge burn-rate-popover__level-badge--${burnRate.spike_level}`}
+                        >
+                          {getSpikeLabel(burnRate.spike_level)}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="burn-rate-popover__close"
+                        onClick={() => setShowBurnRatePopover(false)}
+                        aria-label="닫기"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <div className="burn-rate-popover__stat">
+                      <span className="burn-rate-popover__tokens">
+                        {formatBurnRate(burnRate.current_tokens_per_min)}
+                      </span>
+                      <span className="burn-rate-popover__cost">
+                        ({formatCostPerMin(burnRate.current_cost_per_min)})
+                      </span>
+                    </div>
+
+                    <p className="burn-rate-popover__rec">{burnRate.recommendation}</p>
+
+                    {burnRate.agents && burnRate.agents.length > 0 && (
+                      <div className="burn-rate-popover__agents">
+                        <div className="burn-rate-popover__agents-label">에이전트별 소모 속도</div>
+                        {burnRate.agents.map((ag) => {
+                          const theme = getAgentTheme(ag.agent_name);
+                          return (
+                            <div key={ag.agent_name} className="burn-rate-popover__agent-row">
+                              <div className="burn-rate-popover__agent-info">
+                                <span
+                                  className="burn-rate-popover__agent-dot"
+                                  style={{ backgroundColor: theme.color }}
+                                />
+                                <span className="burn-rate-popover__agent-name">
+                                  {getAgentLabel(ag.agent_name)}
+                                </span>
+                                {ag.active_runs_count > 0 && (
+                                  <span className="burn-rate-popover__agent-active">진행 중</span>
+                                )}
+                              </div>
+                              <div className="burn-rate-popover__agent-rate">
+                                <span className="burn-rate-popover__agent-tokens">
+                                  {formatBurnRate(ag.tokens_per_minute)}
+                                </span>
+                                <span className="burn-rate-popover__agent-cost">
+                                  ({formatCostPerMin(ag.cost_per_minute)})
+                                </span>
+                                {ag.is_spike && (
+                                  <span className="burn-rate-popover__agent-spike">
+                                    {ag.spike_level === 'critical' ? '🚨 급증' : '⚠️ 주의'}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}
