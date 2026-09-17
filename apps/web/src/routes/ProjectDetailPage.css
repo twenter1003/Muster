@@ -277,37 +277,128 @@
   gap: var(--space-1);
 }
 
-.detail__goals-checklist {
+/* ──────── 목표 카드 & 미니 요약 HUD ──────── */
+.detail__goals-panel {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
-  margin: var(--space-1) 0;
 }
 
-.detail__goals-check-item {
+.detail__goals-card-head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-2);
-  padding: var(--space-1) var(--space-2);
+  padding: var(--space-3) var(--space-4) 0;
+}
+
+.detail__goals-drawer-trigger-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--color-rule);
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #60a5fa;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.detail__goals-drawer-trigger-btn:hover {
+  background: rgba(59, 130, 246, 0.12);
+  color: #93c5fd;
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+.detail__goals-drawer-trigger-btn:active {
+  transform: scale(0.97);
+}
+
+.detail__goals-hud {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+  background: rgba(0, 0, 0, 0.14);
+  border: 1px solid var(--color-rule);
   border-radius: var(--radius);
-  background: var(--color-surface);
-  font-size: var(--font-size-body);
+  padding: var(--space-2) var(--space-3);
+}
+
+.detail__goals-hud-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.detail__goals-hud-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #38bdf8;
+  letter-spacing: 0.02em;
+}
+
+.detail__goals-upnext-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail__goals-upnext-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 12px;
   cursor: pointer;
   user-select: none;
-  transition: opacity 0.15s ease;
+  transition: background 120ms ease;
 }
 
-.detail__goals-check-item:hover {
-  opacity: 0.85;
+.detail__goals-upnext-item:hover {
+  background: rgba(255, 255, 255, 0.06);
 }
 
-.detail__goals-check-item--done .detail__goals-check-title {
-  text-decoration: line-through;
-  color: var(--color-ink-mid);
+.detail__goals-upnext-item input[type='checkbox'] {
+  cursor: pointer;
 }
 
-.detail__goals-check-title {
+.detail__goals-upnext-title {
   flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.detail__goals-all-done {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.detail__goals-cta-row {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 2px;
+}
+
+.detail__goals-cta-btn {
+  background: transparent;
+  border: none;
+  color: #60a5fa;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 4px;
+  transition: color 150ms ease;
+}
+
+.detail__goals-cta-btn:hover {
+  color: #93c5fd;
+  text-decoration: underline;
 }
 
 @media (max-width: 1100px) {
@@ -633,5 +724,23 @@
   50% {
     opacity: 0.6;
     transform: scale(0.98);
+  }
+}
+
+/* ───────────────────────── 모바일 반응형 (360px ~ 480px) ───────────────────────── */
+@media (max-width: 480px) {
+  .detail__goals-card-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .detail__goals-hud {
+    padding: var(--space-2) var(--space-2);
+  }
+
+  .detail__goals-upnext-item {
+    min-height: 36px;
+    padding: 6px 8px;
   }
 }

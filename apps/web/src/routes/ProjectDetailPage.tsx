@@ -4,6 +4,7 @@ import { HealthIndicator } from '../components/HealthIndicator';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
 import { ApiKeyModal } from '../components/ApiKeyModal';
+import { GoalChecklistDrawer, getUpNextItems } from '../components/GoalChecklistDrawer';
 import { ApiError, apiFetch, apiPatch, apiPost, type Page } from '../lib/api';
 import { EM_DASH, LOG_LEVELS, formatDateTime, type LogLevel, type Measurable } from '../lib/domain';
 import { shouldConfirmDraftOverwrite } from '../lib/goalsDraft';
@@ -298,10 +299,19 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmOverwrite, setConfirmOverwrite] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const progress = progressState.data?.progress ?? null;
-  const checklistItems = parseGoalChecklist(goals.data?.content_md);
-  const stats = getGoalsProgressStats(goals.data?.content_md);
+  const checklistItems = useMemo(
+    () => parseGoalChecklist(goals.data?.content_md),
+    [goals.data?.content_md],
+  );
+  const stats = useMemo(
+    () => getGoalsProgressStats(goals.data?.content_md),
+    [goals.data?.content_md],
+  );
+  const upNextItems = useMemo(() => getUpNextItems(checklistItems, 3), [checklistItems]);
+  const remainingPendingCount = Math.max(0, stats.total - stats.completed - upNextItems.length);
 
   const startEditing = () => {
     setDraftText(goals.data?.content_md ?? '');
@@ -391,8 +401,21 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
   };
 
   return (
-    <div className="panel detail__panel--wide">
-      <p className="panel__head">목표 · 진행률</p>
+    <div className="panel detail__panel--wide detail__goals-panel">
+      <div className="detail__goals-card-head">
+        <span className="panel__head" style={{ margin: 0 }}>
+          목표 · 진행률
+        </span>
+        {stats.total > 0 && (
+          <button
+            type="button"
+            className="detail__goals-drawer-trigger-btn"
+            onClick={() => setDrawerOpen(true)}
+          >
+            전체 체크리스트 보기 ({stats.total}개) ↗
+          </button>
+        )}
+      </div>
       <div className="panel__body">
         {editing ? (
           <div className="detail__goals-editor">
@@ -453,26 +476,47 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
                 </p>
                 <p className="meta">{progress.summary}</p>
                 {checklistItems.length > 0 ? (
-                  <div className="detail__goals-checklist">
-                    {checklistItems.map((item) => (
-                      <label
-                        key={item.index}
-                        className={`detail__goals-check-item ${item.completed ? 'detail__goals-check-item--done' : ''}`}
+                  <div className="detail__goals-hud">
+                    <div className="detail__goals-hud-head">
+                      <span className="detail__goals-hud-label">⚡ 다음에 할 일 (Up Next)</span>
+                      {remainingPendingCount > 0 && (
+                        <span className="meta">외 {remainingPendingCount}개 대기 중</span>
+                      )}
+                    </div>
+
+                    {upNextItems.length > 0 ? (
+                      <div className="detail__goals-upnext-list">
+                        {upNextItems.map((item) => (
+                          <label key={item.index} className="detail__goals-upnext-item">
+                            <input
+                              type="checkbox"
+                              checked={item.completed}
+                              disabled={saving || analyzing}
+                              onChange={() => handleToggleCheck(item.index)}
+                            />
+                            <span className="detail__goals-upnext-title">{item.title}</span>
+                            <span className="meta">대기</span>
+                          </label>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="detail__goals-all-done">
+                        <span className="badge badge--ok">모든 목표 달성 완료</span>
+                        <span className="meta">
+                          전체 {stats.total}개 마일스톤을 모두 완료했습니다.
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="detail__goals-cta-row">
+                      <button
+                        type="button"
+                        className="detail__goals-cta-btn"
+                        onClick={() => setDrawerOpen(true)}
                       >
-                        <input
-                          type="checkbox"
-                          checked={item.completed}
-                          disabled={saving || analyzing}
-                          onChange={() => handleToggleCheck(item.index)}
-                        />
-                        <span className="detail__goals-check-title">{item.title}</span>
-                        {item.completed ? (
-                          <span className="badge">완료</span>
-                        ) : (
-                          <span className="meta">대기</span>
-                        )}
-                      </label>
-                    ))}
+                        전체 체크리스트 관리 ({stats.total}개) ↗
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   progress.remaining_items.length > 0 && (
@@ -490,22 +534,47 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
               </>
             ) : checklistItems.length > 0 ? (
               <>
-                <div className="detail__goals-checklist">
-                  {checklistItems.map((item) => (
-                    <label
-                      key={item.index}
-                      className={`detail__goals-check-item ${item.completed ? 'detail__goals-check-item--done' : ''}`}
+                <div className="detail__goals-hud">
+                  <div className="detail__goals-hud-head">
+                    <span className="detail__goals-hud-label">⚡ 다음에 할 일 (Up Next)</span>
+                    {remainingPendingCount > 0 && (
+                      <span className="meta">외 {remainingPendingCount}개 대기 중</span>
+                    )}
+                  </div>
+
+                  {upNextItems.length > 0 ? (
+                    <div className="detail__goals-upnext-list">
+                      {upNextItems.map((item) => (
+                        <label key={item.index} className="detail__goals-upnext-item">
+                          <input
+                            type="checkbox"
+                            checked={item.completed}
+                            disabled={saving || analyzing}
+                            onChange={() => handleToggleCheck(item.index)}
+                          />
+                          <span className="detail__goals-upnext-title">{item.title}</span>
+                          <span className="meta">대기</span>
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="detail__goals-all-done">
+                      <span className="badge badge--ok">모든 목표 달성 완료</span>
+                      <span className="meta">
+                        전체 {stats.total}개 마일스톤을 모두 완료했습니다.
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="detail__goals-cta-row">
+                    <button
+                      type="button"
+                      className="detail__goals-cta-btn"
+                      onClick={() => setDrawerOpen(true)}
                     >
-                      <input
-                        type="checkbox"
-                        checked={item.completed}
-                        disabled={saving || analyzing}
-                        onChange={() => handleToggleCheck(item.index)}
-                      />
-                      <span className="detail__goals-check-title">{item.title}</span>
-                      {item.completed && <span className="badge">완료</span>}
-                    </label>
-                  ))}
+                      전체 체크리스트 관리 ({stats.total}개) ↗
+                    </button>
+                  </div>
                 </div>
                 <p className="meta">{getUnanalyzedStatusText(analyzing)}</p>
               </>
@@ -522,12 +591,27 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
                 {getAnalyzeButtonLabel(analyzing, progress !== null)}
               </Button>
               <Button type="button" onClick={startEditing}>
-                목표 편집
+                목표 직접 편집
               </Button>
             </div>
           </div>
         )}
       </div>
+
+      {/* 전체 체크리스트 슬라이드 드로어 */}
+      <GoalChecklistDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        contentMd={goals.data?.content_md}
+        saving={saving}
+        analyzing={analyzing}
+        onToggleCheck={handleToggleCheck}
+        onEditGoals={() => {
+          setDrawerOpen(false);
+          startEditing();
+        }}
+        onAnalyzeProgress={analyze}
+      />
       <Modal
         open={confirmOverwrite}
         title="편집 중인 내용을 덮어쓸까?"
