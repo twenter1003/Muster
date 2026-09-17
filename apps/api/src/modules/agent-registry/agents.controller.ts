@@ -296,7 +296,6 @@ export class AgentRunsController {
     return toRunView(await this.runs.heartbeat(id, identity, dto));
   }
 
-
   /**
    * Git repository URL 기반 에이전트 실행 기록 자동 라우팅.
    * 외부 에이전트 훅(Stop, SessionEnd 등)이 X-API-Key 헤더와 repo_url을 보내면,

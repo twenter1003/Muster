@@ -49,4 +49,3 @@ describe('TokenStockChart 로직 및 데이터 정합성 검증', () => {
     expect(Number(livePendingCost)).toBeGreaterThan(0);
   });
 });
-

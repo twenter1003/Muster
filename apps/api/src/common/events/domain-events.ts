@@ -21,7 +21,6 @@ export const DomainEvent = {
   WORKFLOW_RUN_COMPLETED: 'ingest.workflow_run.completed',
 } as const;
 
-
 export interface LogAppendedEvent {
   project_id: string;
   log_entry_id: string;
@@ -120,4 +119,3 @@ export interface DomainEventPayloads {
   [DomainEvent.AGENT_RUN_HEARTBEAT]: AgentRunHeartbeatEvent;
   [DomainEvent.AGENT_RUN_FINISHED]: AgentRunFinishedEvent;
 }
-

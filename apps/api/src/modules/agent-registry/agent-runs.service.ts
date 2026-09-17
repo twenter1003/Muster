@@ -14,7 +14,6 @@ import type { HeartbeatRunDto } from './dto/heartbeat-run.dto';
 import type { RecordRunByRepoDto } from './dto/record-run-by-repo.dto';
 import type { UpdateRunDto } from './dto/update-run.dto';
 
-
 /** 실행 종료를 요청한 신원 — 사람(세션) 또는 에이전트(API 키) 중 하나. */
 export type RunIdentity = { userId: string } | { apiKeyProjectId: string };
 
@@ -278,7 +277,6 @@ export class AgentRunsService {
   }
 
   async listForAgent(agentId: string, page: PageRequest): Promise<Page<AgentRun>> {
-
     const qb = this.runs
       .createQueryBuilder('r')
       .where('r.agent_id = :agentId', { agentId })

@@ -85,7 +85,6 @@ export class StreamService {
       | 'agent_run_finished',
     projectId: string,
   ): Observable<MessageEvent> {
-
     return fromEvent<T>(this.events, name).pipe(
       // 직렬화 전에 거른다 — 남의 프로젝트 페이로드가 MessageEvent까지 내려가지 않게 한다.
       filter((payload) => payload?.project_id === projectId),

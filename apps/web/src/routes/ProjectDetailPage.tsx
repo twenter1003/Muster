@@ -771,7 +771,6 @@ export function ProjectDetailPage() {
     [agentHeartbeats, activeAgents],
   );
 
-
   // 원클릭 전체 동기화 실행
   const handleSyncAll = () => {
     if (syncing) return;
@@ -1001,7 +1000,6 @@ export function ProjectDetailPage() {
                   )}
                 </div>
               ) : sseState === 'open' ? (
-
                 <span
                   className="badge badge--live"
                   style={{ fontSize: '10px' }}
