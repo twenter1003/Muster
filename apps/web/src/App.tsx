@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { SessionProvider } from './lib/session';
+import { BenchmarkProvider } from './lib/benchmarkContext';
 import { AppShell } from './shell/AppShell';
 import { NotReadyPage } from './routes/pages';
 import { LoginPage } from './routes/LoginPage';
@@ -30,28 +31,30 @@ export default function App() {
   return (
     <BrowserRouter>
       <SessionProvider>
-        <Routes>
-          {/* 로그인만 셸 밖이다. 인증 전에는 사이드바에 채울 것이 없다. */}
-          <Route path="/login" element={<LoginPage />} />
+        <BenchmarkProvider>
+          <Routes>
+            {/* 로그인만 셸 밖이다. 인증 전에는 사이드바에 채울 것이 없다. */}
+            <Route path="/login" element={<LoginPage />} />
 
-          {/*
-            초대 수락은 셸 밖이면서 RequireSession 밖이기도 하다. 로그인하지 않은 사람에게
-            건네는 링크라, 안쪽에 두면 /login으로 튕기면서 주소창의 토큰이 사라진다.
-          */}
-          <Route path="/invite/:token" element={<InvitePage />} />
+            {/*
+              초대 수락은 셸 밖이면서 RequireSession 밖이기도 하다. 로그인하지 않은 사람에게
+              건네는 링크라, 안쪽에 두면 /login으로 튕기면서 주소창의 토큰이 사라진다.
+            */}
+            <Route path="/invite/:token" element={<InvitePage />} />
 
-          {/* 로그인이 필요한 전 구간. 실제 차단은 서버 가드가 하고 여기는 흐름만 잡는다. */}
-          <Route element={<RequireSession />}>
-            <Route element={<AppShell />}>
-              <Route index element={<ProjectListPage />} />
-              <Route path="/projects" element={<ProjectListPage />} />
-              <Route path="/projects/:id" element={<ProjectDetailPage />} />
-              <Route path="/import" element={<ImportReposPage />} />
-              {/* 아직 없는 경로. 막다른 404 대신 자리표시자로 받는다. */}
-              <Route path="*" element={<NotReadyPage />} />
+            {/* 로그인이 필요한 전 구간. 실제 차단은 서버 가드가 하고 여기는 흐름만 잡는다. */}
+            <Route element={<RequireSession />}>
+              <Route element={<AppShell />}>
+                <Route index element={<ProjectListPage />} />
+                <Route path="/projects" element={<ProjectListPage />} />
+                <Route path="/projects/:id" element={<ProjectDetailPage />} />
+                <Route path="/import" element={<ImportReposPage />} />
+                {/* 아직 없는 경로. 막다른 404 대신 자리표시자로 받는다. */}
+                <Route path="*" element={<NotReadyPage />} />
+              </Route>
             </Route>
-          </Route>
-        </Routes>
+          </Routes>
+        </BenchmarkProvider>
       </SessionProvider>
     </BrowserRouter>
   );

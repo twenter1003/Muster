@@ -12,8 +12,20 @@ import { hashToken } from '../../common/auth/token-hash';
  */
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+interface CachedSession {
+  user: AuthenticatedUser;
+  expiresAtMs: number;
+}
+
 @Injectable()
 export class SessionService {
+  /**
+   * 세션 캐시 (메모리 LRU/TTL).
+   * 매 요청마다 DB sessions-users 조인을 반복하는 부하를 방지하여,
+   * /auth/me 및 가드 인증 응답 속도를 0ms 단위로 단축한다.
+   */
+  private readonly cache = new Map<string, CachedSession>();
+
   constructor(@InjectRepository(Session) private readonly sessions: Repository<Session>) {}
 
   /**
@@ -38,18 +50,41 @@ export class SessionService {
 
   /** 유효한 세션이면 사용자를, 아니면 null을 돌려준다. */
   async resolve(token: string): Promise<AuthenticatedUser | null> {
+    const hash = hashToken(token);
+    const now = Date.now();
+
+    const cached = this.cache.get(hash);
+    if (cached) {
+      if (now < cached.expiresAtMs) {
+        return cached.user;
+      }
+      this.cache.delete(hash);
+    }
+
     const session = await this.sessions.findOne({
-      where: { token_hash: hashToken(token), revoked_at: IsNull() },
+      where: { token_hash: hash, revoked_at: IsNull() },
       relations: { user: true },
     });
 
-    if (!session || session.expires_at.getTime() <= Date.now()) return null;
+    if (!session || session.expires_at.getTime() <= now) return null;
 
-    return {
+    const user: AuthenticatedUser = {
       id: session.user.id,
       github_login: session.user.github_login,
       email: session.user.email,
     };
+
+    // 최대 60초 또는 세션 만료 시각 중 빠른 시각까지 캐싱
+    const ttlMs = Math.min(session.expires_at.getTime() - now, 60_000);
+    if (ttlMs > 0) {
+      if (this.cache.size >= 1000) {
+        const firstKey = this.cache.keys().next().value;
+        if (firstKey) this.cache.delete(firstKey);
+      }
+      this.cache.set(hash, { user, expiresAtMs: now + ttlMs });
+    }
+
+    return user;
   }
 
   /**
@@ -57,9 +92,17 @@ export class SessionService {
    * (설계서 Part 4 §2 — 이 계약 때문에 stateless JWT를 쓸 수 없었다).
    */
   async revoke(token: string): Promise<void> {
+    const hash = hashToken(token);
+    this.cache.delete(hash);
+
     await this.sessions.update(
-      { token_hash: hashToken(token), revoked_at: IsNull() },
+      { token_hash: hash, revoked_at: IsNull() },
       { revoked_at: new Date() },
     );
+  }
+
+  /** 테스트 및 세션 캐시 전체 초기화 지원 */
+  clearCache(): void {
+    this.cache.clear();
   }
 }

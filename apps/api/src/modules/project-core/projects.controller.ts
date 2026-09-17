@@ -38,10 +38,14 @@ import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { ImportReposDto } from './dto/import-repos.dto';
 import { ProjectImportService, type ImportResultItem } from './project-import.service';
+import { ListProjectsQuery } from './dto/list-projects.dto';
+import type { ProjectSummaryView } from './dto/project-summary-view';
 import type { CommitSummary } from './github-repo.client';
 import type { GitIntegration, Project } from '../../database/entities';
 import { ApiException } from '../../common/errors/api.exception';
 import { AuditService } from '../audit/audit.service';
+
+export { type ProjectSummaryView };
 
 /**
  * 응답에 실리는 연동 표현.
@@ -108,8 +112,13 @@ export class ProjectsController {
   @Get()
   async list(
     @CurrentUser() user: AuthenticatedUser,
-    @Query() query: CursorPaginationQuery,
-  ): Promise<Page<ProjectView>> {
+    @Query() query: ListProjectsQuery,
+    @Query('summary') summaryFlag?: string,
+    @Query('tz') tz?: string,
+  ): Promise<Page<ProjectView> | Page<ProjectSummaryView>> {
+    if (summaryFlag === 'true') {
+      return this.projects.listSummariesForUser(user.id, toPageRequest(query), tz);
+    }
     const page = await this.projects.listForUser(user.id, toPageRequest(query));
     return { items: page.items.map(toView), next_cursor: page.next_cursor };
   }

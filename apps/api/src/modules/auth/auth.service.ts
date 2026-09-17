@@ -70,14 +70,16 @@ export class AuthService {
     const user = await this.upsertUser(profile.login, profile.email);
 
     // 토큰 원문은 DB가 아니라 시크릿 저장소에 두고 참조만 남긴다 (설계서 Part 2 §6.2).
-    // access_token만이 아니라 refresh_token·만료 시각까지 함께 보관한다. 액세스 토큰만
-    // 저장하면 만료가 켜진 앱에서 8시간 뒤 레포 연동이 살아날 방법이 없다.
-    const ref = await this.githubTokens.store(user.id, tokens);
+    // access_token만이 아니라 refresh_token·만료 시각까지 함께 보관한다.
+    // githubTokens.store와 sessions.issue를 병렬로 실행하여 OAuth 콜백 지연을 획기적으로 줄인다.
+    const [ref, { token, expires_at }] = await Promise.all([
+      this.githubTokens.store(user.id, tokens),
+      this.sessions.issue(user.id),
+    ]);
+
     if (user.github_token_ref !== ref) {
       await this.users.update({ id: user.id }, { github_token_ref: ref });
     }
-
-    const { token, expires_at } = await this.sessions.issue(user.id);
 
     // 세션이 실제로 발급된 뒤에 남긴다 — 그 전에 남기면 실패한 시도가 로그인으로 보인다.
     await this.audit.record({ user_id: user.id, action: 'login' });
