@@ -51,10 +51,11 @@ Claude Code/LLM 기반으로 여러 사이드 프로젝트를 동시에 진행�
   `gcloud run services describe muster --region asia-northeast3 --format='value(status.url)'`
   로 직접 확인할 것 — **Cloud Run 기본 URL이 배포 중에 바뀐 적이 있다**(숫자 기반 →
   해시 기반). GitHub OAuth 콜백은 항상 그 시점의 현재 URL을 따라간다.
-- **테스트**: `pnpm -r build`, `pnpm -r test`(api 유닛 469 / web 145),
+- **테스트**: `pnpm -r build`, `pnpm -r test`(api 유닛 469 / web 161),
   `pnpm --filter @muster/api test:e2e`(246+, 로컬 DB 필요). 전부 통과하는 게 기본 전제 —
   실패한 채로 커밋하지 않는다.
 - **최근 완료된 것** (최신순, 상세는 git log):
+  - **대용량 목표 체크리스트 UX 전면 개선 (미니 요약 HUD + 전용 슬라이드 드로어 및 모바일 바텀시트 탑재) 및 Cloud Run 실서버 배포 완료** (체크리스트가 수십 개로 늘어나도 대시보드 목표 카드 높이를 ~200px로 고정하여 하단 최근 커밋/배포/로그 관제 패널의 접근성을 완벽 보장, 미완료 우선순위 Top 3 'Up Next' 인라인 체크박스 제공, 네이티브 `<dialog>` 기반 우측 슬라이드 드로어(460px) 및 모바일 85vh 바텀시트, 실시간 키워드 검색·상태 필터 칩(`[전체]`/`[대기]`/`[완료]`)·완료 숨기기 토글·마크다운 헤더 마일스톤 아코디언 탑재, 단위 테스트 12개 추가 및 웹 테스트 161개 전원 통과, PR #59, 커밋 `91ef4ee`, Cloud Run `muster-00036-6qd`)
   - **버그 리포트 템플릿, 5분 초고속 장애 진단 런북 및 원클릭 진단 스크립트(`scripts/diagnose-live.sh`) 구축** (실서버 500 에러 및 UI 결함 발생 시 5초 만에 원인을 규명하고 즉각 핫픽스하기 위한 표준 진단 프로토콜, GitHub Issue 버그 템플릿(`.github/ISSUE_TEMPLATE/bug_report.md`), 실제 발생 버그 4종 상세 RCA 아카이브(`docs/BUG_REPORTS.md`), Cloud Run 활성 리비전/헬스/보안가드/에러로그 자동 점검 CLI 구축)
   - **프로젝트 목록 요약 쿼리 PostgreSQL `DISTINCT ON` 문법 에러 해결 및 Cloud Run 실서버 배포 완료** (TypeORM의 `select('DISTINCT ON ...')` 사용 시 컬럼 순서 재배치로 인해 Postgres 구문 오류(`syntax error at or near DISTINCT`)가 발생하여 실서버 대시보드 진입 시 500 에러를 반환하던 문제를 전용 메서드인 `.distinctOn(['alias.project_id'])`로 전면 교체하여 해결, TypeORM Mock QB에 `distinctOn` 추가, API 단위 테스트 469개 전원 통과, 실서버 `GET /api/v1/projects?summary=true` 200 OK 검증 완료, PR #57, 커밋 `7a717a6`, Cloud Run `muster-00035-rzz`)
   - **모바일 뷰포트 레이아웃 잘림 해결 및 QA CDP 캡처 고도화, Cloud Run 실서버 배포 완료** (Chrome DevTools Protocol 기반 실기기 390x844 뷰포트 에뮬레이션 캡처로 전환하여 헤드리스 창 500px 제한으로 인한 캡처 크롭 결함 원천 해결, 미인증 401 분기 처리로 진짜 로그인 화면 캡처, BenchmarkHud 767px 미디어 쿼리 확대 및 버튼 텍스트 말줄임, ProjectDetailPage 640px 이하 액션 버튼 3종 1열 풀위드 정렬, ProjectListPage 필터 칩 flex-wrap 줄바꿈 및 카드 푸터 모바일 컬럼 레이아웃 적용, PR #56, 커밋 `d4047cd`, Cloud Run `muster-00034-8bt`)
