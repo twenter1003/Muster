@@ -662,6 +662,18 @@ export function ProjectDetailPage() {
   const { events: sseEvents, state: sseState } = useSse(id ?? null);
   const [activeAgents, setActiveAgents] = useState<string[]>([]);
   const [agentStartTimes, setAgentStartTimes] = useState<Record<string, number>>({});
+  const [agentHeartbeats, setAgentHeartbeats] = useState<
+    Record<
+      string,
+      {
+        tokens_used: number;
+        cost: string;
+        delta_tokens: number;
+        delta_cost: string;
+        last_tick_at: number;
+      }
+    >
+  >({});
   const [nowSec, setNowSec] = useState<number>(() => Math.floor(Date.now() / 1000));
 
   // 에이전트 작업 중 실시간 1초 카운트업 타이머
@@ -682,12 +694,49 @@ export function ProjectDetailPage() {
       const curSec = Math.floor(Date.now() / 1000);
       setActiveAgents((prev) => (prev.includes(name) ? prev : [...prev, name]));
       setAgentStartTimes((prev) => ({ ...prev, [name]: prev[name] ?? curSec }));
+      setAgentHeartbeats((prev) => ({
+        ...prev,
+        [name]: {
+          tokens_used: 0,
+          cost: '0',
+          delta_tokens: 0,
+          delta_cost: '0',
+          last_tick_at: Date.now(),
+        },
+      }));
       usage.reload();
+    } else if (latest.type === 'agent_run_heartbeat') {
+      const payload = latest.data as {
+        agent_name?: string;
+        tokens_used?: number;
+        cost?: string;
+        delta_tokens?: number;
+        delta_cost?: string;
+      };
+      const name = payload?.agent_name ?? 'agent';
+      const curSec = Math.floor(Date.now() / 1000);
+      setActiveAgents((prev) => (prev.includes(name) ? prev : [...prev, name]));
+      setAgentStartTimes((prev) => ({ ...prev, [name]: prev[name] ?? curSec }));
+      setAgentHeartbeats((prev) => ({
+        ...prev,
+        [name]: {
+          tokens_used: payload.tokens_used ?? 0,
+          cost: payload.cost ?? '0',
+          delta_tokens: payload.delta_tokens ?? 0,
+          delta_cost: payload.delta_cost ?? '0',
+          last_tick_at: Date.now(),
+        },
+      }));
     } else if (latest.type === 'agent_run_finished') {
       const payload = latest.data as { agent_name?: string };
       const name = payload?.agent_name ?? 'agent';
       setActiveAgents((prev) => prev.filter((a) => a !== name));
       setAgentStartTimes((prev) => {
+        const next = { ...prev };
+        delete next[name];
+        return next;
+      });
+      setAgentHeartbeats((prev) => {
         const next = { ...prev };
         delete next[name];
         return next;
@@ -700,6 +749,27 @@ export function ProjectDetailPage() {
       health.reload();
     }
   }, [sseEvents]);
+
+  // 실행 중인 에이전트들의 실시간 누적 토큰/비용 합산
+  const livePendingTokens = useMemo(
+    () =>
+      Object.entries(agentHeartbeats).reduce((sum, [name, hb]) => {
+        if (!activeAgents.includes(name)) return sum;
+        return sum + (hb.tokens_used || 0);
+      }, 0),
+    [agentHeartbeats, activeAgents],
+  );
+
+  const livePendingCost = useMemo(
+    () =>
+      Object.entries(agentHeartbeats)
+        .reduce((sum, [name, hb]) => {
+          if (!activeAgents.includes(name)) return sum;
+          return sum + Number(hb.cost || 0);
+        }, 0)
+        .toFixed(4),
+    [agentHeartbeats, activeAgents],
+  );
 
   // 원클릭 전체 동기화 실행
   const handleSyncAll = () => {
@@ -824,7 +894,10 @@ export function ProjectDetailPage() {
                 .map((name) => {
                   const start = agentStartTimes[name] ?? nowSec;
                   const elapsed = Math.max(0, nowSec - start);
-                  return `${name} (${formatElapsedTime(elapsed)})`;
+                  const hb = agentHeartbeats[name];
+                  const tokenStr =
+                    hb && hb.tokens_used > 0 ? ` · ${formatTokenCount(hb.tokens_used)}` : '';
+                  return `${name} (${formatElapsedTime(elapsed)}${tokenStr})`;
                 })
                 .join(', ')}{' '}
               작업 중
@@ -894,17 +967,38 @@ export function ProjectDetailPage() {
             <div className="detail__agent-head-title">
               <span>에이전트 토큰 관제</span>
               {activeAgents.length > 0 ? (
-                <span className="badge badge--pulse" style={{ fontSize: '11px' }}>
-                  ●{' '}
-                  {activeAgents
-                    .map((name) => {
-                      const start = agentStartTimes[name] ?? nowSec;
-                      const elapsed = Math.max(0, nowSec - start);
-                      return `${name} (${formatElapsedTime(elapsed)})`;
-                    })
-                    .join(', ')}{' '}
-                  작업 중
-                </span>
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <span className="badge badge--pulse" style={{ fontSize: '11px' }}>
+                    ●{' '}
+                    {activeAgents
+                      .map((name) => {
+                        const start = agentStartTimes[name] ?? nowSec;
+                        const elapsed = Math.max(0, nowSec - start);
+                        const hb = agentHeartbeats[name];
+                        const tokenStr =
+                          hb && hb.tokens_used > 0 ? ` · ${formatTokenCount(hb.tokens_used)}` : '';
+                        return `${name} (${formatElapsedTime(elapsed)}${tokenStr})`;
+                      })
+                      .join(', ')}{' '}
+                    작업 중
+                  </span>
+                  {livePendingTokens > 0 && (
+                    <span
+                      className="badge badge--tick"
+                      style={{ fontSize: '10px' }}
+                      title="하트비트 실시간 틱 수신 중"
+                    >
+                      ⚡ 라이브 틱 +{formatTokenCount(livePendingTokens)}
+                    </span>
+                  )}
+                </div>
               ) : sseState === 'open' ? (
                 <span
                   className="badge badge--live"
@@ -970,6 +1064,15 @@ export function ProjectDetailPage() {
                   >
                     ({formatCost(usage.data.month_cost)})
                   </span>{' '}
+                  {livePendingTokens > 0 && (
+                    <span
+                      className="stock-hud__live-tick"
+                      style={{ fontSize: '12px', marginLeft: '6px' }}
+                      title="현재 실행 중인 에이전트의 중간 누적 토큰"
+                    >
+                      ⚡ +{formatTokenCount(livePendingTokens)} 진행 중
+                    </span>
+                  )}{' '}
                   <span className="meta">
                     이번 달
                     {usage.data.total_tokens ? (
@@ -997,7 +1100,10 @@ export function ProjectDetailPage() {
                   granularity={chartGranularity}
                   onGranularityChange={setChartGranularity}
                   isLoading={usage.loading}
+                  livePendingTokens={livePendingTokens}
+                  livePendingCost={livePendingCost}
                 />
+
                 <p className="meta" style={{ marginTop: 'var(--space-2)' }}>
                   오늘{' '}
                   <strong style={{ color: 'var(--color-ink)' }}>

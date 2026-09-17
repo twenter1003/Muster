@@ -17,6 +17,8 @@ export interface TokenStockChartProps {
   onGranularityChange: (granularity: TokenGranularity) => void;
   isLoading?: boolean;
   height?: number;
+  livePendingTokens?: number;
+  livePendingCost?: string;
 }
 
 const SVG_WIDTH = 600;
@@ -29,6 +31,8 @@ export function TokenStockChart({
   onGranularityChange,
   isLoading = false,
   height = DEFAULT_HEIGHT,
+  livePendingTokens,
+  livePendingCost,
 }: TokenStockChartProps) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const gradId = useId();
@@ -150,6 +154,15 @@ export function TokenStockChart({
             </span>
             <span className="stock-hud__cost cost-text">({formatCost(activePoint.d.cost)})</span>
             {hoveredIdx === null && <span className="stock-hud__tag">최신</span>}
+            {livePendingTokens !== undefined && livePendingTokens > 0 && (
+              <span
+                className="stock-hud__live-tick"
+                title="진행 중인 세션 실시간 하트비트 스트리밍 토큰"
+              >
+                ⚡ 라이브 +{formatTokenCount(livePendingTokens)} (
+                {formatCost(livePendingCost || '0')})
+              </span>
+            )}
           </div>
         )}
       </div>

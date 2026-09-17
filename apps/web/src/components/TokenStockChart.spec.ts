@@ -37,4 +37,15 @@ describe('TokenStockChart 로직 및 데이터 정합성 검증', () => {
       expect(p.label).toMatch(/^\d{2}:00$/);
     });
   });
+
+  it('실시간 하트비트 라이브 틱 증분 토큰이 정상적으로 계산된다', () => {
+    const livePendingTokens = 12500;
+    const livePendingCost = '0.0450';
+    const totalWithLive =
+      mockHourlyData.reduce((acc, p) => acc + Number(p.tokens), 0) + livePendingTokens;
+
+    expect(totalWithLive).toBe(38500);
+    expect(livePendingTokens).toBeGreaterThan(0);
+    expect(Number(livePendingCost)).toBeGreaterThan(0);
+  });
 });

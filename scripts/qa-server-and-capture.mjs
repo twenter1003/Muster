@@ -8,11 +8,11 @@ const CHROME_PATH = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrom
 const DIST_DIR = path.resolve('/Users/kimtaewoo/Muster/apps/web/dist');
 const ARTIFACT_DIR_PARENT =
   '/Users/kimtaewoo/.gemini/antigravity/brain/e8458c2c-bf26-4777-b66f-1e307f2ffeaf';
-const ARTIFACT_DIR_SELF =
-  '/Users/kimtaewoo/.gemini/antigravity/brain/43f56acb-3630-401b-9be3-cc73a2c54d90';
+const ARTIFACT_DIR_CURRENT =
+  '/Users/kimtaewoo/.gemini/antigravity/brain/75deec8b-784a-416e-8455-0bc4fc2de628';
 
 fs.mkdirSync(ARTIFACT_DIR_PARENT, { recursive: true });
-fs.mkdirSync(ARTIFACT_DIR_SELF, { recursive: true });
+fs.mkdirSync(ARTIFACT_DIR_CURRENT, { recursive: true });
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -27,17 +27,33 @@ const MIME_TYPES = {
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
-  // SSE 스트림 엔드포인트 - 즉시 정상 헤더 전송 후 종료
+  // SSE 스트림 엔드포인트 - 하트비트 실시간 틱 이벤트 스트리밍
   if (url.pathname.endsWith('/stream')) {
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
-      Connection: 'close',
+      Connection: 'keep-alive',
     });
     res.write('event: ping\ndata: {}\n\n');
-    res.end();
+    res.write(
+      'event: agent_run_started\ndata: {"project_id":"proj-001","agent_name":"claude-code","run_id":"r-1","status":"running","started_at":"2026-09-17T12:00:00Z"}\n\n',
+    );
+    res.write(
+      'event: agent_run_heartbeat\ndata: {"project_id":"proj-001","agent_name":"claude-code","run_id":"r-1","tokens_used":18500,"cost":"0.0666","delta_tokens":4500,"delta_cost":"0.0162","timestamp":"2026-09-17T12:02:10Z"}\n\n',
+    );
+
+    const timer = setInterval(() => {
+      res.write(
+        `event: agent_run_heartbeat\ndata: {"project_id":"proj-001","agent_name":"claude-code","run_id":"r-1","tokens_used":23000,"cost":"0.0828","delta_tokens":4500,"delta_cost":"0.0162","timestamp":"${new Date().toISOString()}"}\n\n`,
+      );
+    }, 1000);
+
+    req.on('close', () => {
+      clearInterval(timer);
+    });
     return;
   }
+
 
   // API 처리
   if (url.pathname.startsWith('/api/v1/')) {
@@ -585,9 +601,9 @@ async function runCaptures() {
 
     const buffer = Buffer.from(shot.data, 'base64');
     const destParent = path.join(ARTIFACT_DIR_PARENT, outName);
-    const destSelf = path.join(ARTIFACT_DIR_SELF, outName);
+    const destCurrent = path.join(ARTIFACT_DIR_CURRENT, outName);
     fs.writeFileSync(destParent, buffer);
-    fs.writeFileSync(destSelf, buffer);
+    fs.writeFileSync(destCurrent, buffer);
 
     console.log(`  ✅ 저장 완료: ${outName} (${(buffer.length / 1024).toFixed(1)} KB)`);
   };
@@ -717,7 +733,27 @@ async function runCaptures() {
       evalScript: `document.querySelector('.token-stock-chart')?.scrollIntoView({ block: 'start' })`,
     });
 
-    console.log('\n🎉 모든 뷰포트 및 주식 차트/모델 점유율 시각적 증거(스크린샷 12종) 완벽 캡처 완료!');
+    // 13. 데스크톱 뷰포트 (1280x800) - 실시간 하트비트 스트리밍 & 라이브 틱 (Tick) 갱신
+    await captureItem({
+      url: 'http://127.0.0.1:8765/projects/proj-001',
+      outName: 'desktop-heartbeat-streaming.png',
+      width: 1280,
+      height: 800,
+      isMobile: false,
+      waitMs: 2500,
+    });
+
+    // 14. 모바일 뷰포트 (390x844) - 실시간 하트비트 스트리밍 & 라이브 틱 모바일 뷰
+    await captureItem({
+      url: 'http://127.0.0.1:8765/projects/proj-001',
+      outName: 'mobile-heartbeat-streaming.png',
+      width: 390,
+      height: 844,
+      isMobile: true,
+      waitMs: 2500,
+    });
+
+    console.log('\n🎉 모든 뷰포트 및 실시간 하트비트 스트리밍 시각적 증거(스크린샷 14종) 완벽 캡처 완료!');
   } finally {
     ws.close();
     chrome.kill();

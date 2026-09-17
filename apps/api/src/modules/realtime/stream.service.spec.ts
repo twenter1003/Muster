@@ -147,4 +147,30 @@ describe('StreamService', () => {
     );
     expect(events[1].data).toEqual(expect.objectContaining({ tokens_used: 50000, cost: '0.1800' }));
   });
+
+  it('agent_run_heartbeat 이벤트를 올바른 타입으로 스트리밍한다', async () => {
+    const received = firstValueFrom(service.forProject(MINE).pipe(take(1)));
+
+    emitter.emit(DomainEvent.AGENT_RUN_HEARTBEAT, {
+      project_id: MINE,
+      agent_id: 'a-1',
+      agent_name: 'claude-code',
+      run_id: 'r-1',
+      tokens_used: 15000,
+      cost: '0.0540',
+      delta_tokens: 5000,
+      delta_cost: '0.0180',
+      timestamp: '2026-09-17T03:02:00.000Z',
+    });
+
+    const event = await received;
+    expect(event.type).toBe('agent_run_heartbeat');
+    expect(event.data).toEqual(
+      expect.objectContaining({
+        tokens_used: 15000,
+        delta_tokens: 5000,
+        agent_name: 'claude-code',
+      }),
+    );
+  });
 });

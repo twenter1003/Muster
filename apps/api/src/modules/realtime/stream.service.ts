@@ -4,6 +4,7 @@ import { filter, fromEvent, interval, map, merge, type Observable } from 'rxjs';
 import {
   DomainEvent,
   type AgentRunFinishedEvent,
+  type AgentRunHeartbeatEvent,
   type AgentRunStartedEvent,
   type BudgetThresholdExceededEvent,
   type HealthSnapshotCreatedEvent,
@@ -52,10 +53,15 @@ export class StreamService {
         'budget_alert',
         projectId,
       ),
-      // 에이전트 세션 실시간 관제 (Running 시작 점멸 및 수치 즉시 갱신)
+      // 에이전트 세션 실시간 관제 (Running 시작 점멸, 10초 하트비트 라이브 틱 및 종료 시 수치 갱신)
       this.typed<AgentRunStartedEvent>(
         DomainEvent.AGENT_RUN_STARTED,
         'agent_run_started',
+        projectId,
+      ),
+      this.typed<AgentRunHeartbeatEvent>(
+        DomainEvent.AGENT_RUN_HEARTBEAT,
+        'agent_run_heartbeat',
         projectId,
       ),
       this.typed<AgentRunFinishedEvent>(
@@ -75,6 +81,7 @@ export class StreamService {
       | 'stage_change'
       | 'budget_alert'
       | 'agent_run_started'
+      | 'agent_run_heartbeat'
       | 'agent_run_finished',
     projectId: string,
   ): Observable<MessageEvent> {

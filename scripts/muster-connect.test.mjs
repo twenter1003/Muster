@@ -50,7 +50,7 @@ test('muster-connect: parseArgs', async (t) => {
 });
 
 test('muster-connect: registerClaudeHooks', async (t) => {
-  await t.test('settings.json에 SessionStart 및 SessionEnd 훅을 등록한다', () => {
+  await t.test('settings.json에 SessionStart, SessionEnd 및 Stop 훅을 등록한다', () => {
     const dir = mkdtempSync(join(tmpdir(), 'claude-test-'));
     const settingsPath = join(dir, 'settings.json');
     try {
@@ -60,17 +60,21 @@ test('muster-connect: registerClaudeHooks', async (t) => {
       const saved = JSON.parse(readFileSync(settingsPath, 'utf8'));
       assert.ok(saved.hooks.SessionStart.length > 0);
       assert.ok(saved.hooks.SessionEnd.length > 0);
+      assert.ok(saved.hooks.Stop.length > 0);
       assert.match(saved.hooks.SessionStart[0].hooks[0].command, /report-agent-usage\.mjs/);
+      assert.match(saved.hooks.Stop[0].hooks[0].command, /report-agent-usage\.mjs/);
 
       // 재호출 시 중복 등록되지 않아야 한다
       registerClaudeHooks(scriptPath, settingsPath);
       const reSaved = JSON.parse(readFileSync(settingsPath, 'utf8'));
       assert.equal(reSaved.hooks.SessionStart[0].hooks.length, 1);
+      assert.equal(reSaved.hooks.Stop[0].hooks.length, 1);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 });
+
 
 test('muster-connect: registerAntigravityHooks', async (t) => {
   await t.test('hooks.json에 Stop 훅을 등록한다', () => {
@@ -124,3 +128,15 @@ test('muster-connect: saveMusterConfig', async (t) => {
     }
   });
 });
+
+test('muster-connect: sendHeartbeat', async (t) => {
+  await t.test('클로드 및 안티그래비티 훅에서 sendHeartbeat 함수를 정상 노출한다', async () => {
+    const claudeMod = await import('./claude-code-hooks/report-agent-usage.mjs');
+    const agyMod = await import('./antigravity-hooks/report-agent-usage.mjs');
+
+    assert.equal(typeof claudeMod.sendHeartbeat, 'function');
+    assert.equal(typeof agyMod.sendHeartbeat, 'function');
+    assert.equal(typeof claudeMod.handleHeartbeat, 'function');
+  });
+});
+

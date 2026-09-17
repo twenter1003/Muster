@@ -177,6 +177,31 @@ async function handleSessionStart(hook, env) {
   writeFileSync(statePath, JSON.stringify({ run_id: run.id, cwd: hook.cwd }), 'utf8');
 }
 
+export async function sendHeartbeat(config, runId, tokensUsed, model) {
+  return apiCall(config, 'PATCH', `/agent-runs/${runId}/heartbeat`, {
+    tokens_used: tokensUsed,
+    ...(model ? { model } : {}),
+  });
+}
+
+export async function handleHeartbeat(hook, env) {
+  const statePath = statePathFor(hook.session_id);
+  if (!existsSync(statePath)) return;
+  const state = JSON.parse(readFileSync(statePath, 'utf8'));
+  const config = loadConfig(state.cwd ?? hook.cwd, env);
+  if (!config) return;
+
+  const transcriptPath = hook.transcript_path || state.transcript_path;
+  if (!transcriptPath || !existsSync(transcriptPath)) return;
+
+  const usage = sumUsageFromTranscript(transcriptPath);
+  if (usage.tokens_used <= (state.last_heartbeat_tokens || 0)) return;
+
+  await sendHeartbeat(config, state.run_id, usage.tokens_used);
+  state.last_heartbeat_tokens = usage.tokens_used;
+  writeFileSync(statePath, JSON.stringify(state), 'utf8');
+}
+
 async function handleSessionEnd(hook, env) {
   const statePath = statePathFor(hook.session_id);
   if (!existsSync(statePath)) return; // 대응하는 시작 기록이 없다 — 보고할 게 없다.
@@ -208,8 +233,11 @@ async function main() {
     await handleSessionStart(hook, process.env);
   } else if (hook.hook_event_name === 'SessionEnd') {
     await handleSessionEnd(hook, process.env);
+  } else if (hook.hook_event_name === 'Stop' || hook.hook_event_name === 'PostToolUse') {
+    await handleHeartbeat(hook, process.env);
   }
 }
+
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   main()
