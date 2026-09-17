@@ -51,10 +51,11 @@ Claude Code/LLM 기반으로 여러 사이드 프로젝트를 동시에 진행�
   `gcloud run services describe muster --region asia-northeast3 --format='value(status.url)'`
   로 직접 확인할 것 — **Cloud Run 기본 URL이 배포 중에 바뀐 적이 있다**(숫자 기반 →
   해시 기반). GitHub OAuth 콜백은 항상 그 시점의 현재 URL을 따라간다.
-- **테스트**: `pnpm -r build`, `pnpm -r test`(api 유닛 472 / web 170),
+- **테스트**: `pnpm -r build`, `pnpm -r test`(api 유닛 475 / web 171 / muster-connect 13 = 총 659개),
   `pnpm --filter @muster/api test:e2e`(246+, 로컬 DB 필요). 전부 통과하는 게 기본 전제 —
   실패한 채로 커밋하지 않는다.
 - **최근 완료된 것** (최신순, 상세는 git log):
+  - **에이전트 세션 진행 중 실시간 중간 토큰(Heartbeat) 스트리밍 연동 & 대시보드 라이브 틱(Tick) 갱신** (수십 분 이상 지속되는 대형 에이전트 세션 중 10초 주기 중간 토큰/비용 갱신 `PATCH /agent-runs/:id/heartbeat`, 도메인 이벤트 `DomainEvent.AGENT_RUN_HEARTBEAT` 및 프로젝트 격리 SSE 스트림 브로드캐스트, 웹 프론트엔드 `TokenStockChart` HUD 라이브 틱 뱃지 및 상세 상단 실시간 누적 카운터 `⚡ 라이브 틱 +N tokens` 무새로고침 펄스 애니메이션 연동, `npx muster-connect` CLI 및 Claude Code / Antigravity 내장 훅 실시간 연동 완료, API 475개 / Web 171개 / muster-connect 13개 등 총 659개 유닛 테스트 All Green 및 Chrome CDP 데스크톱/모바일 14종 스크린샷 검증 완료)
   - **주식 차트형 다차원 토큰 모니터링 (월/일/시간) & 모델별 토큰·비용 브레이크다운 (Cloud Run 배포 완료)** (TradingView/Upbit 스타일 인터랙티브 SVG 토큰 차트(`TokenStockChart`), 세그먼트 스위처 3버튼(`시간별`/`일간`/`월간`), 크로스헤어 HUD 툴팁, 모델 점유율 카드(`ModelUsageBreakdown`), Anthropic/Google/OpenAI/DeepSeek 컬러 뱃지 및 프로그레스 바, 백엔드 타임존 버킷팅 및 `ModelPricingService` 기반 무마이그레이션 안전 집계, API 472개 / Web 170개 전원 통과, PR #60, 커밋 `163289e`, Cloud Run `muster-00037-9dt`)
   - **대용량 목표 체크리스트 UX 전면 개선 (미니 요약 HUD + 슬라이드 드로어/바텀시트)** (대시보드 목표 카드 높이 ~200px 고정, Top 3 미완료 우선순위 체크박스, 네이티브 `<dialog>` 기반 우측 슬라이드 드로어(460px) 및 모바일 85vh 바텀시트, 실시간 키워드 검색·상태 필터 칩, PR #59, 커밋 `91ef4ee`, Cloud Run `muster-00036-6qd`)
   - **초고속 장애 진단 런북 및 원클릭 진단 스크립트(`scripts/diagnose-live.sh`) 구축** (실서버 500 에러 및 UI 결함 발생 시 5초 만에 원인 규명, GitHub Issue 버그 템플릿 및 자동 점검 CLI 구축, `docs/BUG_REPORTS.md`)
@@ -65,25 +66,24 @@ Claude Code/LLM 기반으로 여러 사이드 프로젝트를 동시에 진행�
 
 ## 차기 세션 최우선 착수 과제 (Next Priority Task)
 
-### ⚡ 에이전트 세션 진행 중 실시간 중간 토큰(Heartbeat) 스트리밍 연동 & 대시보드 라이브 틱(Tick) 갱신
+### 🧠 에이전트 토큰 낭비 인텔리전스 및 2026 프롬프트 캐싱(Prompt Caching) 최적화 가이드
 
 **배경 & 필요성**:
-- 현재는 에이전트 세션이 완전히 종료(`ended_at` 기록)된 시점에만 토큰/비용이 확정되어, 수십 분 이상 진행되는 대형 에이전트 작업 중에는 대시보드 수치가 멈춰 있는 한계가 있음.
-- 에이전트 CLI(`muster-connect` 훅)에서 작업 진행 중 **10초 주기 하트비트 토큰(Heartbeat Tokens)**을 백엔드로 쏘고, 백엔드가 이를 SSE로 브로드캐스트하여 대시보드 주식 차트와 카운터에 무새로고침으로 실시간 틱(Tick) 증분 효과를 제공하고자 함.
+- 현재 Claude Sonnet 5, Gemini 3.6 Flash, GPT-5.6 Terra 등 최신 에이전트 모델의 비용 절감 핵심은 프롬프트 캐시 적중률(90%+ 달성 시 90% 비용 절감)임.
+- 반복 툴 호출 및 긴 컨텍스트에서 발생하는 토큰 낭비 패턴(불필요한 전체 파일 재조회, 거대 diff 누적 등)을 Muster 백엔드에서 자동 분석하여 대시보드에 절감 기회와 캐싱 최적화 가이드를 제공하고자 함.
 
 **4인 원팀 협업 개발 계획**:
 1. **PM (오케스트레이터)**:
-   - 하트비트 프로토콜 명세 확정 (10초 전송 주기, 네트워크 실패 시 백오프, 비정상 종료 시 Stale run 타임아웃 정리 정책).
+   - 캐싱 적중률 및 낭비 지표 산출 공식(Read vs Written 토큰 비중, 캐시 할인 적용 비용 시뮬레이션) 명세 수립.
 2. **백엔드 (Backend)**:
-   - `PATCH /agent-runs/:id/heartbeat` API 엔드포인트 구축 (API 키 인증 지원, 누적 토큰/비용 중간 갱신).
-   - SSE `AgentStreamService`를 통해 `agent.run.heartbeat` 이벤트 브로드캐스트.
-   - 단위 테스트 작성 및 동시성 락 방어.
+   - `AgentRunsService` 내 세션별 캐시 효율 지수 산출 로직 확장 및 `GET /projects/:id/token-waste-intelligence` 엔드포인트 구축.
+   - 단위 테스트 작성 및 기존 토큰 집계 파이프라인 무중단 통합.
 3. **프론트엔드 (Frontend)**:
-   - `TokenStockChart` 및 대시보드 KPI 카드에 SSE 하트비트 리스너 연결 (부드러운 카운트업 애니메이션).
-   - Running 세션 행에 실시간 펄스 뱃지 및 점분류 틱 UI 구현.
+   - `TokenStockChart` 인근에 "캐싱 최적화 인텔리전스 카드" 배치 (예상 절감 비용, 캐시 적중률 게이지).
+   - 에이전트 훅 개선 권장사항 모달 또는 인터랙티브 툴팁 UI 구현.
 4. **QA (품질 검증)**:
-   - 하트비트 10초 주기 정합성 벤치마크 및 중단/복구 엣지 케이스 테스트.
-   - `pnpm -r test` 642개 전원 통과 확인 및 Chrome CDP 데스크톱/모바일 실시간 캡처 증거 확보.
+   - 다양한 토큰 사용 패턴에 따른 캐시 절감 시뮬레이션 수치 검증.
+   - 전체 테스트 All Green 및 Chrome CDP 데스크톱/모바일 스크린샷 확보.
 
 ## 알려진 백로그 (우선순위는 매번 사용자에게 다시 물을 것 — 여기 순서는 순위가 아니다)
 

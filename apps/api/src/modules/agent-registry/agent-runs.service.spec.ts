@@ -32,7 +32,9 @@ describe('AgentRunsService', () => {
     };
     membersRepo = {
       find: jest.fn().mockResolvedValue([{ user_id: 'user-1', role: 'owner' }] as ProjectMember[]),
+      countBy: jest.fn().mockResolvedValue(1),
     };
+
     gitIntegrationsRepo = {
       createQueryBuilder: jest.fn().mockReturnValue({
         innerJoin: jest.fn().mockReturnThis(),
@@ -210,4 +212,84 @@ describe('AgentRunsService', () => {
       expect(run.id).toBe('run-1');
     });
   });
+
+  describe('heartbeat', () => {
+    it('중간 누적 토큰을 갱신하고 delta_tokens와 함께 AGENT_RUN_HEARTBEAT 이벤트를 발행한다', async () => {
+      const existingRun = {
+        id: 'run-hb-1',
+        agent_id: 'agent-1',
+        status: 'running',
+        tokens_used: 10000,
+        cost: '0.0360',
+        started_at: new Date('2026-09-17T03:00:00.000Z'),
+        ended_at: null,
+      } as AgentRun;
+
+      (runsRepo.findOneBy as jest.Mock).mockResolvedValue(existingRun);
+      (membersRepo.countBy as jest.Mock).mockResolvedValue(1);
+
+      const result = await service.heartbeat(
+        'run-hb-1',
+        { userId: 'user-1' },
+        {
+          tokens_used: 15000,
+          model: 'claude-3-5-sonnet',
+        },
+      );
+
+      expect(result.tokens_used).toBe(15000);
+      expect(result.status).toBe('running');
+      expect(result.ended_at).toBeNull();
+      expect(runsRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'run-hb-1',
+          tokens_used: 15000,
+          status: 'running',
+        }),
+      );
+
+      expect(events.emit).toHaveBeenCalledWith(
+        DomainEvent.AGENT_RUN_HEARTBEAT,
+        expect.objectContaining({
+          project_id: 'proj-1',
+          agent_name: 'claude-code',
+          run_id: 'run-hb-1',
+          tokens_used: 15000,
+          delta_tokens: 5000,
+        }),
+      );
+    });
+
+    it('API 키 신원(apiKeyProjectId)으로도 하트비트를 안전하게 갱신한다', async () => {
+      const existingRun = {
+        id: 'run-hb-2',
+        agent_id: 'agent-1',
+        status: 'running',
+        tokens_used: 5000,
+        cost: '0.0180',
+        started_at: new Date('2026-09-17T03:00:00.000Z'),
+        ended_at: null,
+      } as AgentRun;
+
+      (runsRepo.findOneBy as jest.Mock).mockResolvedValue(existingRun);
+
+      const result = await service.heartbeat(
+        'run-hb-2',
+        { apiKeyProjectId: 'proj-1' },
+        {
+          tokens_used: 8000,
+        },
+      );
+
+      expect(result.tokens_used).toBe(8000);
+      expect(events.emit).toHaveBeenCalledWith(
+        DomainEvent.AGENT_RUN_HEARTBEAT,
+        expect.objectContaining({
+          project_id: 'proj-1',
+          delta_tokens: 3000,
+        }),
+      );
+    });
+  });
 });
+

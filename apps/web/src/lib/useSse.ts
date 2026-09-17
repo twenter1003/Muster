@@ -11,6 +11,7 @@ export type StreamEventType =
   | 'stage_change'
   | 'budget_alert'
   | 'agent_run_started'
+  | 'agent_run_heartbeat'
   | 'agent_run_finished';
 
 export type ConnectionState = 'connecting' | 'open' | 'closed';
@@ -57,8 +58,10 @@ export function useSse(projectId: string | null, limit = 50) {
       ['stage_change', push('stage_change')],
       ['budget_alert', push('budget_alert')],
       ['agent_run_started', push('agent_run_started')],
+      ['agent_run_heartbeat', push('agent_run_heartbeat')],
       ['agent_run_finished', push('agent_run_finished')],
     ];
+
     for (const [type, handler] of handlers) source.addEventListener(type, handler);
 
     return () => {

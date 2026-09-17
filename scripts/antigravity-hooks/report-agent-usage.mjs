@@ -232,6 +232,12 @@ async function apiCall(config, method, path, body) {
   return res.json();
 }
 
+export async function sendHeartbeat(config, runId, tokensUsed) {
+  return apiCall(config, 'PATCH', `/agent-runs/${runId}/heartbeat`, {
+    tokens_used: tokensUsed,
+  });
+}
+
 export async function handleStop(hook, env = process.env) {
   const cwd = hook.workspacePaths?.[0] || process.cwd();
   const config = loadConfig(cwd, env);
@@ -271,11 +277,10 @@ export async function handleStop(hook, env = process.env) {
         run = await apiCall(config, 'POST', `/agent-runs/by-repo`, {
           repo_url: gitRemote,
           agent_name: 'antigravity',
-          status: 'succeeded',
+          status: 'running',
           tokens_used: usage.tokens_used,
           cost: '0',
           started_at: usage.started_at,
-          ended_at: usage.ended_at,
         });
       } catch (err) {
         process.stderr.write(`[Muster] Git 자동 라우팅 리포팅 건너뜀: ${err.message}\n`);
@@ -283,11 +288,10 @@ export async function handleStop(hook, env = process.env) {
       }
     } else {
       run = await apiCall(config, 'POST', `/agents/${config.agentId}/runs`, {
-        status: 'succeeded',
+        status: 'running',
         tokens_used: usage.tokens_used,
         cost: '0',
         started_at: usage.started_at,
-        ended_at: usage.ended_at,
       });
     }
     writeFileSync(
@@ -296,10 +300,8 @@ export async function handleStop(hook, env = process.env) {
       'utf8',
     );
   } else {
-    await apiCall(config, 'PATCH', `/agent-runs/${runId}`, {
-      status: 'succeeded',
-      tokens_used: usage.tokens_used,
-    });
+    // 이미 세션이 진행 중이면 하트비트 중간 갱신 스트리밍
+    await sendHeartbeat(config, runId, usage.tokens_used);
     writeFileSync(
       statePath,
       JSON.stringify({ run_id: runId, tokens_used: usage.tokens_used, cwd }),
@@ -307,6 +309,7 @@ export async function handleStop(hook, env = process.env) {
     );
   }
 }
+
 
 async function main() {
   let raw = '';

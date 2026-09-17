@@ -13,11 +13,14 @@ export const DomainEvent = {
   BUDGET_THRESHOLD_EXCEEDED: 'agent-registry.budget.threshold_exceeded',
   /** 에이전트 세션 실행이 시작된 순간 (SSE 실시간 점멸 관제). */
   AGENT_RUN_STARTED: 'agent-registry.run.started',
+  /** 에이전트 세션 실행 진행 중 중간 토큰/비용 스트리밍 (10초 하트비트 라이브 틱). */
+  AGENT_RUN_HEARTBEAT: 'agent-registry.run.heartbeat',
   /** 에이전트 세션 실행이 완료/종료된 순간 (SSE 실시간 수치 갱신). */
   AGENT_RUN_FINISHED: 'agent-registry.run.finished',
   /** GitHub Actions 실행 하나가 끝난 순간. 환경 구성 실행 결과가 이 경로로 돌아온다. */
   WORKFLOW_RUN_COMPLETED: 'ingest.workflow_run.completed',
 } as const;
+
 
 export interface LogAppendedEvent {
   project_id: string;
@@ -82,6 +85,18 @@ export interface AgentRunStartedEvent {
   started_at: string;
 }
 
+export interface AgentRunHeartbeatEvent {
+  project_id: string;
+  agent_id: string;
+  agent_name: string;
+  run_id: string;
+  tokens_used: number;
+  cost: string;
+  delta_tokens: number;
+  delta_cost: string;
+  timestamp: string;
+}
+
 export interface AgentRunFinishedEvent {
   project_id: string;
   agent_id: string;
@@ -102,5 +117,7 @@ export interface DomainEventPayloads {
   [DomainEvent.BUDGET_THRESHOLD_EXCEEDED]: BudgetThresholdExceededEvent;
   [DomainEvent.WORKFLOW_RUN_COMPLETED]: WorkflowRunCompletedEvent;
   [DomainEvent.AGENT_RUN_STARTED]: AgentRunStartedEvent;
+  [DomainEvent.AGENT_RUN_HEARTBEAT]: AgentRunHeartbeatEvent;
   [DomainEvent.AGENT_RUN_FINISHED]: AgentRunFinishedEvent;
 }
+

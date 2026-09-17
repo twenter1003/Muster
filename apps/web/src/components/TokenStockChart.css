@@ -205,3 +205,43 @@
     padding-top: 2px;
   }
 }
+
+/* 실시간 하트비트 라이브 틱 펄스 애니메이션 */
+@keyframes pulse-tick {
+  0% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+}
+
+.stock-hud__live-tick {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--color-cost, #059669);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  animation: pulse-tick 2s infinite ease-in-out;
+}
+
+.badge--tick {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+  font-weight: 600;
+  animation: pulse-tick 1.8s infinite ease-in-out;
+}
+

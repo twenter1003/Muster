@@ -10,8 +10,10 @@ import { normalizeGitRepoUrl } from '../project-core/repo-url';
 import { BudgetService } from './budget.service';
 import { ModelPricingService } from './model-pricing.service';
 import type { CreateRunDto } from './dto/create-run.dto';
+import type { HeartbeatRunDto } from './dto/heartbeat-run.dto';
 import type { RecordRunByRepoDto } from './dto/record-run-by-repo.dto';
 import type { UpdateRunDto } from './dto/update-run.dto';
+
 
 /** 실행 종료를 요청한 신원 — 사람(세션) 또는 에이전트(API 키) 중 하나. */
 export type RunIdentity = { userId: string } | { apiKeyProjectId: string };
@@ -219,7 +221,64 @@ export class AgentRunsService {
     return saved;
   }
 
+  /**
+   * 에이전트 세션 진행 중 실시간 중간 토큰(Heartbeat) 스트리밍 갱신.
+   *
+   * 에이전트 CLI(10초 주기 하트비트) 또는 대시보드 사용자가 호출한다.
+   * status='running'을 유지하면서 현재까지의 누적 tokens_used와 cost를 갱신하고,
+   * 직전 대비 증분(delta_tokens, delta_cost)을 포함한 AGENT_RUN_HEARTBEAT 이벤트를 발행한다.
+   */
+  async heartbeat(runId: string, identity: RunIdentity, dto: HeartbeatRunDto): Promise<AgentRun> {
+    const run =
+      'apiKeyProjectId' in identity
+        ? await this.findAccessibleByKeyOrFail(runId, identity.apiKeyProjectId)
+        : await this.findAccessibleOrFail(runId, identity.userId);
+    const projectId = await this.projectIdOfRun(run);
+
+    const prevTokens = run.tokens_used ?? 0;
+    const newTokens = dto.tokens_used;
+    const deltaTokens = Math.max(0, newTokens - prevTokens);
+
+    const prevCost = run.cost ?? '0';
+    let newCost = dto.cost;
+    const agent = await this.agents.findOneBy({ id: run.agent_id });
+
+    if ((!newCost || Number(newCost) === 0) && newTokens > 0) {
+      newCost = this.modelPricing.calculateCost({
+        tokens: newTokens,
+        agentName: agent?.name,
+        model: dto.model,
+      });
+    } else if (!newCost) {
+      newCost = prevCost;
+    }
+
+    const deltaCost = Math.max(0, Number(newCost) - Number(prevCost)).toFixed(6);
+
+    run.tokens_used = newTokens;
+    run.cost = newCost;
+
+    const saved = await this.runs.save(run);
+
+    if (projectId) {
+      this.events.emit(DomainEvent.AGENT_RUN_HEARTBEAT, {
+        project_id: projectId,
+        agent_id: saved.agent_id,
+        agent_name: agent?.name ?? 'agent',
+        run_id: saved.id,
+        tokens_used: saved.tokens_used,
+        cost: saved.cost,
+        delta_tokens: deltaTokens,
+        delta_cost: deltaCost,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    return saved;
+  }
+
   async listForAgent(agentId: string, page: PageRequest): Promise<Page<AgentRun>> {
+
     const qb = this.runs
       .createQueryBuilder('r')
       .where('r.agent_id = :agentId', { agentId })

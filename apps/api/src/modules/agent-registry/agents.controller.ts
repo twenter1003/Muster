@@ -30,9 +30,11 @@ import { ApiKeyOrSessionGuard } from '../../common/auth/api-key-or-session.guard
 import { ApiKeyGuard } from '../../common/auth/api-key.guard';
 import { CreateAgentDto } from './dto/create-agent.dto';
 import { CreateRunDto } from './dto/create-run.dto';
+import { HeartbeatRunDto } from './dto/heartbeat-run.dto';
 import { RecordRunByRepoDto } from './dto/record-run-by-repo.dto';
 import { UpdateAgentDto } from './dto/update-agent.dto';
 import { UpdateRunDto } from './dto/update-run.dto';
+
 import { PutBudgetDto } from './dto/put-budget.dto';
 import type { Agent, AgentRun } from '../../database/entities';
 import { AuditService } from '../audit/audit.service';
@@ -274,6 +276,26 @@ export class AgentRunsController {
         : { userId: req.user!.id };
     return toRunView(await this.runs.finish(id, identity, dto));
   }
+
+  /**
+   * 세션 진행 중 실시간 중간 토큰(Heartbeat) 스트리밍 갱신 (10초 주기).
+   * status='running' 상태를 유지한 채 중간 토큰 수치와 비용을 갱신하고 SSE로 브로드캐스트한다.
+   */
+  @Patch(':id/heartbeat')
+  @Public()
+  @UseGuards(ApiKeyOrSessionGuard)
+  async heartbeat(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Body() dto: HeartbeatRunDto,
+  ): Promise<RunView> {
+    const identity =
+      req.apiKeyProjectId !== undefined
+        ? { apiKeyProjectId: req.apiKeyProjectId }
+        : { userId: req.user!.id };
+    return toRunView(await this.runs.heartbeat(id, identity, dto));
+  }
+
 
   /**
    * Git repository URL 기반 에이전트 실행 기록 자동 라우팅.
