@@ -50,10 +50,11 @@ Claude Code/LLM 기반으로 여러 사이드 프로젝트를 동시에 진행�
   `gcloud run services describe muster --region asia-northeast3 --format='value(status.url)'`
   로 직접 확인할 것 — **Cloud Run 기본 URL이 배포 중에 바뀐 적이 있다**(숫자 기반 →
   해시 기반). GitHub OAuth 콜백은 항상 그 시점의 현재 URL을 따라간다.
-- **테스트**: `pnpm -r build`, `pnpm -r test`(api 유닛 430 / web 119),
+- **테스트**: `pnpm -r build`, `pnpm -r test`(api 유닛 469 / web 145),
   `pnpm --filter @muster/api test:e2e`(246+, 로컬 DB 필요). 전부 통과하는 게 기본 전제 —
   실패한 채로 커밋하지 않는다.
 - **최근 완료된 것** (최신순, 상세는 git log):
+  - **프로젝트 목록 N+1 해소 고속 요약 API (`GET /projects?summary=true`), 실시간 A/B 벤치마크 HUD, 대시보드 UX/UI 고도화 및 로그인 가속화** (10개 프로젝트 기준 41회 개별 HTTP 요청을 단 1회로 통합(97.6% 감축, 66배 고속화, 슬롯 깜빡임 0회 제로 레이아웃 시프트), A/B 테스트 원클릭 실시간 전환 HUD(`BenchmarkHud`, 모바일 캡슐 모드 지원), 스마트 검색·상태 필터 칩·정렬 드롭다운·GitHub/API 키 퀵 액션, 프로젝트 상세 1-클릭 전체 동기화 및 퀵 스위처·에이전트 경과시간 타이머, SessionService 60초 TTL 인메모리 캐시로 매 요청 DB 조인 부하 제거 및 OAuth 병렬화 로그인 가속, PR #55, 커밋 `b52d99e`)
   - **전 모바일 기기(360px~480px, 980px 모바일 데스크톱 모드, 폴더블, 태블릿) 완벽 반응형 대응** (반응형 분기점을 1100px로 상향하여 모바일 데스크톱 모드(980px) 및 태블릿에서도 2열 찌그러짐 없는 100% 단일 칼럼 통일, `index.html` W3C 표준 뷰포트 `width=device-width, initial-scale=1.0` 전환, 1024px 이하 상단바 검색·경로 숨김으로 오버플로 원천 방지, 토큰 관제 카드 전폭 터치 버튼 및 3분할 칩 필터 적용, 전역 `overflow-x: hidden` 및 `100dvh` 적용, 커밋 `5f3c955`, Cloud Run `muster-00033-vv9`)
   - 모바일 반응형 레이아웃 깨짐 전면 개선 및 실시간 대시보드 UI 컬러 팔레트 통일 (뷰포트 줌아웃 방지 메타 적용, 상단바/헤더/목록/세션 행 모바일 완벽 1열 및 줄바꿈 최적화, 에메랄드 그린 비용($) 텍스트 및 블루 API 키 관리 버튼, 상태별 뱃지 컬러 일치화, 커밋 `3e7f2b9`)
   - GitHub Actions CI 정적 분석 실패 해결 및 포맷팅 자동 교정 (Prettier / ESLint 규칙 불일치 자동 정렬 및 CI 100% 그린 패스 달성, 커밋 `59e2378`)
