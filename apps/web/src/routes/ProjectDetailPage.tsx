@@ -883,19 +883,21 @@ export function ProjectDetailPage() {
                         : getWasteBadge(r.waste?.level);
                       const agentLabel = getAgentLabel(r.agent_name);
                       return (
-                        <div
-                          key={r.id}
-                          className="detail__row"
-                          style={{ fontSize: 'var(--font-size-meta)' }}
-                        >
-                          <span className={badge.className}>{badge.text}</span>
-                          <span className="badge badge--agent-tag">{agentLabel}</span>
-                          <span className="detail__row-text">{r.agent_name}</span>
-                          <span className="meta">
-                            {formatTokenCount(r.tokens_used)}{' '}
-                            <span className="cost-text">({formatCost(r.cost)})</span>
-                          </span>
-                          <span className="meta">{formatDateTime(r.started_at)}</span>
+                        <div key={r.id} className="session-row">
+                          <div className="session-row__left">
+                            <span className={badge.className}>{badge.text}</span>
+                            <span className="badge badge--agent-tag">{agentLabel}</span>
+                            <span className="session-row__agent">{r.agent_name}</span>
+                          </div>
+                          <div className="session-row__right">
+                            <span className="session-row__usage">
+                              {formatTokenCount(r.tokens_used)}{' '}
+                              <span className="cost-text">({formatCost(r.cost)})</span>
+                            </span>
+                            <span className="meta session-row__time">
+                              {formatDateTime(r.started_at)}
+                            </span>
+                          </div>
                         </div>
                       );
                     })}
