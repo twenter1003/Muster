@@ -48,4 +48,67 @@ describe('TokenStockChart 로직 및 데이터 정합성 검증', () => {
     expect(livePendingTokens).toBeGreaterThan(0);
     expect(Number(livePendingCost)).toBeGreaterThan(0);
   });
+
+  describe('에이전트별(Claude vs Gemini vs Cursor) 비교 오버레이 검증', () => {
+    const mockAgentSeries: Record<string, TimeSeriesPoint[]> = {
+      'claude-code': [
+        { key: '2026-09-17 00:00', label: '00:00', tokens: '600', cost: '0.0022' },
+        { key: '2026-09-17 01:00', label: '01:00', tokens: '3000', cost: '0.0108' },
+        { key: '2026-09-17 02:00', label: '02:00', tokens: '12000', cost: '0.0432' },
+        { key: '2026-09-17 03:00', label: '03:00', tokens: '0', cost: '0.0000' },
+      ],
+      antigravity: [
+        { key: '2026-09-17 00:00', label: '00:00', tokens: '300', cost: '0.0003' },
+        { key: '2026-09-17 01:00', label: '01:00', tokens: '1500', cost: '0.0014' },
+        { key: '2026-09-17 02:00', label: '02:00', tokens: '5000', cost: '0.0045' },
+        { key: '2026-09-17 03:00', label: '03:00', tokens: '0', cost: '0.0000' },
+      ],
+      cursor: [
+        { key: '2026-09-17 00:00', label: '00:00', tokens: '100', cost: '0.0011' },
+        { key: '2026-09-17 01:00', label: '01:00', tokens: '500', cost: '0.0058' },
+        { key: '2026-09-17 02:00', label: '02:00', tokens: '3000', cost: '0.0243' },
+        { key: '2026-09-17 03:00', label: '03:00', tokens: '0', cost: '0.0000' },
+      ],
+    };
+
+    it('각 시간대별 에이전트별 토큰 합이 전체 토큰 수와 정확히 일치한다', () => {
+      mockHourlyData.forEach((point, idx) => {
+        const claudeVal = Number(mockAgentSeries['claude-code'][idx].tokens);
+        const geminiVal = Number(mockAgentSeries['antigravity'][idx].tokens);
+        const cursorVal = Number(mockAgentSeries['cursor'][idx].tokens);
+
+        const sumAgents = claudeVal + geminiVal + cursorVal;
+        expect(sumAgents).toBe(Number(point.tokens));
+      });
+    });
+
+    it('에이전트별 토큰 점유 비중이 정확하게 집계된다', () => {
+      const claudeTotal = mockAgentSeries['claude-code'].reduce(
+        (acc, p) => acc + Number(p.tokens),
+        0,
+      );
+      const geminiTotal = mockAgentSeries['antigravity'].reduce(
+        (acc, p) => acc + Number(p.tokens),
+        0,
+      );
+      const cursorTotal = mockAgentSeries['cursor'].reduce((acc, p) => acc + Number(p.tokens), 0);
+      const total = claudeTotal + geminiTotal + cursorTotal;
+
+      expect(claudeTotal).toBe(15600); // 60%
+      expect(geminiTotal).toBe(6800); // ~26.15%
+      expect(cursorTotal).toBe(3600); // ~13.85%
+      expect(total).toBe(26000);
+      expect((claudeTotal / total) * 100).toBe(60);
+    });
+
+    it('에이전트별 시계열 데이터의 키와 라벨 길이가 전체 데이터와 정확히 1:1 대응된다', () => {
+      Object.entries(mockAgentSeries).forEach(([, series]) => {
+        expect(series.length).toBe(mockHourlyData.length);
+        series.forEach((s, idx) => {
+          expect(s.key).toBe(mockHourlyData[idx].key);
+          expect(s.label).toBe(mockHourlyData[idx].label);
+        });
+      });
+    });
+  });
 });

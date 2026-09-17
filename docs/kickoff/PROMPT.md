@@ -42,6 +42,14 @@ Claude Code/LLM 기반으로 여러 사이드 프로젝트를 진행하는 사�
 
 ## 최근 완료된 것 (최신순, 상세는 git log)
 
+- **프로젝트 상세 에이전트별(Claude Code vs Antigravity/Gemini vs Cursor) 토큰 사용량 비교 필터링 및 TokenStockChart 오버레이 강화**
+  - 백엔드 `dailyUsage` 복수 에이전트 필터(`a.name IN (...)`) 지원 및 `agent_series`, `available_agents`, 버킷별 `agent_tokens`/`agent_cost` 단일 집계 쿼리 최적화 (`budget.service.ts`).
+  - 프론트엔드 `agentFilter.ts` 내 `Cursor` 에이전트 추가, 다중 에이전트 파라미터 직렬화, `AGENT_THEMES` 컬러 매핑 구축.
+  - `TokenStockChart.tsx`: `📊 에이전트 비교` 멀티라인 SVG 오버레이, 인터랙티브 On/Off 범례(Legend), 에이전트별 크로스헤어 도트, 하단 실시간 비용 서브 HUD 칩 탑재.
+  - `ProjectDetailPage.tsx`: `[Cursor]` 필터 칩 추가 및 차트 오버레이 연동.
+  - 테스트: API 480개 + Web 182개 + muster-connect 13개 등 총 675개 유닛 테스트 All Green.
+  - Chrome CDP 20종 스크린샷 캡처(데스크톱/모바일 비교 오버레이 뷰, Cursor 필터 뷰 포함) 시각적 검증 완료.
+  - `graphify update .`를 통한 지식 그래프 최신화 동기화 완료 (3,142 노드, 7,596 엣지).
 - **에이전트 토큰 낭비 인텔리전스 및 2026 프롬프트 캐싱(Prompt Caching) 최적화 가이드 대시보드 구축**
   - 최신 2026 프론티어 모델(Claude Sonnet 5, Gemini 3.8/3.6 Flash, GPT-5.6 Terra 등)의 90% 캐시 읽기 할인 시뮬레이션 엔진 및 `computeTokenWasteIntelligence` 도메인 수식 구현.
   - `GET /projects/:id/token-waste-intelligence` API 및 `budget.service.ts` 확장.
@@ -56,17 +64,17 @@ Claude Code/LLM 기반으로 여러 사이드 프로젝트를 진행하는 사�
 
 ## 차기 세션 최우선 착수 과제 (Current Priority Task)
 
-### 📊 프로젝트 상세 에이전트별(Claude vs Gemini vs Cursor) 토큰 사용량 비교 필터링 및 차트 오버레이 강화
+### 🚨 에이전트별 실시간 토큰 소모 속도(Burn Rate, tokens/min) 추적 및 예산 급증(Budget Spike) 조기 경보 HUD 구축
 
 **배경 & 필요성**:
-- 복수의 에이전트(Claude Code, Antigravity, Cursor)를 병용할 때, 특정 에이전트가 소모한 토큰과 비용을 주식 차트에서 개별/오버레이로 필터링하여 보고 싶다는 사용자 피드백.
-- `TokenStockChart` 및 필터 버튼군에 멀티 에이전트 선택 토글을 연동하여 직관적인 비교 뷰 제공.
+- 에이전트가 긴 루프에 빠지거나 대용량 파일을 반복 읽을 때 토큰과 비용이 비정상적으로 급증하는 문제를 조기에 감지할 필요성.
+- 최근 5분/15분 단위의 Burn Rate(분당 토큰 및 비용 소모 속도)를 계산하여 비정상 스파이크 감지 시 시각적 경보(Badge/Alert)와 권장 중단 조치를 실시간으로 제안.
 
 **4인 원팀 협업 계획**:
-1. **PM (오케스트레이터)**: 에이전트별 오버레이 및 비교 UX 명세 수립.
-2. **백엔드 (Backend)**: `GET /projects/:id/token-usage?agent_name=` 필터링 쿼리 성능 점검 및 복수 에이전트 필터 지원 검토.
-3. **프론트엔드 (Frontend)**: `TokenStockChart` 내 에이전트별 토큰 선 그래프 비교 토글 및 컬러 코딩 구현.
-4. **QA (품질 검증)**: 에이전트 필터링 정합성 테스트, 스크린샷 캡처 및 `graphify update .` 수행.
+1. **PM (오케스트레이터)**: Burn Rate 임계치(예: >50k tokens/min) 기준 수립 및 조기 경보 배지/토스트 UX 명세 정의.
+2. **백엔드 (Backend)**: `budget.service.ts`에 최근 시간 윈도우 기반 실시간 burn rate 계산 및 스파이크 탐지 엔드포인트/필드 추가.
+3. **프론트엔드 (Frontend)**: `TokenStockChart` 및 프로젝트 상단 HUD에 실시간 Burn Rate 게이지 및 급증 경보 배지 연동.
+4. **QA (품질 검증)**: 유닛 테스트 추가, 모의 부하 시나리오 스크린샷 캡처 및 `graphify update .` 수행.
 
 ---
 
