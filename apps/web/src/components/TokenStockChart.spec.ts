@@ -186,4 +186,49 @@ describe('TokenStockChart 로직 및 데이터 정합성 검증', () => {
       expect(shouldShowLive(null)).toBe(false); // 호버 해제
     });
   });
+
+  describe('실시간 Burn Rate HUD 및 스파이크 조기 경보 검증', () => {
+    it('Burn Rate 정상 상태일 때 normal 등급과 적절한 텍스트를 제공한다', () => {
+      const normalStatus = {
+        current_tokens_per_min: 12500,
+        current_cost_per_min: '0.0450',
+        spike_level: 'normal' as const,
+        is_spike: false,
+        window_minutes: 15,
+        recommendation: '정상적인 토큰 소모 속도를 유지하고 있습니다.',
+        agents: [],
+      };
+
+      expect(normalStatus.is_spike).toBe(false);
+      expect(normalStatus.spike_level).toBe('normal');
+      expect(normalStatus.current_tokens_per_min).toBe(12500);
+    });
+
+    it('분당 6만 토큰 이상 소모 시 critical 등급과 스파이크 플래그가 활성화된다', () => {
+      const criticalStatus = {
+        current_tokens_per_min: 78400,
+        current_cost_per_min: '0.2350',
+        spike_level: 'critical' as const,
+        is_spike: true,
+        window_minutes: 15,
+        dominant_agent: 'claude-code',
+        recommendation: '[claude-code] 비정상적인 대량 토큰 소모가 감지되었습니다.',
+        agents: [
+          {
+            agent_name: 'claude-code',
+            tokens_per_minute: 78400,
+            cost_per_minute: '0.2350',
+            is_spike: true,
+            spike_level: 'critical' as const,
+            active_runs_count: 1,
+          },
+        ],
+      };
+
+      expect(criticalStatus.is_spike).toBe(true);
+      expect(criticalStatus.spike_level).toBe('critical');
+      expect(criticalStatus.dominant_agent).toBe('claude-code');
+      expect(criticalStatus.agents[0].active_runs_count).toBe(1);
+    });
+  });
 });

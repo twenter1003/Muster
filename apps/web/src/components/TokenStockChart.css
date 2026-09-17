@@ -578,3 +578,268 @@
   font-weight: 600;
   font-family: ui-monospace, monospace;
 }
+
+/* 실시간 Burn Rate 뱃지 및 인터랙티브 팝오버 */
+.stock-hud__burn-rate-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.stock-hud__burn-rate {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  border: 1px solid transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  user-select: none;
+  line-height: 1.3;
+}
+
+.stock-hud__burn-rate:hover {
+  filter: brightness(1.08);
+}
+
+.stock-hud__burn-rate--normal {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.stock-hud__burn-rate--warning {
+  background: rgba(245, 158, 11, 0.15);
+  color: #d97706;
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.stock-hud__burn-rate--critical {
+  background: rgba(239, 68, 68, 0.16);
+  color: #dc2626;
+  border-color: rgba(239, 68, 68, 0.5);
+  animation: pulse-spike 1.8s infinite;
+}
+
+@keyframes pulse-spike {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+.burn-rate__badge-tag {
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: currentColor;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.stock-hud__burn-rate--critical .burn-rate__badge-tag {
+  background: #dc2626;
+}
+
+.stock-hud__burn-rate--warning .burn-rate__badge-tag {
+  background: #d97706;
+}
+
+/* 실시간 Burn Rate 상세 팝오버 */
+.stock-hud__burn-rate-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 280px;
+  padding: 12px;
+  background: rgba(17, 24, 39, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  box-shadow:
+    0 10px 25px -5px rgba(0, 0, 0, 0.4),
+    0 8px 10px -6px rgba(0, 0, 0, 0.3);
+  color: #f3f4f6;
+  z-index: 50;
+  text-align: left;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  animation: popover-fade-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes popover-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.burn-rate-popover__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.burn-rate-popover__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #e5e7eb;
+}
+
+.burn-rate-popover__level-badge {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+.burn-rate-popover__level-badge--normal {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+}
+
+.burn-rate-popover__level-badge--warning {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+}
+
+.burn-rate-popover__level-badge--critical {
+  background: rgba(239, 68, 68, 0.25);
+  color: #f87171;
+}
+
+.burn-rate-popover__close {
+  background: transparent;
+  border: none;
+  color: #9ca3af;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition: color 0.15s;
+}
+
+.burn-rate-popover__close:hover {
+  color: #ffffff;
+}
+
+.burn-rate-popover__stat {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.burn-rate-popover__tokens {
+  font-size: 18px;
+  font-weight: 700;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #ffffff;
+}
+
+.burn-rate-popover__cost {
+  font-size: 12px;
+  color: #9ca3af;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.burn-rate-popover__rec {
+  font-size: 11px;
+  line-height: 1.4;
+  color: #cbd5e1;
+  margin: 0 0 10px 0;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 4px;
+  border-left: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.burn-rate-popover__agents {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.burn-rate-popover__agents-label {
+  font-size: 10px;
+  color: #9ca3af;
+  margin-bottom: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.burn-rate-popover__agent-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  padding: 2px 0;
+}
+
+.burn-rate-popover__agent-info {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.burn-rate-popover__agent-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.burn-rate-popover__agent-name {
+  color: #e5e7eb;
+  font-weight: 500;
+}
+
+.burn-rate-popover__agent-active {
+  font-size: 9px;
+  padding: 0 4px;
+  border-radius: 2px;
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+}
+
+.burn-rate-popover__agent-rate {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+}
+
+.burn-rate-popover__agent-tokens {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.burn-rate-popover__agent-cost {
+  color: #9ca3af;
+}
+
+.burn-rate-popover__agent-spike {
+  font-size: 9px;
+  color: #f87171;
+  font-weight: 600;
+}

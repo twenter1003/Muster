@@ -470,6 +470,42 @@ describe('BudgetService', () => {
       expect(antigravity.run_count).toBe(3);
 
       expect(claude.percentage + antigravity.percentage).toBe(100);
+      expect(result.burn_rate).toBeDefined();
+      expect(result.burn_rate?.spike_level).toBe('normal');
+    });
+
+    it('calculateBurnRate가 최근 세션 데이터를 기반으로 스파이크 상태를 정상 계산한다', async () => {
+      const qbMock = {
+        innerJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([
+          {
+            agent: { name: 'claude-code' },
+            tokens_used: 120_000,
+            cost: '0.4500',
+            status: 'running',
+            started_at: new Date(Date.now() - 60_000), // 1분 전 시작
+            ended_at: null,
+          },
+        ]),
+      };
+
+      const runsRepo = {
+        createQueryBuilder: jest.fn().mockReturnValue(qbMock),
+      } as unknown as Repository<AgentRun>;
+
+      const service = new BudgetService({} as never, runsRepo, new EventEmitter2());
+
+      const burnRate = await service.calculateBurnRate(PROJECT, 15);
+
+      expect(burnRate).toBeDefined();
+      expect(burnRate.current_tokens_per_min).toBeGreaterThanOrEqual(100_000);
+      expect(burnRate.spike_level).toBe('critical');
+      expect(burnRate.is_spike).toBe(true);
+      expect(burnRate.dominant_agent).toBe('claude-code');
+      expect(burnRate.recommendation).toContain('무한 루프 또는 컨텍스트 폭주');
     });
   });
 });

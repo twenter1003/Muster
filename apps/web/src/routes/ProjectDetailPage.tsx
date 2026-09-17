@@ -30,6 +30,13 @@ import { TokenStockChart } from '../components/TokenStockChart';
 import { ModelUsageBreakdown, type ModelUsageItem } from '../components/ModelUsageBreakdown';
 import { TokenWasteIntelligenceCard } from '../components/TokenWasteIntelligenceCard';
 import { formatElapsedTime } from '../lib/projectListUtils';
+import {
+  computeLiveBurnRate,
+  formatBurnRate,
+  formatCostPerMin,
+  getSpikeIcon,
+  type BurnRateStatus,
+} from '../lib/burnRate';
 import { useSse } from '../lib/useSse';
 import { useApi } from '../lib/useApi';
 import './ProjectDetailPage.css';
@@ -123,6 +130,7 @@ interface UsageBreakdown {
   model_breakdown?: ModelUsageItem[];
   waste_insight?: WasteInsightSummary;
   waste_intelligence?: TokenWasteIntelligence;
+  burn_rate?: BurnRateStatus;
   recent_runs?: SessionRunView[];
 }
 
@@ -790,6 +798,23 @@ export function ProjectDetailPage() {
     [agentHeartbeats, activeAgents],
   );
 
+  const [spikeAlertDismissed, setSpikeAlertDismissed] = useState(false);
+
+  // 실시간 60fps Burn Rate 계산 (API 응답 + SSE 하트비트 결합)
+  const liveBurnRate = useMemo(
+    () =>
+      computeLiveBurnRate(usage.data?.burn_rate, activeAgents, agentHeartbeats, agentStartTimes),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [usage.data?.burn_rate, activeAgents, agentHeartbeats, agentStartTimes, nowSec],
+  );
+
+  // 스파이크가 해제되었다가 다시 발생하면 알림 배너 재표출
+  useEffect(() => {
+    if (!liveBurnRate.is_spike) {
+      setSpikeAlertDismissed(false);
+    }
+  }, [liveBurnRate.is_spike]);
+
   // 원클릭 전체 동기화 실행
   const handleSyncAll = () => {
     if (syncing) return;
@@ -1113,6 +1138,50 @@ export function ProjectDetailPage() {
                     )}
                   </span>
                 </p>
+
+                {liveBurnRate && liveBurnRate.is_spike && !spikeAlertDismissed && (
+                  <div
+                    className={`budget-spike-alert budget-spike-alert--${liveBurnRate.spike_level}`}
+                    data-testid="budget-spike-alert"
+                    role="alert"
+                  >
+                    <div className="budget-spike-alert__content">
+                      <span className="budget-spike-alert__icon">
+                        {getSpikeIcon(liveBurnRate.spike_level)}
+                      </span>
+                      <div className="budget-spike-alert__body">
+                        <div className="budget-spike-alert__header">
+                          <strong>
+                            {liveBurnRate.spike_level === 'critical'
+                              ? '🚨 예산 급증 조기 경보 (Budget Spike Critical)'
+                              : '⚠️ 토큰 소모율 급증 주의 (Burn Rate Warning)'}
+                          </strong>
+                          <span className="budget-spike-alert__rate-badge">
+                            {formatBurnRate(liveBurnRate.current_tokens_per_min)} (
+                            {formatCostPerMin(liveBurnRate.current_cost_per_min)})
+                          </span>
+                        </div>
+                        <p className="budget-spike-alert__desc">
+                          {liveBurnRate.dominant_agent && (
+                            <strong className="budget-spike-alert__agent">
+                              [{getAgentLabel(liveBurnRate.dominant_agent)}]{' '}
+                            </strong>
+                          )}
+                          {liveBurnRate.recommendation}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="budget-spike-alert__dismiss"
+                      onClick={() => setSpikeAlertDismissed(true)}
+                      aria-label="알림 닫기"
+                    >
+                      닫기
+                    </button>
+                  </div>
+                )}
+
                 <TokenStockChart
                   data={
                     usage.data.time_series && usage.data.time_series.length > 0
@@ -1131,6 +1200,7 @@ export function ProjectDetailPage() {
                   isLoading={usage.loading}
                   livePendingTokens={livePendingTokens}
                   livePendingCost={livePendingCost}
+                  burnRate={liveBurnRate}
                 />
 
                 <p className="meta" style={{ marginTop: 'var(--space-2)' }}>
