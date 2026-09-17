@@ -61,3 +61,41 @@ export function formatCost(cost?: number | string | null): string {
   }
   return `$${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
+
+export interface CacheEfficiencyMetric {
+  hit_rate_percentage: number;
+  current_estimated_cost: string;
+  optimized_cost: string;
+  potential_savings: string;
+  savings_percentage: number;
+}
+
+export interface WasteBreakdown {
+  level: WasteLevel;
+  total_wasted_tokens: number;
+  waste_percentage: number;
+  context_bloat_tokens: number;
+  duplicate_reads_tokens: number;
+  high_waste_sessions_count: number;
+}
+
+export interface OptimizationGuide {
+  id: string;
+  title: string;
+  description: string;
+  impact: 'HIGH' | 'MEDIUM' | 'LOW';
+  action_hint?: string;
+}
+
+export interface ModelCacheBenchmark {
+  model: string;
+  discount: string;
+  readPrice: string;
+}
+
+export interface TokenWasteIntelligence {
+  cache_efficiency: CacheEfficiencyMetric;
+  waste_breakdown: WasteBreakdown;
+  optimization_guides: OptimizationGuide[];
+  model_cache_benchmarks: ModelCacheBenchmark[];
+}

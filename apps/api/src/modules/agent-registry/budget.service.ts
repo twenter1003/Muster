@@ -9,8 +9,10 @@ import type { PutBudgetDto } from './dto/put-budget.dto';
 import {
   assessSessionWaste,
   computeWasteInsight,
+  computeTokenWasteIntelligence,
   type SessionWasteAssessment,
   type WasteInsightSummary,
+  type TokenWasteIntelligence,
 } from './token-waste';
 import { ModelPricingService } from './model-pricing.service';
 
@@ -73,6 +75,7 @@ export interface UsageBreakdown {
   time_series?: TimeSeriesBucket[];
   model_breakdown?: ModelUsageItem[];
   waste_insight?: WasteInsightSummary;
+  waste_intelligence?: TokenWasteIntelligence;
   recent_runs?: SessionRunView[];
 }
 
@@ -383,8 +386,38 @@ export class BudgetService {
       time_series,
       model_breakdown,
       waste_insight: computeWasteInsight(recentRuns),
+      waste_intelligence: computeTokenWasteIntelligence(
+        recentRuns.map((r) => ({
+          tokens_used: r.tokens_used,
+          cost: r.cost,
+          turns: null,
+          agent_name: r.agent?.name,
+        })),
+      ),
       recent_runs,
     };
+  }
+
+  /**
+   * 프로젝트의 에이전트 실행 이력을 바탕으로 2026 프롬프트 캐싱 최적화 시뮬레이션 및
+   * 토큰 낭비 인텔리전스를 산출한다.
+   */
+  async getTokenWasteIntelligence(projectId: string): Promise<TokenWasteIntelligence> {
+    const runs = await this.runs
+      .createQueryBuilder('r')
+      .innerJoinAndSelect('r.agent', 'a')
+      .where('a.project_id = :projectId', { projectId })
+      .orderBy('r.started_at', 'DESC')
+      .take(100)
+      .getMany();
+
+    return computeTokenWasteIntelligence(
+      runs.map((r) => ({
+        tokens_used: r.tokens_used,
+        cost: r.cost,
+        agent_name: r.agent?.name,
+      })),
+    );
   }
 
   /**

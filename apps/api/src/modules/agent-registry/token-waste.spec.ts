@@ -1,4 +1,8 @@
-import { assessSessionWaste, computeWasteInsight } from './token-waste';
+import {
+  assessSessionWaste,
+  computeWasteInsight,
+  computeTokenWasteIntelligence,
+} from './token-waste';
 
 describe('token-waste', () => {
   describe('assessSessionWaste', () => {
@@ -39,6 +43,53 @@ describe('token-waste', () => {
       expect(insight.total_wasted_tokens).toBe(60_000_000);
       expect(insight.waste_percentage).toBe(Math.round((60_000_000 / 105_000_000) * 100));
       expect(insight.recommendation).toContain('초장기 세션(1건)');
+    });
+  });
+
+  describe('computeTokenWasteIntelligence', () => {
+    it('빈 목록이면 0 비용과 기본 벤치마크/가이드를 반환한다', () => {
+      const intel = computeTokenWasteIntelligence([]);
+      expect(intel.cache_efficiency.current_estimated_cost).toBe('0.0000');
+      expect(intel.cache_efficiency.potential_savings).toBe('0.0000');
+      expect(intel.cache_efficiency.savings_percentage).toBe(0);
+      expect(intel.waste_breakdown.level).toBe('NORMAL');
+      expect(intel.optimization_guides.length).toBeGreaterThanOrEqual(3);
+      expect(intel.model_cache_benchmarks.length).toBe(5);
+    });
+
+    it('장기 팽창 세션이 존재할 때 캐시 절감 시뮬레이션 및 HIGH_WASTE를 진단한다', () => {
+      const intel = computeTokenWasteIntelligence([
+        { tokens_used: 100_000_000, cost: '25.0000', turns: 450, agent_name: 'claude-code' },
+        { tokens_used: 10_000_000, cost: '2.5000', turns: 50, agent_name: 'antigravity' },
+      ]);
+
+      expect(intel.waste_breakdown.level).toBe('HIGH_WASTE');
+      expect(intel.waste_breakdown.high_waste_sessions_count).toBe(1);
+      expect(intel.cache_efficiency.hit_rate_percentage).toBeLessThanOrEqual(50);
+      expect(parseFloat(intel.cache_efficiency.potential_savings)).toBeGreaterThan(0);
+      expect(parseFloat(intel.cache_efficiency.optimized_cost)).toBeLessThan(
+        parseFloat(intel.cache_efficiency.current_estimated_cost),
+      );
+      expect(intel.cache_efficiency.savings_percentage).toBeGreaterThan(30);
+
+      // 가이드 검증
+      const pinningGuide = intel.optimization_guides.find((g) => g.id === 'prompt-cache-pinning');
+      expect(pinningGuide).toBeDefined();
+      expect(pinningGuide?.impact).toBe('HIGH');
+    });
+
+    it('최신 2026 프론티어 모델 벤치마크 정보를 정확히 제공한다', () => {
+      const intel = computeTokenWasteIntelligence([]);
+      const sonnet = intel.model_cache_benchmarks.find((b) => b.model === 'Claude Sonnet 5');
+      const gemini = intel.model_cache_benchmarks.find((b) => b.model === 'Gemini 3.8 Flash');
+
+      expect(sonnet).toBeDefined();
+      expect(sonnet?.discount).toContain('90%');
+      expect(sonnet?.readPrice).toBe('$0.20 / 1M');
+
+      expect(gemini).toBeDefined();
+      expect(gemini?.discount).toContain('90%');
+      expect(gemini?.readPrice).toBe('$0.075 / 1M');
     });
   });
 });

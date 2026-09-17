@@ -26,6 +26,7 @@ import { ProjectMemberGuard } from '../../common/auth/project-member.guard';
 import { AgentsService } from './agents.service';
 import { AgentRunsService } from './agent-runs.service';
 import { BudgetService, type BudgetUsage, type UsageBreakdown } from './budget.service';
+import type { TokenWasteIntelligence } from './token-waste';
 import { ApiKeyOrSessionGuard } from '../../common/auth/api-key-or-session.guard';
 import { ApiKeyGuard } from '../../common/auth/api-key.guard';
 import { CreateAgentDto } from './dto/create-agent.dto';
@@ -128,6 +129,15 @@ export class ProjectAgentsController {
     @Query('tz') tz?: string,
   ): Promise<UsageBreakdown> {
     return this.budget.dailyUsage(projectId, agentName, tz, granularity);
+  }
+
+  /**
+   * 2026 프롬프트 캐싱 최적화 시뮬레이션 및 토큰 낭비 인텔리전스 분석 리포트.
+   */
+  @Get(':id/token-waste-intelligence')
+  @UseGuards(ProjectMemberGuard)
+  async getTokenWasteIntelligence(@Param('id') projectId: string): Promise<TokenWasteIntelligence> {
+    return this.budget.getTokenWasteIntelligence(projectId);
   }
 
   /**
