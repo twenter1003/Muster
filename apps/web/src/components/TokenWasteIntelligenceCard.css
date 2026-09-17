@@ -34,6 +34,68 @@
   color: var(--color-ink, #111827);
 }
 
+.token-waste-card__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  flex-wrap: wrap;
+}
+
+.token-waste-card__export-group {
+  display: flex;
+  align-items: center;
+  background: var(--color-surface, #f3f4f6);
+  border: 1px solid var(--color-rule, #e5e7eb);
+  border-radius: var(--radius, 4px);
+  overflow: hidden;
+}
+
+.token-waste-card__export-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-ink, #111827);
+  font-size: var(--font-size-meta, 12px);
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.token-waste-card__export-btn:hover:not(:disabled) {
+  background: var(--color-rule, #e5e7eb);
+  color: var(--color-cost, #059669);
+}
+
+.token-waste-card__export-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.token-waste-card__export-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.token-waste-card__export-btn + .token-waste-card__export-btn {
+  border-left: 1px solid var(--color-rule, #e5e7eb);
+}
+
+.token-waste-card__notice-banner {
+  margin-bottom: var(--space-2, 8px);
+  padding: 6px 10px;
+  background: rgba(5, 150, 105, 0.08);
+  border: 1px solid rgba(5, 150, 105, 0.2);
+  border-radius: var(--radius, 4px);
+  font-size: var(--font-size-meta, 12px);
+  color: var(--color-cost, #059669);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  animation: fadeIn 0.2s ease-out;
+}
+
 .token-waste-card__guide-btn {
   background: transparent;
   border: none;

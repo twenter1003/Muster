@@ -1,0 +1,80 @@
+import { ProjectAgentsController } from './agents.controller';
+import { BudgetService } from './budget.service';
+import type { Response } from 'express';
+
+describe('ProjectAgentsController - Waste Report Export', () => {
+  let controller: ProjectAgentsController;
+  let budgetService: Partial<BudgetService>;
+
+  beforeEach(() => {
+    budgetService = {
+      generateWasteReportCsv: jest
+        .fn()
+        .mockResolvedValue('\uFEFF"session_id","agent_name"\r\n"run-1","claude"'),
+      generateWasteReportJson: jest.fn().mockResolvedValue({
+        project_id: 'proj-1',
+        exported_at: '2026-09-18T00:00:00Z',
+        summary: {
+          total_sessions: 1,
+          total_tokens: 1000,
+          total_cost: '0.0100',
+          total_wasted_tokens: 0,
+          total_wasted_cost: '0.0000',
+          waste_percentage: 0,
+          overall_waste_level: 'NORMAL',
+        },
+        cache_roi_simulation: {
+          hit_rate_percentage: 70,
+          current_estimated_cost: '0.0100',
+          optimized_cost: '0.0050',
+          potential_savings: '0.0050',
+          savings_percentage: 50,
+        },
+        optimization_guides: [],
+        sessions: [],
+      }),
+    };
+
+    controller = new ProjectAgentsController(
+      {} as never,
+      budgetService as BudgetService,
+      {} as never,
+    );
+  });
+
+  it('getWasteReportCsv가 적절한 헤더를 설정하고 CSV 문자열을 반환한다', async () => {
+    const headers: Record<string, string> = {};
+    const res = {
+      setHeader: jest.fn((k: string, v: string) => {
+        headers[k] = v;
+      }),
+    } as unknown as Response;
+
+    const result = await controller.getWasteReportCsv('proj-1', res);
+
+    expect(budgetService.generateWasteReportCsv).toHaveBeenCalledWith('proj-1');
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/csv; charset=utf-8');
+    expect(headers['Content-Disposition']).toMatch(
+      /^attachment; filename="muster-waste-report-proj-1-\d{4}-\d{2}-\d{2}\.csv"$/,
+    );
+    expect(result).toContain('"session_id","agent_name"');
+  });
+
+  it('getWasteReportJson이 적절한 헤더를 설정하고 JSON 페이로드를 반환한다', async () => {
+    const headers: Record<string, string> = {};
+    const res = {
+      setHeader: jest.fn((k: string, v: string) => {
+        headers[k] = v;
+      }),
+    } as unknown as Response;
+
+    const result = await controller.getWasteReportJson('proj-1', res);
+
+    expect(budgetService.generateWasteReportJson).toHaveBeenCalledWith('proj-1');
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/json; charset=utf-8');
+    expect(headers['Content-Disposition']).toMatch(
+      /^attachment; filename="muster-waste-report-proj-1-\d{4}-\d{2}-\d{2}\.json"$/,
+    );
+    expect(result.project_id).toBe('proj-1');
+  });
+});

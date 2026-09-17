@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Modal } from './Modal';
 import { apiPost, ApiError } from '../lib/api';
+import { downloadWasteReport } from '../lib/exportUtils';
 import {
   formatCost,
   formatTokenCount,
@@ -36,20 +37,51 @@ export interface SessionWasteModalProps {
   open: boolean;
   onClose: () => void;
   run: SessionWasteInfo | null;
+  projectId?: string;
   onAbort?: (runId: string) => Promise<void> | void;
 }
 
-export function SessionWasteModal({ open, onClose, run, onAbort }: SessionWasteModalProps) {
+export function SessionWasteModal({
+  open,
+  onClose,
+  run,
+  projectId,
+  onAbort,
+}: SessionWasteModalProps) {
   const [aborting, setAborting] = useState(false);
   const [abortError, setAbortError] = useState<string | null>(null);
   const [isAbortedLocal, setIsAbortedLocal] = useState(false);
+  const [downloadingFormat, setDownloadingFormat] = useState<'csv' | 'json' | null>(null);
+  const [exportNotice, setExportNotice] = useState<string | null>(null);
 
   // 모달이 열리거나 대상 run이 바뀔 때 로컬 상태 초기화
   useEffect(() => {
     setAborting(false);
     setAbortError(null);
     setIsAbortedLocal(false);
+    setExportNotice(null);
   }, [run?.id, open]);
+
+  const handleExport = useCallback(
+    async (format: 'csv' | 'json') => {
+      if (!projectId || downloadingFormat) return;
+      setDownloadingFormat(format);
+      setExportNotice(null);
+      try {
+        const res = await downloadWasteReport(projectId, format);
+        if (res.success) {
+          setExportNotice(`✅ ${format.toUpperCase()} 다운로드 완료`);
+          setTimeout(() => setExportNotice(null), 3000);
+        } else {
+          setExportNotice(`❌ 실패: ${res.error}`);
+          setTimeout(() => setExportNotice(null), 3000);
+        }
+      } finally {
+        setDownloadingFormat(null);
+      }
+    },
+    [projectId, downloadingFormat],
+  );
 
   const handleAbort = useCallback(async () => {
     if (!run || aborting) return;
@@ -281,8 +313,41 @@ export function SessionWasteModal({ open, onClose, run, onAbort }: SessionWasteM
           </div>
         )}
 
-        {/* 하단 닫기 액션 */}
+        {exportNotice && (
+          <div className="session-modal__info-banner" data-testid="modal-export-notice">
+            <span>ℹ️</span>
+            <p className="meta">{exportNotice}</p>
+          </div>
+        )}
+
+        {/* 하단 액션바 */}
         <div className="session-modal__footer">
+          {projectId ? (
+            <div className="session-modal__export-actions">
+              <button
+                type="button"
+                className="session-modal__export-btn"
+                onClick={() => handleExport('csv')}
+                disabled={downloadingFormat !== null}
+                data-testid="modal-export-csv-btn"
+                title="프로젝트 전체 낭비 리포트를 CSV로 다운로드합니다"
+              >
+                {downloadingFormat === 'csv' ? '⏳ 생성 중...' : '📥 전체 리포트 (CSV)'}
+              </button>
+              <button
+                type="button"
+                className="session-modal__export-btn"
+                onClick={() => handleExport('json')}
+                disabled={downloadingFormat !== null}
+                data-testid="modal-export-json-btn"
+                title="프로젝트 전체 낭비 리포트를 JSON으로 다운로드합니다"
+              >
+                {downloadingFormat === 'json' ? '⏳ 생성 중...' : '📥 JSON'}
+              </button>
+            </div>
+          ) : (
+            <div />
+          )}
           <button type="button" className="btn" onClick={onClose} data-testid="modal-close-button">
             닫기
           </button>

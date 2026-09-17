@@ -549,6 +549,52 @@ const server = http.createServer((req, res) => {
       return;
     }
 
+    // Project Waste Report Export
+    const matchWasteReportCsv = url.pathname.match(/^\/api\/v1\/projects\/([^/]+)\/waste-report\.csv$/);
+    if (matchWasteReportCsv && req.method === 'GET') {
+      const projId = matchWasteReportCsv[1];
+      const csv = '\uFEFF"session_id","agent_name","status","started_at","ended_at","duration_seconds","tokens_used","cost_usd","burn_rate_tokens_per_min","waste_level","wasted_tokens","wasted_cost_usd","recommendation"\r\n"run-active-1","claude-sonnet-5","running","2026-09-18T00:00:00Z","","480","145200","0.4350","18150","HIGH_WASTE","65000","0.1950","최근 5분간 토큰 소모율 급증"\r\n\r\n"metric_type","total_sessions","total_tokens","total_cost_usd","total_wasted_tokens","total_wasted_cost_usd","waste_percentage","potential_cache_savings_usd","savings_percentage"\r\n"PROJECT_SUMMARY","3","165900","0.4800","65000","0.1950","39%","9.3800","66%"';
+      res.writeHead(200, {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="muster-waste-report-${projId}-2026-09-18.csv"`,
+      });
+      res.end(csv);
+      return;
+    }
+
+    const matchWasteReportJson = url.pathname.match(/^\/api\/v1\/projects\/([^/]+)\/waste-report\.json$/);
+    if (matchWasteReportJson && req.method === 'GET') {
+      const projId = matchWasteReportJson[1];
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Content-Disposition': `attachment; filename="muster-waste-report-${projId}-2026-09-18.json"`,
+      });
+      res.end(
+        JSON.stringify({
+          project_id: projId,
+          exported_at: new Date().toISOString(),
+          summary: {
+            total_sessions: 3,
+            total_tokens: 165900,
+            total_cost: '0.4800',
+            total_wasted_tokens: 65000,
+            total_wasted_cost: '0.1950',
+            waste_percentage: 39,
+            overall_waste_level: 'HIGH_WASTE',
+          },
+          cache_roi_simulation: {
+            hit_rate_percentage: 65,
+            current_estimated_cost: '14.2000',
+            optimized_cost: '4.8200',
+            potential_savings: '9.3800',
+            savings_percentage: 66,
+          },
+          sessions: [],
+        }),
+      );
+      return;
+    }
+
     // Goals & Progress
     const matchGoals = url.pathname.match(/^\/api\/v1\/projects\/([^/]+)\/goals/);
     if (matchGoals) {
@@ -1095,7 +1141,46 @@ async function runCaptures() {
       evalScript: `document.querySelector('.budget-spike-banner')?.scrollIntoView({ block: 'center' })`,
     });
 
-    console.log('\n🎉 모든 뷰포트 및 인터랙티브 플로팅 툴팁 & 세션 낭비 딥다이브 모달 시각적 증거(스크린샷 26종) 완벽 캡처 완료!');
+    // 27. 데스크톱 뷰포트 (1280x900) - 프롬프트 캐싱 카드 내보내기 버튼 그룹 및 완료 피드백 배너
+    await captureItem({
+      url: 'http://127.0.0.1:8765/projects/proj-001',
+      outName: 'desktop-waste-report-export.png',
+      width: 1280,
+      height: 900,
+      isMobile: false,
+      waitMs: 1500,
+      evalScript: `
+        document.querySelector('.token-waste-card')?.scrollIntoView({ block: 'center' });
+        document.querySelector('[data-testid="export-csv-btn"]')?.click();
+      `,
+    });
+
+    // 28. 모바일 뷰포트 (390x844) - 모바일 반응형 내보내기 버튼 및 낭비 인텔리전스 카드 뷰
+    await captureItem({
+      url: 'http://127.0.0.1:8765/projects/proj-001',
+      outName: 'mobile-waste-report-export.png',
+      width: 390,
+      height: 844,
+      isMobile: true,
+      waitMs: 1500,
+      evalScript: `document.querySelector('.token-waste-card')?.scrollIntoView({ block: 'start' })`,
+    });
+
+    // 29. 데스크톱 뷰포트 (1280x900) - 세션 모달 내부 하단 전체 리포트 내보내기 액션바
+    await captureItem({
+      url: 'http://127.0.0.1:8765/projects/proj-001',
+      outName: 'desktop-modal-waste-report.png',
+      width: 1280,
+      height: 900,
+      isMobile: false,
+      waitMs: 1500,
+      evalScript: `
+        document.querySelector('.detail__recent-runs')?.scrollIntoView({ block: 'center' });
+        document.querySelector('.session-row--clickable')?.click();
+      `,
+    });
+
+    console.log('\n🎉 모든 뷰포트 및 세션 낭비 리포트 내보내기 시각적 증거(스크린샷 29종) 완벽 캡처 완료!');
   } finally {
     ws.close();
     chrome.kill();

@@ -327,7 +327,37 @@
 
 .session-modal__footer {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2, 8px);
   padding-top: var(--space-2);
   border-top: 1px solid var(--color-rule);
+}
+
+.session-modal__export-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+}
+
+.session-modal__export-btn {
+  font-size: var(--font-size-meta, 12px);
+  padding: 6px 10px;
+  background: var(--color-surface, #f9fafb);
+  border: 1px solid var(--color-rule, #e5e7eb);
+  border-radius: var(--radius-subtle, 6px);
+  color: var(--color-ink, #111827);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.session-modal__export-btn:hover:not(:disabled) {
+  background: var(--color-rule, #e5e7eb);
+  color: var(--color-cost, #059669);
+}
+
+.session-modal__export-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

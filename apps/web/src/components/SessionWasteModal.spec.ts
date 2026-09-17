@@ -111,4 +111,14 @@ describe('SessionWasteModal 로직 및 데이터 정합성 검증', () => {
     const abortPath = `/agent-runs/${mockRunningSession.id}/abort`;
     expect(abortPath).toBe('/agent-runs/run-test-running-12345678/abort');
   });
+
+  it('projectId가 주어졌을 때 전체 리포트 다운로드 엔드포인트 URL이 올바르게 구성된다', () => {
+    const projectId = 'proj-session-1';
+    expect(`/projects/${projectId}/waste-report.csv`).toBe(
+      '/projects/proj-session-1/waste-report.csv',
+    );
+    expect(`/projects/${projectId}/waste-report.json`).toBe(
+      '/projects/proj-session-1/waste-report.json',
+    );
+  });
 });
