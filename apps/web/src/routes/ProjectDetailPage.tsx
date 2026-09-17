@@ -1279,6 +1279,7 @@ export function ProjectDetailPage() {
 
                 {usage.data.waste_intelligence && (
                   <TokenWasteIntelligenceCard
+                    projectId={id}
                     intelligence={usage.data.waste_intelligence}
                     totalTokens={usage.data.total_tokens || usage.data.month_tokens}
                     totalCost={usage.data.total_cost || usage.data.month_cost}
@@ -1512,6 +1513,7 @@ export function ProjectDetailPage() {
         open={wasteModalOpen}
         onClose={() => setWasteModalOpen(false)}
         run={selectedRun}
+        projectId={id}
         onAbort={async () => {
           await usage.reload();
         }}

@@ -14,9 +14,10 @@ import {
   Put,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user';
 import { Public } from '../../common/auth/public.decorator';
@@ -30,6 +31,7 @@ import {
   type BudgetUsage,
   type UsageBreakdown,
   type BurnRateStatus,
+  type WasteReportJsonPayload,
 } from './budget.service';
 import type { TokenWasteIntelligence } from './token-waste';
 import { ApiKeyOrSessionGuard } from '../../common/auth/api-key-or-session.guard';
@@ -157,6 +159,44 @@ export class ProjectAgentsController {
     const parsedMinutes = windowMinutes ? parseInt(windowMinutes, 10) : 15;
     const minutes = Number.isNaN(parsedMinutes) || parsedMinutes <= 0 ? 15 : parsedMinutes;
     return this.budget.calculateBurnRate(projectId, minutes);
+  }
+
+  /**
+   * 세션별 토큰/비용 낭비 이력 및 캐싱 절감 ROI 시뮬레이션 CSV 리포트 스트리밍 다운로드.
+   */
+  @Get(':id/waste-report.csv')
+  @UseGuards(ProjectMemberGuard)
+  async getWasteReportCsv(
+    @Param('id') projectId: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<string> {
+    const csv = await this.budget.generateWasteReportCsv(projectId);
+    const dateStr = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="muster-waste-report-${projectId}-${dateStr}.csv"`,
+    );
+    return csv;
+  }
+
+  /**
+   * 세션별 토큰/비용 낭비 이력 및 캐싱 절감 ROI 시뮬레이션 JSON 리포트 다운로드.
+   */
+  @Get(':id/waste-report.json')
+  @UseGuards(ProjectMemberGuard)
+  async getWasteReportJson(
+    @Param('id') projectId: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<WasteReportJsonPayload> {
+    const json = await this.budget.generateWasteReportJson(projectId);
+    const dateStr = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="muster-waste-report-${projectId}-${dateStr}.json"`,
+    );
+    return json;
   }
 
   /**

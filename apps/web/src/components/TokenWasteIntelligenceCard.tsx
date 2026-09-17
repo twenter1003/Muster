@@ -4,22 +4,45 @@ import {
   formatTokenCount,
   type TokenWasteIntelligence,
 } from '../lib/tokenIntelligence';
+import { downloadWasteReport } from '../lib/exportUtils';
 import { Modal } from './Modal';
 import { Button } from './Button';
 import './TokenWasteIntelligenceCard.css';
 
 export interface TokenWasteIntelligenceCardProps {
+  projectId?: string;
   intelligence?: TokenWasteIntelligence | null;
   totalCost?: string;
   totalTokens?: string;
 }
 
 export function TokenWasteIntelligenceCard({
+  projectId,
   intelligence,
   totalCost,
   totalTokens,
 }: TokenWasteIntelligenceCardProps) {
   const [guideModalOpen, setGuideModalOpen] = useState(false);
+  const [downloadingFormat, setDownloadingFormat] = useState<'csv' | 'json' | null>(null);
+  const [exportNotice, setExportNotice] = useState<string | null>(null);
+
+  const handleExport = async (format: 'csv' | 'json') => {
+    if (!projectId || downloadingFormat) return;
+    setDownloadingFormat(format);
+    setExportNotice(null);
+    try {
+      const res = await downloadWasteReport(projectId, format);
+      if (res.success) {
+        setExportNotice(`✅ ${format.toUpperCase()} 리포트 다운로드 완료 (${res.filename})`);
+        setTimeout(() => setExportNotice(null), 4000);
+      } else {
+        setExportNotice(`❌ 다운로드 실패: ${res.error}`);
+        setTimeout(() => setExportNotice(null), 4000);
+      }
+    } finally {
+      setDownloadingFormat(null);
+    }
+  };
 
   if (!intelligence) {
     return null;
@@ -57,15 +80,55 @@ export function TokenWasteIntelligenceCard({
           <span className="token-waste-card__title">🧠 2026 프롬프트 캐싱 인텔리전스</span>
           <span className={levelBadge.className}>{levelBadge.text}</span>
         </div>
-        <button
-          type="button"
-          className="token-waste-card__guide-btn"
-          onClick={() => setGuideModalOpen(true)}
-          data-testid="open-guide-modal-btn"
-        >
-          💡 캐싱 최적화 가이드 →
-        </button>
+        <div className="token-waste-card__actions">
+          {projectId && (
+            <div className="token-waste-card__export-group" data-testid="export-actions-group">
+              <button
+                type="button"
+                className="token-waste-card__export-btn"
+                onClick={() => handleExport('csv')}
+                disabled={downloadingFormat !== null}
+                data-testid="export-csv-btn"
+                title="CSV 형식으로 낭비 분석 데이터 다운로드"
+              >
+                {downloadingFormat === 'csv' ? '⏳ 생성 중...' : '📥 CSV 리포트'}
+              </button>
+              <button
+                type="button"
+                className="token-waste-card__export-btn"
+                onClick={() => handleExport('json')}
+                disabled={downloadingFormat !== null}
+                data-testid="export-json-btn"
+                title="JSON 형식으로 낭비 분석 데이터 다운로드"
+              >
+                {downloadingFormat === 'json' ? '⏳ 생성 중...' : '📥 JSON'}
+              </button>
+            </div>
+          )}
+          <button
+            type="button"
+            className="token-waste-card__guide-btn"
+            onClick={() => setGuideModalOpen(true)}
+            data-testid="open-guide-modal-btn"
+          >
+            💡 캐싱 최적화 가이드 →
+          </button>
+        </div>
       </div>
+
+      {exportNotice && (
+        <div className="token-waste-card__notice-banner" data-testid="export-notice-banner">
+          <span>{exportNotice}</span>
+          <button
+            type="button"
+            className="meta"
+            style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+            onClick={() => setExportNotice(null)}
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <div className="token-waste-card__grid">
         {/* 1. 절감 시뮬레이션 */}

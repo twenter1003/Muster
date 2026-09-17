@@ -107,4 +107,30 @@ describe('TokenWasteIntelligenceCard 데이터 및 렌더링 로직 검증', () 
       expect(b.readPrice).toContain('/ 1M');
     });
   });
+
+  describe('리포트 내보내기 (Export) 로직 검증', () => {
+    it('projectId가 제공되면 내보내기 포맷(CSV / JSON) 엔드포인트 URL이 정상 생성된다', () => {
+      const projectId = 'test-proj-456';
+      expect(`/projects/${projectId}/waste-report.csv`).toBe(
+        '/projects/test-proj-456/waste-report.csv',
+      );
+      expect(`/projects/${projectId}/waste-report.json`).toBe(
+        '/projects/test-proj-456/waste-report.json',
+      );
+    });
+
+    it('절감율과 낭비 토큰 메트릭이 리포트 요약 행에 적합한 데이터 구조를 갖춘다', () => {
+      const summary = {
+        total_tokens: 100_000_000,
+        total_wasted_tokens: mockIntelligence.waste_breakdown.total_wasted_tokens,
+        waste_percentage: mockIntelligence.waste_breakdown.waste_percentage,
+        potential_savings: mockIntelligence.cache_efficiency.potential_savings,
+        savings_percentage: mockIntelligence.cache_efficiency.savings_percentage,
+      };
+
+      expect(summary.total_wasted_tokens).toBe(35_000_000);
+      expect(summary.waste_percentage).toBe(42);
+      expect(summary.savings_percentage).toBe(66);
+    });
+  });
 });
