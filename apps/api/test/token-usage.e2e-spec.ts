@@ -94,7 +94,7 @@ describe('GET /projects/:id/token-usage (e2e)', () => {
 
   it('오늘 사용량은 오늘 실행분만 더한다', async () => {
     const res = await http()
-      .get(`/api/v1/projects/${projectId}/token-usage`)
+      .get(`/api/v1/projects/${projectId}/token-usage?tz=UTC`)
       .set(auth())
       .expect(200);
     expect(res.body.today_tokens).toBe('150');
@@ -102,7 +102,7 @@ describe('GET /projects/:id/token-usage (e2e)', () => {
 
   it('daily는 최근 7일을 빠짐없이 채우고(값 없는 날은 0), 창 밖 실행은 빠진다', async () => {
     const res = await http()
-      .get(`/api/v1/projects/${projectId}/token-usage`)
+      .get(`/api/v1/projects/${projectId}/token-usage?tz=UTC`)
       .set(auth())
       .expect(200);
 
@@ -121,7 +121,7 @@ describe('GET /projects/:id/token-usage (e2e)', () => {
 
   it('이번 달 누적은 7일 창 밖이라도 이번 달이면 포함한다', async () => {
     const res = await http()
-      .get(`/api/v1/projects/${projectId}/token-usage`)
+      .get(`/api/v1/projects/${projectId}/token-usage?tz=UTC`)
       .set(auth())
       .expect(200);
     // 20일 전 실행이 이번 달 안이면 9999가 더해진다. 달 경계를 걸치는 날 실행되면

@@ -22,6 +22,13 @@
   margin-bottom: var(--space-2, 8px);
 }
 
+.token-stock-chart__controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2, 8px);
+}
+
 .token-stock-chart__switcher {
   display: inline-flex;
   background: var(--color-bg, #ffffff);
@@ -54,6 +61,83 @@
   color: #ffffff !important;
   font-weight: 600;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.stock-tab--compare {
+  background: var(--color-bg, #ffffff);
+  border: 1px solid var(--color-rule, #d1d5db);
+  color: var(--color-ink-mid, #4b5563);
+}
+
+.stock-tab--compare:hover {
+  border-color: #6366f1;
+  color: #4f46e5;
+}
+
+.stock-tab--active-compare {
+  background: #4f46e5 !important;
+  border-color: #4338ca !important;
+  color: #ffffff !important;
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(79, 70, 229, 0.28);
+}
+
+/* 인터랙티브 에이전트 범례(Legend) 툴바 */
+.token-stock-chart__legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+  margin-bottom: var(--space-2, 8px);
+  padding: 4px 6px;
+  background: rgba(0, 0, 0, 0.025);
+  border: 1px solid var(--color-rule, #e5e7eb);
+  border-radius: 6px;
+}
+
+.legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  appearance: none;
+  background: #ffffff;
+  border: 1px solid var(--color-rule, #d1d5db);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-ink, #111827);
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  user-select: none;
+}
+
+.legend-chip:hover {
+  filter: brightness(0.96);
+}
+
+.legend-chip--active {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.legend-chip--inactive {
+  opacity: 0.4;
+  background: #f9fafb !important;
+  border-color: #e5e7eb !important;
+  color: #9ca3af !important;
+  text-decoration: line-through;
+}
+
+.legend-chip__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legend-chip__label {
+  line-height: 1.2;
 }
 
 .token-stock-chart__hud {
@@ -140,6 +224,28 @@
   pointer-events: none;
 }
 
+.chart-polyline--total-dim {
+  opacity: 0.35;
+  stroke-dasharray: 4 3;
+}
+
+.chart-polyline--agent {
+  stroke-width: 2.2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  pointer-events: none;
+  animation: fadeInLine 0.25s ease-out;
+}
+
+@keyframes fadeInLine {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .stock-bar {
   fill: var(--color-cost, #059669);
   opacity: 0.2;
@@ -164,6 +270,10 @@
   filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.3));
 }
 
+.chart-crosshair__agent-dot {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
+}
+
 .chart-axis-label {
   font-size: 10px;
   fill: var(--color-ink-mid, #6b7280);
@@ -173,6 +283,53 @@
 .chart-axis-label--active {
   fill: var(--color-ink, #111827);
   font-weight: 700;
+}
+
+/* 4. 오버레이 모드 하단 서브 HUD (에이전트별 토큰 분할 뱃지) */
+.token-stock-chart__subhud {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--color-rule, #e5e7eb);
+}
+
+.stock-subhud__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 4px;
+  border: 1px solid var(--color-rule, #e5e7eb);
+  background: var(--color-bg, #ffffff);
+  transition: all 0.12s ease-in-out;
+}
+
+.stock-subhud__chip--dim {
+  opacity: 0.35;
+  background: #f9fafb !important;
+  border-color: #e5e7eb !important;
+  color: #9ca3af !important;
+}
+
+.stock-subhud__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.stock-subhud__name {
+  font-weight: 600;
+}
+
+.stock-subhud__cost {
+  font-size: 10px;
+  opacity: 0.85;
 }
 
 /* 640px 이하 모바일 최적화 */

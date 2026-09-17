@@ -229,6 +229,105 @@ describe('BudgetService', () => {
       expect(calledWithAgentName).toBe(false);
     });
 
+    it('agentName에 쉼표로 복수 에이전트가 주어지면 a.name IN 조건을 바인딩한다', async () => {
+      const qbMock = {
+        innerJoin: jest.fn().mockReturnThis(),
+        innerJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([]),
+        getRawOne: jest.fn().mockResolvedValue({ tokens: '4500' }),
+        getMany: jest.fn().mockResolvedValue([]),
+      };
+
+      const runsRepo = {
+        createQueryBuilder: jest.fn().mockReturnValue(qbMock),
+      } as unknown as Repository<AgentRun>;
+
+      const service = new BudgetService({} as never, runsRepo, new EventEmitter2());
+
+      const result = await service.dailyUsage(PROJECT, 'claude-code,cursor');
+
+      expect(result.month_tokens).toBe('4500');
+      expect(qbMock.andWhere).toHaveBeenCalledWith('a.name IN (:...agentNames)', {
+        agentNames: ['claude-code', 'cursor'],
+      });
+    });
+
+    it('timeSeriesRows로부터 agent_series, available_agents, agent_tokens가 올바르게 분할 집계된다', async () => {
+      const qbMock = {
+        innerJoin: jest.fn().mockReturnThis(),
+        innerJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getRawMany: jest
+          .fn()
+          .mockResolvedValueOnce([
+            {
+              bucket: '2026-09-17',
+              agent_name: 'claude-code',
+              tokens: '12000',
+              cost: '0.0432',
+            },
+            {
+              bucket: '2026-09-17',
+              agent_name: 'antigravity',
+              tokens: '8000',
+              cost: '0.0072',
+            },
+            {
+              bucket: '2026-09-17',
+              agent_name: 'cursor',
+              tokens: '5000',
+              cost: '0.0150',
+            },
+          ])
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([
+            { agent_name: 'claude-code', tokens: '12000', cost: '0.0432', run_count: 2 },
+            { agent_name: 'antigravity', tokens: '8000', cost: '0.0072', run_count: 1 },
+            { agent_name: 'cursor', tokens: '5000', cost: '0.0150', run_count: 1 },
+          ]),
+        getRawOne: jest.fn().mockResolvedValue({ tokens: '25000', cost: '0.0654' }),
+        getMany: jest.fn().mockResolvedValue([]),
+      };
+
+      const runsRepo = {
+        createQueryBuilder: jest.fn().mockReturnValue(qbMock),
+      } as unknown as Repository<AgentRun>;
+
+      const service = new BudgetService({} as never, runsRepo, new EventEmitter2());
+
+      const result = await service.dailyUsage(PROJECT, 'all');
+
+      expect(result.available_agents).toEqual(
+        expect.arrayContaining(['claude-code', 'antigravity', 'cursor']),
+      );
+      expect(result.agent_series).toBeDefined();
+      expect(result.agent_series!['claude-code']).toBeDefined();
+      expect(result.agent_series!['antigravity']).toBeDefined();
+      expect(result.agent_series!['cursor']).toBeDefined();
+
+      const point0917 = result.time_series?.find((p) => p.key === '2026-09-17');
+      expect(point0917).toBeDefined();
+      expect(point0917?.tokens).toBe('25000'); // 12000 + 8000 + 5000 합산
+      expect(point0917?.agent_tokens).toEqual({
+        'claude-code': '12000',
+        antigravity: '8000',
+        cursor: '5000',
+      });
+    });
+
     it('dailyUsage 결과에 today_cost, month_cost, total_cost가 올바르게 매핑된다', async () => {
       const qbMock = {
         innerJoin: jest.fn().mockReturnThis(),

@@ -107,7 +107,19 @@ interface UsageBreakdown {
   total_cost?: string;
   daily: Array<{ date: string; tokens: string; cost?: string }>;
   granularity?: TokenGranularity;
-  time_series?: Array<{ key: string; label: string; tokens: string; cost: string }>;
+  time_series?: Array<{
+    key: string;
+    label: string;
+    tokens: string;
+    cost: string;
+    agent_tokens?: Record<string, string>;
+    agent_cost?: Record<string, string>;
+  }>;
+  agent_series?: Record<
+    string,
+    Array<{ key: string; label: string; tokens: string; cost: string }>
+  >;
+  available_agents?: string[];
   model_breakdown?: ModelUsageItem[];
   waste_insight?: WasteInsightSummary;
   waste_intelligence?: TokenWasteIntelligence;
@@ -1053,6 +1065,14 @@ export function ProjectDetailPage() {
                 >
                   Antigravity
                 </button>
+                <button
+                  type="button"
+                  className="chip"
+                  aria-pressed={agentFilter === 'cursor'}
+                  onClick={() => setAgentFilter('cursor')}
+                >
+                  Cursor
+                </button>
               </div>
             </div>
           </div>
@@ -1104,6 +1124,8 @@ export function ProjectDetailPage() {
                           cost: d.cost || '0.0000',
                         }))
                   }
+                  agentSeries={usage.data.agent_series}
+                  availableAgents={usage.data.available_agents}
                   granularity={chartGranularity}
                   onGranularityChange={setChartGranularity}
                   isLoading={usage.loading}

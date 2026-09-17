@@ -1,5 +1,6 @@
 import { useState, useId, useMemo } from 'react';
 import { formatCost, formatTokenCount } from '../lib/tokenIntelligence';
+import { getAgentTheme, getAgentLabel } from '../lib/agentFilter';
 import './TokenStockChart.css';
 
 export type TokenGranularity = 'hour' | 'day' | 'month';
@@ -9,16 +10,22 @@ export interface TimeSeriesPoint {
   label: string;
   tokens: string;
   cost: string;
+  agent_tokens?: Record<string, string>;
+  agent_cost?: Record<string, string>;
 }
 
 export interface TokenStockChartProps {
   data?: TimeSeriesPoint[];
+  agentSeries?: Record<string, TimeSeriesPoint[]>;
+  availableAgents?: string[];
   granularity: TokenGranularity;
   onGranularityChange: (granularity: TokenGranularity) => void;
   isLoading?: boolean;
   height?: number;
   livePendingTokens?: number;
   livePendingCost?: string;
+  isOverlay?: boolean;
+  onOverlayToggle?: (isOverlay: boolean) => void;
 }
 
 const SVG_WIDTH = 600;
@@ -27,27 +34,83 @@ const PADDING = { top: 20, right: 20, bottom: 28, left: 20 };
 
 export function TokenStockChart({
   data = [],
+  agentSeries,
+  availableAgents,
   granularity,
   onGranularityChange,
   isLoading = false,
   height = DEFAULT_HEIGHT,
   livePendingTokens,
   livePendingCost,
+  isOverlay,
+  onOverlayToggle,
 }: TokenStockChartProps) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const [internalOverlay, setInternalOverlay] = useState(false);
+  const [visibleAgents, setVisibleAgents] = useState<Set<string>>(() => new Set());
+  const [showTotalLine, setShowTotalLine] = useState(true);
   const gradId = useId();
+
+  const effectiveOverlay = isOverlay !== undefined ? isOverlay : internalOverlay;
+  const handleToggleOverlay = () => {
+    const nextVal = !effectiveOverlay;
+    setInternalOverlay(nextVal);
+    onOverlayToggle?.(nextVal);
+  };
+
+  // 비교 가능한 에이전트 목록 산출
+  const activeAgents = useMemo(() => {
+    if (availableAgents && availableAgents.length > 0) {
+      return availableAgents;
+    }
+    if (agentSeries) {
+      return Object.keys(agentSeries);
+    }
+    return [];
+  }, [availableAgents, agentSeries]);
+
+  const isAgentVisible = (agent: string) => {
+    if (visibleAgents.size === 0) return true;
+    return visibleAgents.has(agent);
+  };
+
+  const toggleAgentVisibility = (agent: string) => {
+    setVisibleAgents((prev) => {
+      const next = new Set(prev.size === 0 ? activeAgents : prev);
+      if (next.has(agent)) {
+        if (next.size > 1 || showTotalLine) {
+          next.delete(agent);
+        }
+      } else {
+        next.add(agent);
+      }
+      return next;
+    });
+  };
 
   // 토큰 수치 배열 및 최대값 계산
   const values = useMemo(() => data.map((d) => Number(d.tokens) || 0), [data]);
   const maxVal = useMemo(() => {
-    const rawMax = Math.max(...values, 0);
-    return rawMax === 0 ? 1000 : rawMax;
-  }, [values]);
+    let max = Math.max(...values, 0);
+    if (effectiveOverlay && agentSeries) {
+      for (const agent of activeAgents) {
+        const s = agentSeries[agent];
+        if (s) {
+          for (const pt of s) {
+            const v = Number(pt.tokens) || 0;
+            if (v > max) max = v;
+          }
+        }
+      }
+    }
+    return max === 0 ? 1000 : max;
+  }, [values, effectiveOverlay, agentSeries, activeAgents]);
 
   // 좌표 계산 (W: 600, H: height)
   const chartW = SVG_WIDTH - PADDING.left - PADDING.right;
   const chartH = height - PADDING.top - PADDING.bottom;
 
+  // 전체(Total) 좌표 계산
   const points = useMemo(() => {
     if (data.length === 0) return [];
     const step = data.length > 1 ? chartW / (data.length - 1) : 0;
@@ -60,7 +123,40 @@ export function TokenStockChart({
     });
   }, [data, values, maxVal, chartW, chartH]);
 
-  // SVG Area 및 Line path 생성
+  // 에이전트별 좌표 계산
+  const agentPointsMap = useMemo(() => {
+    if (!effectiveOverlay || !agentSeries || data.length === 0) return {};
+    const step = data.length > 1 ? chartW / (data.length - 1) : 0;
+    const result: Record<
+      string,
+      Array<{ x: number; y: number; val: number; d: TimeSeriesPoint; i: number }>
+    > = {};
+
+    for (const agent of activeAgents) {
+      const series = agentSeries[agent] || [];
+      result[agent] = series.map((d, i) => {
+        const val = Number(d.tokens) || 0;
+        const x = PADDING.left + (data.length === 1 ? chartW / 2 : i * step);
+        const ratio = val / maxVal;
+        const y = PADDING.top + chartH * (1 - ratio);
+        return { x, y, val, d, i };
+      });
+    }
+    return result;
+  }, [effectiveOverlay, agentSeries, data, activeAgents, chartW, chartH, maxVal]);
+
+  // 에이전트별 Polyline 좌표 문자열
+  const agentPolylines = useMemo(() => {
+    const result: Record<string, string> = {};
+    for (const [agent, pts] of Object.entries(agentPointsMap)) {
+      if (pts.length > 0) {
+        result[agent] = pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+      }
+    }
+    return result;
+  }, [agentPointsMap]);
+
+  // SVG Area 및 Line path 생성 (전체)
   const { polylinePoints, polygonPoints } = useMemo(() => {
     if (points.length === 0) return { polylinePoints: '', polygonPoints: '' };
     const polyline = points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
@@ -115,35 +211,51 @@ export function TokenStockChart({
     <div className="token-stock-chart" data-testid="token-stock-chart">
       {/* 1. 주식 창 스타일 세그먼트 전환 및 상단 HUD */}
       <div className="token-stock-chart__header">
-        <div
-          className="token-stock-chart__switcher"
-          role="group"
-          aria-label="차트 시계열 단위 선택"
-        >
-          <button
-            type="button"
-            className={`stock-tab ${granularity === 'hour' ? 'stock-tab--active' : ''}`}
-            aria-pressed={granularity === 'hour'}
-            onClick={() => onGranularityChange('hour')}
+        <div className="token-stock-chart__controls">
+          <div
+            className="token-stock-chart__switcher"
+            role="group"
+            aria-label="차트 시계열 단위 선택"
           >
-            시간별
-          </button>
-          <button
-            type="button"
-            className={`stock-tab ${granularity === 'day' ? 'stock-tab--active' : ''}`}
-            aria-pressed={granularity === 'day'}
-            onClick={() => onGranularityChange('day')}
-          >
-            일간
-          </button>
-          <button
-            type="button"
-            className={`stock-tab ${granularity === 'month' ? 'stock-tab--active' : ''}`}
-            aria-pressed={granularity === 'month'}
-            onClick={() => onGranularityChange('month')}
-          >
-            월간
-          </button>
+            <button
+              type="button"
+              className={`stock-tab ${granularity === 'hour' ? 'stock-tab--active' : ''}`}
+              aria-pressed={granularity === 'hour'}
+              onClick={() => onGranularityChange('hour')}
+            >
+              시간별
+            </button>
+            <button
+              type="button"
+              className={`stock-tab ${granularity === 'day' ? 'stock-tab--active' : ''}`}
+              aria-pressed={granularity === 'day'}
+              onClick={() => onGranularityChange('day')}
+            >
+              일간
+            </button>
+            <button
+              type="button"
+              className={`stock-tab ${granularity === 'month' ? 'stock-tab--active' : ''}`}
+              aria-pressed={granularity === 'month'}
+              onClick={() => onGranularityChange('month')}
+            >
+              월간
+            </button>
+          </div>
+
+          {activeAgents.length > 0 && (
+            <button
+              type="button"
+              className={`stock-tab stock-tab--compare ${
+                effectiveOverlay ? 'stock-tab--active-compare' : ''
+              }`}
+              aria-pressed={effectiveOverlay}
+              onClick={handleToggleOverlay}
+              data-testid="overlay-toggle-button"
+            >
+              📊 {effectiveOverlay ? '단일 뷰로 전환' : '에이전트 비교'}
+            </button>
+          )}
         </div>
 
         {activePoint && (
@@ -167,7 +279,53 @@ export function TokenStockChart({
         )}
       </div>
 
-      {/* 2. 고반응형 SVG Area/Line 차트 */}
+      {/* 2. 에이전트 비교 오버레이 시 활성화되는 인터랙티브 범례(Legend) 바 */}
+      {effectiveOverlay && activeAgents.length > 0 && (
+        <div
+          className="token-stock-chart__legend"
+          role="toolbar"
+          aria-label="에이전트별 선 그래프 토글"
+          data-testid="chart-legend"
+        >
+          <button
+            type="button"
+            className={`legend-chip ${showTotalLine ? 'legend-chip--active' : 'legend-chip--inactive'}`}
+            aria-pressed={showTotalLine}
+            onClick={() => setShowTotalLine(!showTotalLine)}
+          >
+            <span className="legend-chip__dot" style={{ backgroundColor: '#059669' }} />
+            <span className="legend-chip__label">전체 합계</span>
+          </button>
+
+          {activeAgents.map((agent) => {
+            const theme = getAgentTheme(agent);
+            const visible = isAgentVisible(agent);
+            return (
+              <button
+                key={`legend-${agent}`}
+                type="button"
+                className={`legend-chip ${visible ? 'legend-chip--active' : 'legend-chip--inactive'}`}
+                aria-pressed={visible}
+                onClick={() => toggleAgentVisibility(agent)}
+                style={
+                  visible
+                    ? {
+                        borderColor: theme.borderColor,
+                        backgroundColor: theme.badgeBg,
+                        color: theme.badgeText,
+                      }
+                    : undefined
+                }
+              >
+                <span className="legend-chip__dot" style={{ backgroundColor: theme.color }} />
+                <span className="legend-chip__label">{theme.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* 3. 고반응형 SVG Area/Line 차트 */}
       <div className="token-stock-chart__canvas-wrap">
         {isLoading && (
           <div className="token-stock-chart__overlay">
@@ -241,15 +399,42 @@ export function TokenStockChart({
               );
             })}
 
-            {/* Area 그라데이션 채우기 */}
-            <polygon
-              points={polygonPoints}
-              fill={`url(#areaGrad-${gradId})`}
-              className="chart-area"
-            />
+            {/* Area 그라데이션 채우기 (전체 합계) */}
+            {showTotalLine && (!effectiveOverlay || visibleAgents.size === 0) && (
+              <polygon
+                points={polygonPoints}
+                fill={`url(#areaGrad-${gradId})`}
+                className="chart-area"
+              />
+            )}
 
-            {/* 메인 스트로크 폴리라인 */}
-            <polyline points={polylinePoints} fill="none" className="chart-polyline" />
+            {/* 메인 스트로크 폴리라인 (전체 합계) */}
+            {showTotalLine && (
+              <polyline
+                points={polylinePoints}
+                fill="none"
+                className={`chart-polyline ${effectiveOverlay ? 'chart-polyline--total-dim' : ''}`}
+              />
+            )}
+
+            {/* 에이전트별 비교 멀티 폴리라인 */}
+            {effectiveOverlay &&
+              activeAgents.map((agent) => {
+                if (!isAgentVisible(agent)) return null;
+                const theme = getAgentTheme(agent);
+                const polyline = agentPolylines[agent];
+                if (!polyline) return null;
+                return (
+                  <polyline
+                    key={`line-${agent}`}
+                    points={polyline}
+                    fill="none"
+                    stroke={theme.color}
+                    className="chart-polyline chart-polyline--agent"
+                    data-agent={agent}
+                  />
+                );
+              })}
 
             {/* 크로스헤어 및 하이라이트 도트 */}
             {activePoint && (
@@ -261,12 +446,38 @@ export function TokenStockChart({
                   y2={PADDING.top + chartH}
                   className="chart-crosshair__line"
                 />
-                <circle
-                  cx={activePoint.x}
-                  cy={activePoint.y}
-                  r="4.5"
-                  className="chart-crosshair__dot"
-                />
+
+                {/* 전체 합계 도트 */}
+                {showTotalLine && (
+                  <circle
+                    cx={activePoint.x}
+                    cy={activePoint.y}
+                    r="4.5"
+                    className="chart-crosshair__dot"
+                  />
+                )}
+
+                {/* 에이전트별 도트 */}
+                {effectiveOverlay &&
+                  activeAgents.map((agent) => {
+                    if (!isAgentVisible(agent)) return null;
+                    const pts = agentPointsMap[agent];
+                    if (!pts || !pts[activePoint.i]) return null;
+                    const pt = pts[activePoint.i];
+                    const theme = getAgentTheme(agent);
+                    return (
+                      <circle
+                        key={`dot-${agent}`}
+                        cx={pt.x}
+                        cy={pt.y}
+                        r="3.5"
+                        fill={theme.color}
+                        stroke="#ffffff"
+                        strokeWidth="1.5"
+                        className="chart-crosshair__agent-dot"
+                      />
+                    );
+                  })}
               </g>
             )}
 
@@ -289,6 +500,43 @@ export function TokenStockChart({
           </svg>
         )}
       </div>
+
+      {/* 4. 오버레이 모드일 때 크로스헤어 또는 최신 시점의 에이전트별 토큰 분할 HUD 요약 */}
+      {effectiveOverlay && activeAgents.length > 0 && activePoint && (
+        <div className="token-stock-chart__subhud" data-testid="chart-subhud">
+          {activeAgents.map((agent) => {
+            const theme = getAgentTheme(agent);
+            const series = agentSeries ? agentSeries[agent] : undefined;
+            const pt = series && series[activePoint.i] ? series[activePoint.i] : undefined;
+            const tokenVal = pt ? pt.tokens : '0';
+            const costVal = pt ? pt.cost : '0.0000';
+            const isVisible = isAgentVisible(agent);
+
+            return (
+              <span
+                key={`subhud-${agent}`}
+                className={`stock-subhud__chip ${
+                  isVisible ? 'stock-subhud__chip--active' : 'stock-subhud__chip--dim'
+                }`}
+                style={
+                  isVisible
+                    ? {
+                        backgroundColor: theme.badgeBg,
+                        color: theme.badgeText,
+                        borderColor: theme.borderColor,
+                      }
+                    : undefined
+                }
+              >
+                <span className="stock-subhud__dot" style={{ backgroundColor: theme.color }} />
+                <span className="stock-subhud__name">{getAgentLabel(agent)}</span>
+                <strong>{formatTokenCount(tokenVal)}</strong>
+                <span className="stock-subhud__cost">({formatCost(costVal)})</span>
+              </span>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

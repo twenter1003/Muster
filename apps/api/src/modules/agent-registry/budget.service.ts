@@ -49,6 +49,8 @@ export interface TimeSeriesBucket {
   label: string;
   tokens: string;
   cost: string;
+  agent_tokens?: Record<string, string>;
+  agent_cost?: Record<string, string>;
 }
 
 export interface ModelUsageItem {
@@ -73,6 +75,8 @@ export interface UsageBreakdown {
   daily: Array<{ date: string; tokens: string; cost?: string }>;
   granularity?: TokenGranularity;
   time_series?: TimeSeriesBucket[];
+  agent_series?: Record<string, TimeSeriesBucket[]>;
+  available_agents?: string[];
   model_breakdown?: ModelUsageItem[];
   waste_insight?: WasteInsightSummary;
   waste_intelligence?: TokenWasteIntelligence;
@@ -232,9 +236,10 @@ export class BudgetService {
         tz,
       })
       .select(bucketExpr, 'bucket')
+      .addSelect('a.name', 'agent_name')
       .addSelect('COALESCE(SUM(r.tokens_used), 0)', 'tokens')
       .addSelect('COALESCE(SUM(r.cost), 0)', 'cost')
-      .groupBy(bucketExpr);
+      .groupBy(`${bucketExpr}, a.name`);
 
     // 하위 호환을 위한 7일 일별 쿼리
     const dailyDates = getDailyDates(DAILY_WINDOW_DAYS, tz);
@@ -287,18 +292,41 @@ export class BudgetService {
       .addSelect('COUNT(r.id)', 'run_count')
       .groupBy('a.name');
 
-    if (agentName && agentName !== 'all') {
-      timeSeriesQb = timeSeriesQb.andWhere('a.name = :agentName', { agentName });
-      dailyQb = dailyQb.andWhere('a.name = :agentName', { agentName });
-      monthQb = monthQb.andWhere('a.name = :agentName', { agentName });
-      totalQb = totalQb.andWhere('a.name = :agentName', { agentName });
-      recentQb = recentQb.andWhere('a.name = :agentName', { agentName });
-      modelQb = modelQb.andWhere('a.name = :agentName', { agentName });
+    const filterAgents =
+      agentName && agentName !== 'all'
+        ? agentName
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : [];
+
+    if (filterAgents.length === 1) {
+      const singleAgent = filterAgents[0];
+      timeSeriesQb = timeSeriesQb.andWhere('a.name = :agentName', { agentName: singleAgent });
+      dailyQb = dailyQb.andWhere('a.name = :agentName', { agentName: singleAgent });
+      monthQb = monthQb.andWhere('a.name = :agentName', { agentName: singleAgent });
+      totalQb = totalQb.andWhere('a.name = :agentName', { agentName: singleAgent });
+      recentQb = recentQb.andWhere('a.name = :agentName', { agentName: singleAgent });
+      modelQb = modelQb.andWhere('a.name = :agentName', { agentName: singleAgent });
+    } else if (filterAgents.length > 1) {
+      timeSeriesQb = timeSeriesQb.andWhere('a.name IN (:...agentNames)', {
+        agentNames: filterAgents,
+      });
+      dailyQb = dailyQb.andWhere('a.name IN (:...agentNames)', { agentNames: filterAgents });
+      monthQb = monthQb.andWhere('a.name IN (:...agentNames)', { agentNames: filterAgents });
+      totalQb = totalQb.andWhere('a.name IN (:...agentNames)', { agentNames: filterAgents });
+      recentQb = recentQb.andWhere('a.name IN (:...agentNames)', { agentNames: filterAgents });
+      modelQb = modelQb.andWhere('a.name IN (:...agentNames)', { agentNames: filterAgents });
     }
 
     const [timeSeriesRows, dailyRows, monthRow, totalRow, recentRuns, modelRows] =
       await Promise.all([
-        timeSeriesQb.getRawMany<{ bucket: Date | string; tokens: string; cost: string }>(),
+        timeSeriesQb.getRawMany<{
+          bucket: Date | string;
+          agent_name?: string;
+          tokens: string;
+          cost: string;
+        }>(),
         dailyQb.getRawMany<{ day: Date | string; tokens: string; cost: string }>(),
         monthQb.getRawOne<{ tokens: string; cost: string }>(),
         totalQb.getRawOne<{ tokens: string; cost: string }>(),
@@ -311,22 +339,84 @@ export class BudgetService {
         }>(),
       ]);
 
-    // time_series 버킷 채우기
-    const timeSeriesMap = new Map(
-      timeSeriesRows.map((r) => [
-        toBucketKey(r.bucket),
-        { tokens: String(r.tokens), cost: String(r.cost) },
-      ]),
-    );
+    const safeModelRows = modelRows || [];
+    const safeTimeSeriesRows = timeSeriesRows || [];
+
+    // available_agents 추출 (modelRows 및 timeSeriesRows에 존재하는 고유 에이전트 목록)
+    const availableAgentsSet = new Set<string>();
+    for (const r of safeModelRows) {
+      if (r.agent_name) availableAgentsSet.add(r.agent_name);
+    }
+    for (const r of safeTimeSeriesRows) {
+      if (r.agent_name) availableAgentsSet.add(r.agent_name);
+    }
+    const available_agents = Array.from(availableAgentsSet);
+
+    // 에이전트별 버킷 맵: bucketKey -> Map<agent_name, { tokens: string, cost: string }>
+    // 및 버킷별 전체 토큰/비용 합산 맵: bucketKey -> { tokens: number, cost: number }
+    const agentBucketMap = new Map<string, Map<string, { tokens: string; cost: string }>>();
+    const bucketTotalMap = new Map<string, { tokens: number; cost: number }>();
+
+    for (const row of safeTimeSeriesRows) {
+      const key = toBucketKey(row.bucket);
+      const rowTokens = Number(row.tokens) || 0;
+      const rowCost = Number(row.cost) || 0;
+
+      // 버킷 전체 합산
+      const currentTotal = bucketTotalMap.get(key) || { tokens: 0, cost: 0 };
+      currentTotal.tokens += rowTokens;
+      currentTotal.cost += rowCost;
+      bucketTotalMap.set(key, currentTotal);
+
+      // 에이전트별 저장
+      if (row.agent_name) {
+        if (!agentBucketMap.has(key)) {
+          agentBucketMap.set(key, new Map());
+        }
+        agentBucketMap.get(key)!.set(row.agent_name, {
+          tokens: String(row.tokens),
+          cost: String(row.cost),
+        });
+      }
+    }
+
+    // time_series 버킷 채우기 & 개별 버킷 내 agent_tokens / agent_cost 매핑
     const time_series: TimeSeriesBucket[] = timeSeriesBuckets.map((b) => {
-      const entry = timeSeriesMap.get(b.key);
+      const totalEntry = bucketTotalMap.get(b.key);
+      const agentEntryMap = agentBucketMap.get(b.key);
+      const agent_tokens: Record<string, string> = {};
+      const agent_cost: Record<string, string> = {};
+
+      if (agentEntryMap) {
+        for (const [agent, val] of agentEntryMap.entries()) {
+          agent_tokens[agent] = val.tokens;
+          agent_cost[agent] = val.cost;
+        }
+      }
+
       return {
         key: b.key,
         label: b.label,
-        tokens: entry?.tokens ?? '0',
-        cost: entry?.cost ?? '0.0000',
+        tokens: totalEntry ? String(totalEntry.tokens) : '0',
+        cost: totalEntry ? totalEntry.cost.toFixed(4) : '0.0000',
+        agent_tokens: Object.keys(agent_tokens).length > 0 ? agent_tokens : undefined,
+        agent_cost: Object.keys(agent_cost).length > 0 ? agent_cost : undefined,
       };
     });
+
+    // agent_series 생성: 각 에이전트별 독립 시계열 버킷 리스트
+    const agent_series: Record<string, TimeSeriesBucket[]> = {};
+    for (const agent of available_agents) {
+      agent_series[agent] = timeSeriesBuckets.map((b) => {
+        const agentVal = agentBucketMap.get(b.key)?.get(agent);
+        return {
+          key: b.key,
+          label: b.label,
+          tokens: agentVal?.tokens ?? '0',
+          cost: agentVal?.cost ?? '0.0000',
+        };
+      });
+    }
 
     // 하위 호환 daily 채우기
     const dailyMap = new Map(
@@ -384,6 +474,8 @@ export class BudgetService {
       daily,
       granularity: gran,
       time_series,
+      agent_series,
+      available_agents,
       model_breakdown,
       waste_insight: computeWasteInsight(recentRuns),
       waste_intelligence: computeTokenWasteIntelligence(

@@ -10,9 +10,12 @@ const ARTIFACT_DIR_PARENT =
   '/Users/kimtaewoo/.gemini/antigravity/brain/75deec8b-784a-416e-8455-0bc4fc2de628';
 const ARTIFACT_DIR_CURRENT =
   '/Users/kimtaewoo/.gemini/antigravity/brain/59af4d8d-bdc2-4137-9515-1e864441b8e9';
+const ARTIFACT_DIR_SESSION =
+  '/Users/kimtaewoo/.gemini/antigravity/brain/1aa6d9ea-825f-4de3-b3a5-d2ef4a543122';
 
 fs.mkdirSync(ARTIFACT_DIR_PARENT, { recursive: true });
 fs.mkdirSync(ARTIFACT_DIR_CURRENT, { recursive: true });
+fs.mkdirSync(ARTIFACT_DIR_SESSION, { recursive: true });
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -327,6 +330,41 @@ const server = http.createServer((req, res) => {
         },
       ];
 
+      const agent_series = {
+        'claude-code': time_series.map((p) => ({
+          key: p.key,
+          label: p.label,
+          tokens: String(Math.round(Number(p.tokens) * 0.6)),
+          cost: (Number(p.cost) * 0.6).toFixed(4),
+        })),
+        antigravity: time_series.map((p) => ({
+          key: p.key,
+          label: p.label,
+          tokens: String(Math.round(Number(p.tokens) * 0.25)),
+          cost: (Number(p.cost) * 0.25).toFixed(4),
+        })),
+        cursor: time_series.map((p) => ({
+          key: p.key,
+          label: p.label,
+          tokens: String(Math.round(Number(p.tokens) * 0.15)),
+          cost: (Number(p.cost) * 0.15).toFixed(4),
+        })),
+      };
+
+      const enriched_time_series = time_series.map((p, idx) => ({
+        ...p,
+        agent_tokens: {
+          'claude-code': agent_series['claude-code'][idx].tokens,
+          antigravity: agent_series['antigravity'][idx].tokens,
+          cursor: agent_series['cursor'][idx].tokens,
+        },
+        agent_cost: {
+          'claude-code': agent_series['claude-code'][idx].cost,
+          antigravity: agent_series['antigravity'][idx].cost,
+          cursor: agent_series['cursor'][idx].cost,
+        },
+      }));
+
       res.writeHead(200);
       res.end(
         JSON.stringify({
@@ -337,7 +375,9 @@ const server = http.createServer((req, res) => {
           month_cost: '$14.20',
           total_cost: proj.tokens.totalCost,
           granularity: gran,
-          time_series,
+          time_series: enriched_time_series,
+          agent_series,
+          available_agents: ['claude-code', 'antigravity', 'cursor'],
           model_breakdown,
           daily: [
             { date: '2026-03-15', tokens: '110000', cost: '$0.33' },
@@ -652,8 +692,10 @@ async function runCaptures() {
     const buffer = Buffer.from(shot.data, 'base64');
     const destParent = path.join(ARTIFACT_DIR_PARENT, outName);
     const destCurrent = path.join(ARTIFACT_DIR_CURRENT, outName);
+    const destSession = path.join(ARTIFACT_DIR_SESSION, outName);
     fs.writeFileSync(destParent, buffer);
     fs.writeFileSync(destCurrent, buffer);
+    fs.writeFileSync(destSession, buffer);
 
     console.log(`  ✅ 저장 완료: ${outName} (${(buffer.length / 1024).toFixed(1)} KB)`);
   };
@@ -836,7 +878,40 @@ async function runCaptures() {
       evalScript: `document.querySelector('.token-waste-card')?.scrollIntoView({ block: 'start' })`,
     });
 
-    console.log('\n🎉 모든 뷰포트 및 프롬프트 캐싱 인텔리전스 시각적 증거(스크린샷 17종) 완벽 캡처 완료!');
+    // 18. 데스크톱 뷰포트 (1280x900) - 에이전트별 토큰 비교 오버레이 (TokenStockChart)
+    await captureItem({
+      url: 'http://127.0.0.1:8765/projects/proj-001',
+      outName: 'desktop-token-chart-overlay.png',
+      width: 1280,
+      height: 900,
+      isMobile: false,
+      waitMs: 1500,
+      evalScript: `document.querySelector('.token-stock-chart')?.scrollIntoView({ block: 'center' }); document.querySelector('[data-testid="overlay-toggle-button"]')?.click();`,
+    });
+
+    // 19. 데스크톱 뷰포트 (1280x900) - Cursor 에이전트 필터 선택 뷰
+    await captureItem({
+      url: 'http://127.0.0.1:8765/projects/proj-001',
+      outName: 'desktop-token-chart-cursor.png',
+      width: 1280,
+      height: 900,
+      isMobile: false,
+      waitMs: 1500,
+      evalScript: `document.querySelector('.token-stock-chart')?.scrollIntoView({ block: 'center' }); Array.from(document.querySelectorAll('.chip')).find((c) => c.textContent.trim() === 'Cursor')?.click();`,
+    });
+
+    // 20. 모바일 뷰포트 (390x844) - 에이전트별 비교 오버레이 모바일 반응형 뷰
+    await captureItem({
+      url: 'http://127.0.0.1:8765/projects/proj-001',
+      outName: 'mobile-token-chart-overlay.png',
+      width: 390,
+      height: 844,
+      isMobile: true,
+      waitMs: 1500,
+      evalScript: `document.querySelector('.token-stock-chart')?.scrollIntoView({ block: 'start' }); document.querySelector('[data-testid="overlay-toggle-button"]')?.click();`,
+    });
+
+    console.log('\n🎉 모든 뷰포트 및 에이전트별 비교 오버레이 시각적 증거(스크린샷 20종) 완벽 캡처 완료!');
   } finally {
     ws.close();
     chrome.kill();
