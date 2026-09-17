@@ -51,10 +51,11 @@ Claude Code/LLM 기반으로 여러 사이드 프로젝트를 동시에 진행�
   `gcloud run services describe muster --region asia-northeast3 --format='value(status.url)'`
   로 직접 확인할 것 — **Cloud Run 기본 URL이 배포 중에 바뀐 적이 있다**(숫자 기반 →
   해시 기반). GitHub OAuth 콜백은 항상 그 시점의 현재 URL을 따라간다.
-- **테스트**: `pnpm -r build`, `pnpm -r test`(api 유닛 469 / web 161),
+- **테스트**: `pnpm -r build`, `pnpm -r test`(api 유닛 472 / web 170),
   `pnpm --filter @muster/api test:e2e`(246+, 로컬 DB 필요). 전부 통과하는 게 기본 전제 —
   실패한 채로 커밋하지 않는다.
 - **최근 완료된 것** (최신순, 상세는 git log):
+  - **주식 차트형 다차원 토큰 모니터링 (월/일/시간) & 모델별 토큰·비용 브레이크다운 구현 및 머지 완료** (주식 창(TradingView/Upbit) 스타일의 인터랙티브 SVG 토큰 사용량 차트(`TokenStockChart`), 세그먼트 스위처 3버튼(`[시간별(24h)]`/`[일간(14d)]`/`[월간(6m)]`), Area fill + Line stroke + Volume bar + 크로스헤어 HUD 툴팁, 모델별 점유율 및 누적 토큰/비용 브레이크다운 카드(`ModelUsageBreakdown`), Anthropic/Google/OpenAI/DeepSeek 컬러 뱃지 및 프로그레스 바, 백엔드 `GET /projects/:id/token-usage?granularity=hour|day|month` 타임존 버킷팅 및 `ModelPricingService` 기반 무마이그레이션 안전 산출, 하위 호환성 100% 보장, API 유닛 472개 / Web 유닛 170개 전원 통과, Chrome CDP 데스크톱/모바일 12종 시각적 증거 확보, PR #60, 커밋 `163289e`)
   - **대용량 목표 체크리스트 UX 전면 개선 (미니 요약 HUD + 전용 슬라이드 드로어 및 모바일 바텀시트 탑재) 및 Cloud Run 실서버 배포 완료** (체크리스트가 수십 개로 늘어나도 대시보드 목표 카드 높이를 ~200px로 고정하여 하단 최근 커밋/배포/로그 관제 패널의 접근성을 완벽 보장, 미완료 우선순위 Top 3 'Up Next' 인라인 체크박스 제공, 네이티브 `<dialog>` 기반 우측 슬라이드 드로어(460px) 및 모바일 85vh 바텀시트, 실시간 키워드 검색·상태 필터 칩(`[전체]`/`[대기]`/`[완료]`)·완료 숨기기 토글·마크다운 헤더 마일스톤 아코디언 탑재, 단위 테스트 12개 추가 및 웹 테스트 161개 전원 통과, PR #59, 커밋 `91ef4ee`, Cloud Run `muster-00036-6qd`)
   - **버그 리포트 템플릿, 5분 초고속 장애 진단 런북 및 원클릭 진단 스크립트(`scripts/diagnose-live.sh`) 구축** (실서버 500 에러 및 UI 결함 발생 시 5초 만에 원인을 규명하고 즉각 핫픽스하기 위한 표준 진단 프로토콜, GitHub Issue 버그 템플릿(`.github/ISSUE_TEMPLATE/bug_report.md`), 실제 발생 버그 4종 상세 RCA 아카이브(`docs/BUG_REPORTS.md`), Cloud Run 활성 리비전/헬스/보안가드/에러로그 자동 점검 CLI 구축)
   - **프로젝트 목록 요약 쿼리 PostgreSQL `DISTINCT ON` 문법 에러 해결 및 Cloud Run 실서버 배포 완료** (TypeORM의 `select('DISTINCT ON ...')` 사용 시 컬럼 순서 재배치로 인해 Postgres 구문 오류(`syntax error at or near DISTINCT`)가 발생하여 실서버 대시보드 진입 시 500 에러를 반환하던 문제를 전용 메서드인 `.distinctOn(['alias.project_id'])`로 전면 교체하여 해결, TypeORM Mock QB에 `distinctOn` 추가, API 단위 테스트 469개 전원 통과, 실서버 `GET /api/v1/projects?summary=true` 200 OK 검증 완료, PR #57, 커밋 `7a717a6`, Cloud Run `muster-00035-rzz`)
@@ -88,32 +89,26 @@ Claude Code/LLM 기반으로 여러 사이드 프로젝트를 동시에 진행�
 
 ## 차기 세션 최우선 착수 과제 (Next Priority Task)
 
-### 📈 주식 차트형 다차원 토큰 모니터링 (월/일/시간) & 모델별 토큰·비용 브레이크다운
+### 🚀 신규 토큰 모니터링 기능 실서버 배포 (Cloud Run) 및 세션 진행 중 실시간 토큰(Heartbeat) 스트리밍
 
-**사용자 피드백 & 문제의식**:
-> "토큰 사용량 보여주는 게 월인지 시간인지 일인지 모르겠으니, 차라리 3개 다 넣고 주식 창처럼 그래프를 보여주자. 월·일·시간 이렇게 3개 버튼으로 바꾸면서 볼 수 있게. 그리고 어떤 모델들을 사용해서 그 모델은 몇 토큰 썼는지도 보여주고. 정보를 제대로 전달해줘야 의미가 있다."
-> "항상 프론트, 백엔드, QA, PM 넷이서 한 팀으로 서로 소통하면서 움직여야 돼."
+**배경 & 목표**:
+- 방금 구현 및 머지 완료된 **주식 차트형 다차원 토큰 모니터링 & 모델 브레이크다운** 기능을 프로덕션 Cloud Run에 무중단 배포하여 실사용 환경에 즉각 제공.
+- 세션이 끝난 뒤뿐만 아니라, **진행 중인 에이전트 세션의 실시간 중간 토큰(Heartbeat)** 을 수신하여 차트와 대시보드에 무새로고침 실시간 반영하는 스트리밍 아키텍처 구축.
 
 **4인 팀(PM, 백엔드, 프론트엔드, QA) 협업 분업 계획**:
 1. **PM (에이전트 오케스트레이터)**:
-   - 기능 사양 확정, 백엔드-프론트엔드 간 DTO/API 계약 조율, 4자 에이전트 간 정렬 및 마일스톤 리딩.
+   - Cloud Run 배포 릴리즈 플랜 수립 및 실서버 엔드투엔드 검증 기준 통제.
+   - 세션 하트비트 스트리밍 스펙 정의(전송 주기, DTO, SSE 토픽).
 2. **백엔드 엔지니어 (Backend Engineer)**:
-   - 엔드포인트 확장: `GET /projects/:id/token-usage?granularity=hour|day|month&tz=Asia/Seoul`
-   - PostgreSQL `date_trunc('hour'|'day'|'month', r.started_at AT TIME ZONE :tz)` 기반 버킷 집계 (타임존 세이프).
-   - `model_breakdown` 집계 추가: 프로젝트에 사용된 LLM 모델 목록(`agent_runs.model` 또는 `agent_runs.agent_id`), 모델별 누적 토큰 수, 비용($), 실행 횟수, 사용량 점유율(%) 산출.
-   - 단위 테스트(`budget.service.spec.ts`) 및 API 통합 테스트 작성.
+   - `./scripts/deploy-cloudrun.sh` 로컬 무중단 배포 실행 (gcloud, DB 마이그레이션 불필요 확인).
+   - `PATCH /agent-runs/:id/heartbeat` API 엔드포인트 또는 중간 토큰 누적 로직 구축.
+   - SSE `AgentStreamService`를 통한 실시간 토큰 증분 이벤트 브로드캐스트.
 3. **프론트엔드 엔지니어 (Frontend Engineer)**:
-   - **주식 차트형 인터랙티브 시계열 컴포넌트 (`TokenStockChart.tsx` & `.css`)**:
-     - 세그먼트 스위처: `[월 (Monthly)]` `[일 (Daily)]` `[시간 (Hourly)]` 3개 주식 창 스타일 전환 버튼.
-     - TradingView/Upbit 스타일의 고반응형 SVG Area/Bar 차트 + 호버/터치 크로스헤어 툴팁(일시, 토큰 수, 비용).
-   - **모델별 토큰 사용 현황 컴포넌트 (`ModelUsageBreakdown.tsx` & `.css`)**:
-     - 사용된 모델 뱃지(Claude, Gemini, GPT, DeepSeek 등), 토큰 수(K/M), 비용($), 사용량 점유율(%) 바.
-   - 모바일 390px iPhone 터치 스와이프 및 뷰포트 최적화.
+   - `TokenStockChart` 및 대시보드 HUD에 SSE 스트리밍 수신 시 부드러운 차트 갱신 애니메이션 적용.
+   - Running 상태인 세션의 실시간 누적 토큰·비용 카운터 실시간 틱(Tick) UI 구현.
 4. **QA 엔지니어 (QA Engineer)**:
-   - 시계열 버킷 합계와 전체 토큰/비용의 정합성(Sum-check 100% 일치) 검증.
-   - 타임존(Asia/Seoul vs UTC) 경계 테스트(자정/월말 시계열 왜곡 방지).
-   - Chrome CDP 기반 뷰포트별(데스크톱 1280x800, 모바일 390x844) 실기기 스크린샷 캡처 및 아티팩트 보관.
-   - `pnpm -r test` (백엔드 469개 + 프론트엔드 161개) 및 `pnpm -r build` 무결점 확인.
+   - `scripts/diagnose-live.sh`를 활용한 실서버 Cloud Run 배포 헬스체크 및 무결점 증명.
+   - 하트비트 수신 간격 및 비정상 종료 시 세션 상태 보정 검증.
 
 ## 알려진 백로그 (우선순위는 매번 사용자에게 다시 물을 것 — 여기 순서는 순위가 아니다)
 
