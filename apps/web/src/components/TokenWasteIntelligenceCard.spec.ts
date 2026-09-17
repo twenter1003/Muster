@@ -22,14 +22,16 @@ describe('TokenWasteIntelligenceCard 데이터 및 렌더링 로직 검증', () 
       {
         id: 'prompt-cache-pinning',
         title: '공통 컨텍스트 상단 배치 (Prompt Cache Pinning)',
-        description: 'README, API 명세, 설계서 등 변하지 않는 핵심 문서를 시스템 프롬프트 최상단에 배치',
+        description:
+          'README, API 명세, 설계서 등 변하지 않는 핵심 문서를 시스템 프롬프트 최상단에 배치',
         impact: 'HIGH',
         action_hint: '시스템 프롬프트의 가변 컨텍스트를 맨 뒤로 이동하세요.',
       },
       {
         id: 'session-compaction',
         title: '100턴 단위 세션 분할 또는 컴팩션 (/compact)',
-        description: '100턴을 초과하는 대형 세션은 매 턴마다 전체 대화 히스토리가 누적 입력 토큰으로 재전송',
+        description:
+          '100턴을 초과하는 대형 세션은 매 턴마다 전체 대화 히스토리가 누적 입력 토큰으로 재전송',
         impact: 'HIGH',
         action_hint: '장기 세션은 새 세션으로 분기하거나 주기적으로 요약 압축하세요.',
       },

@@ -99,4 +99,3 @@ export interface TokenWasteIntelligence {
   optimization_guides: OptimizationGuide[];
   model_cache_benchmarks: ModelCacheBenchmark[];
 }
-

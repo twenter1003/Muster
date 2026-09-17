@@ -161,7 +161,10 @@ export function computeTokenWasteIntelligence(
   // 최적화 적용 시: 2026 프롬프트 캐싱 가이드라인 적용 시 85% 이상 적중률 달성
   // 캐시 읽기 단가는 정규 입력가의 10% (90% 할인)이므로, 적중 토큰은 비용이 1/10로 감소
   // 절감률 산출 공식: (목표적중률 - 현재적중률) * 0.90
-  const savingsRate = Math.min(0.85, Math.max(0.1, ((85 - currentHitRate) / 100) * 0.9 + (summary.waste_percentage / 100) * 0.4));
+  const savingsRate = Math.min(
+    0.85,
+    Math.max(0.1, ((85 - currentHitRate) / 100) * 0.9 + (summary.waste_percentage / 100) * 0.4),
+  );
   const potentialSavingsNum = totalCost * savingsRate;
   const optimizedCostNum = Math.max(0, totalCost - potentialSavingsNum);
   const savingsPercentage = totalCost > 0 ? Math.round((potentialSavingsNum / totalCost) * 100) : 0;
@@ -228,4 +231,3 @@ export function computeTokenWasteIntelligence(
     model_cache_benchmarks: benchmarks,
   };
 }
-

@@ -99,7 +99,9 @@ export function TokenWasteIntelligenceCard({
               style={{ width: `${Math.min(100, Math.max(5, hitRate))}%` }}
             />
           </div>
-          <p className="meta token-waste-card__metric-sub">목표 적중률: 85%+ (권장 컨텍스트 상단 고정)</p>
+          <p className="meta token-waste-card__metric-sub">
+            목표 적중률: 85%+ (권장 컨텍스트 상단 고정)
+          </p>
         </div>
 
         {/* 3. 컨텍스트 팽창 & 낭비 토큰 */}
@@ -142,8 +144,8 @@ export function TokenWasteIntelligenceCard({
         <div className="cache-guide-modal-content">
           <p className="cache-guide-intro">
             2026년 기준 Claude Sonnet 5, Gemini 3.8/3.6 Flash, GPT-5.6 Terra 등 최신 에이전트 모델은
-            <strong> 프롬프트 캐싱 적용 시 90%~97.5%의 파격적인 입력 비용 할인</strong>을 제공합니다.
-            아래 가이드를 적용하여 토큰 비용을 극대화하여 절감하세요.
+            <strong> 프롬프트 캐싱 적용 시 90%~97.5%의 파격적인 입력 비용 할인</strong>을
+            제공합니다. 아래 가이드를 적용하여 토큰 비용을 극대화하여 절감하세요.
           </p>
 
           <div className="cache-guide-list">
@@ -152,9 +154,7 @@ export function TokenWasteIntelligenceCard({
                 <div className="cache-guide-item__head">
                   <span className="cache-guide-item__title">{guide.title}</span>
                   <span
-                    className={`badge ${
-                      guide.impact === 'HIGH' ? 'badge--warn' : 'badge--ok'
-                    }`}
+                    className={`badge ${guide.impact === 'HIGH' ? 'badge--warn' : 'badge--ok'}`}
                   >
                     중요도 {guide.impact}
                   </span>
