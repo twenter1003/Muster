@@ -123,5 +123,7 @@ export const AUDIT_ACTIONS = [
   // 목표/요구사항은 진행률 판정의 근거가 되므로 누가 언제 확정했는지 남긴다.
   'project_goals.update',
   'project_progress.analyze',
+  // 비정상 토큰 소모 세션 강제 중단 이력을 추적한다.
+  'agent_run.abort',
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

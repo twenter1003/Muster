@@ -1,0 +1,333 @@
+/*
+ * SessionWasteModal.css
+ * Emil Kowalski & Minimalist UI 스타일의 2026 다크 글래스모피즘 딥다이브 모달
+ */
+
+.session-waste-modal {
+  max-width: min(580px, calc(100vw - var(--space-4)));
+  border-radius: var(--radius-card, 10px);
+  box-shadow:
+    0 20px 48px rgba(0, 0, 0, 0.45),
+    0 0 0 1px var(--color-rule);
+  background: var(--color-bg);
+}
+
+.session-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* 상단 메타 바 */
+.session-modal__header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.session-modal__agent-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.session-modal__agent-name {
+  font-weight: 600;
+  font-size: var(--font-size-body);
+  color: var(--color-ink);
+}
+
+.session-modal__run-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: var(--font-size-meta);
+  color: var(--color-ink-subtle, #777);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2px 6px;
+  border-radius: var(--radius-subtle, 4px);
+}
+
+/* 4분할 핵심 메트릭 그리드 */
+.session-modal__metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-2);
+}
+
+@media (min-width: 480px) {
+  .session-modal__metrics-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.session-modal__metric-card {
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-subtle, 6px);
+  padding: 10px 12px;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.session-modal__metric-card:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.session-modal__metric-label {
+  font-size: 11px;
+  color: var(--color-ink-subtle, #888);
+  margin-bottom: 4px;
+}
+
+.session-modal__metric-val {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-ink);
+  letter-spacing: -0.02em;
+}
+
+.session-modal__metric-val--cost {
+  color: var(--color-cost, #10b981);
+}
+
+.session-modal__metric-val--rate {
+  color: #f59e0b;
+}
+
+.session-modal__metric-sub {
+  font-size: 10px;
+  color: var(--color-ink-subtle, #777);
+  margin-top: 2px;
+}
+
+/* 낭비 진단 패널 */
+.session-modal__diagnosis {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 12px 14px;
+  border-radius: var(--radius-subtle, 6px);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--color-rule);
+}
+
+.session-modal__diagnosis--normal {
+  border-color: rgba(16, 185, 129, 0.25);
+  background: rgba(16, 185, 129, 0.03);
+}
+
+.session-modal__diagnosis--caution {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.04);
+}
+
+.session-modal__diagnosis--high_waste {
+  border-color: rgba(239, 68, 68, 0.45);
+  background: rgba(239, 68, 68, 0.06);
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.08);
+}
+
+.session-modal__diagnosis-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.session-modal__diagnosis-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-body);
+  color: var(--color-ink);
+}
+
+.session-modal__waste-estimate {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-signal, #ef4444);
+  background: rgba(239, 68, 68, 0.12);
+  padding: 2px 8px;
+  border-radius: 9999px;
+}
+
+.session-modal__diagnosis-reason {
+  margin: 0;
+  font-size: var(--font-size-meta);
+  line-height: 1.5;
+  color: var(--color-ink-mid, #aaa);
+}
+
+.session-modal__recommendations {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+.session-modal__rec-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-ink);
+  margin-bottom: 4px;
+}
+
+.session-modal__rec-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--color-ink-mid, #bbb);
+  line-height: 1.6;
+}
+
+.session-modal__rec-list code {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: monospace;
+}
+
+/* 실행 제어 (세션 강제 중단) 박스 */
+.session-modal__control-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-subtle, 6px);
+  background: rgba(239, 68, 68, 0.05);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.session-modal__control-info {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.session-modal__control-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.session-modal__control-info strong {
+  display: block;
+  font-size: var(--font-size-body);
+  color: var(--color-ink);
+  margin-bottom: 2px;
+}
+
+.session-modal__control-info p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-ink-mid, #aaa);
+}
+
+.session-modal__abort-btn {
+  width: 100%;
+  padding: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-subtle, 6px);
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  transition:
+    background 0.15s ease,
+    transform 0.08s ease,
+    opacity 0.15s ease;
+}
+
+.session-modal__abort-btn:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+.session-modal__abort-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.session-modal__abort-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.session-modal__loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.session-modal__spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: session-spinner 0.6s linear infinite;
+}
+
+@keyframes session-spinner {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 강제 중단됨 알림 */
+.session-modal__alert-cancelled {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: var(--radius-subtle, 6px);
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.session-modal__alert-cancelled strong {
+  display: block;
+  font-size: var(--font-size-body);
+  color: #ef4444;
+  margin-bottom: 2px;
+}
+
+.session-modal__alert-cancelled p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-ink-mid, #aaa);
+}
+
+.session-modal__info-banner {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: var(--radius-subtle, 6px);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--color-rule);
+  font-size: 12px;
+  color: var(--color-ink-mid, #aaa);
+}
+
+.session-modal__info-banner--failed {
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
+.session-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-rule);
+}

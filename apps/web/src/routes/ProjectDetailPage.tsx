@@ -4,6 +4,7 @@ import { HealthIndicator } from '../components/HealthIndicator';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
 import { ApiKeyModal } from '../components/ApiKeyModal';
+import { SessionWasteModal } from '../components/SessionWasteModal';
 import { GoalChecklistDrawer, getUpNextItems } from '../components/GoalChecklistDrawer';
 import { ApiError, apiFetch, apiPatch, apiPost, type Page } from '../lib/api';
 import { EM_DASH, LOG_LEVELS, formatDateTime, type LogLevel, type Measurable } from '../lib/domain';
@@ -85,16 +86,20 @@ interface DocumentView {
 
 interface SessionRunView {
   id: string;
+  agent_id?: string;
   agent_name: string;
   tokens_used: number;
   cost: string;
   status: string;
   started_at: string;
   ended_at: string | null;
+  duration_seconds?: number;
   waste?: {
     level: 'NORMAL' | 'CAUTION' | 'HIGH_WASTE';
-    reason: string;
-    estimated_wasted_tokens: number;
+    reason?: string;
+    estimated_wasted_tokens?: number;
+    estimated_wasted_cost?: string;
+    recommendation?: string;
   };
 }
 
@@ -656,7 +661,22 @@ export function ProjectDetailPage() {
   const [level, setLevel] = useState<LogLevel | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false);
+  const [wasteModalOpen, setWasteModalOpen] = useState(false);
+  const [selectedRun, setSelectedRun] = useState<SessionRunView | null>(null);
+  const [abortingRunId, setAbortingRunId] = useState<string | null>(null);
   const [agentFilter, setAgentFilter] = useState<AgentFilterType>('all');
+
+  const handleInlineAbort = async (runId: string) => {
+    setAbortingRunId(runId);
+    try {
+      await apiPost(`/agent-runs/${runId}/abort`);
+      usage.reload();
+    } catch (err: unknown) {
+      console.error('Failed to abort run', err);
+    } finally {
+      setAbortingRunId(null);
+    }
+  };
 
   // 빠른 프로젝트 전환기 목록
   const allProjects = useApi<Page<ProjectView>>('/projects?limit=50');
@@ -1138,48 +1158,87 @@ export function ProjectDetailPage() {
                   </span>
                 </p>
 
-                {liveBurnRate && liveBurnRate.is_spike && !spikeAlertDismissed && (
-                  <div
-                    className={`budget-spike-alert budget-spike-alert--${liveBurnRate.spike_level}`}
-                    data-testid="budget-spike-alert"
-                    role="alert"
-                  >
-                    <div className="budget-spike-alert__content">
-                      <span className="budget-spike-alert__icon">
-                        {getSpikeIcon(liveBurnRate.spike_level)}
-                      </span>
-                      <div className="budget-spike-alert__body">
-                        <div className="budget-spike-alert__header">
-                          <strong>
-                            {liveBurnRate.spike_level === 'critical'
-                              ? '🚨 예산 급증 조기 경보 (Budget Spike Critical)'
-                              : '⚠️ 토큰 소모율 급증 주의 (Burn Rate Warning)'}
-                          </strong>
-                          <span className="budget-spike-alert__rate-badge">
-                            {formatBurnRate(liveBurnRate.current_tokens_per_min)} (
-                            {formatCostPerMin(liveBurnRate.current_cost_per_min)})
+                {liveBurnRate &&
+                  liveBurnRate.is_spike &&
+                  !spikeAlertDismissed &&
+                  (() => {
+                    const targetRunningRun =
+                      usage.data?.recent_runs?.find(
+                        (r) =>
+                          r.status === 'running' &&
+                          (!liveBurnRate.dominant_agent ||
+                            r.agent_name === liveBurnRate.dominant_agent),
+                      ) ?? usage.data?.recent_runs?.find((r) => r.status === 'running');
+
+                    return (
+                      <div
+                        className={`budget-spike-alert budget-spike-alert--${liveBurnRate.spike_level}`}
+                        data-testid="budget-spike-alert"
+                        role="alert"
+                      >
+                        <div className="budget-spike-alert__content">
+                          <span className="budget-spike-alert__icon">
+                            {getSpikeIcon(liveBurnRate.spike_level)}
                           </span>
+                          <div className="budget-spike-alert__body">
+                            <div className="budget-spike-alert__header">
+                              <strong>
+                                {liveBurnRate.spike_level === 'critical'
+                                  ? '🚨 예산 급증 조기 경보 (Budget Spike Critical)'
+                                  : '⚠️ 토큰 소모율 급증 주의 (Burn Rate Warning)'}
+                              </strong>
+                              <span className="budget-spike-alert__rate-badge">
+                                {formatBurnRate(liveBurnRate.current_tokens_per_min)} (
+                                {formatCostPerMin(liveBurnRate.current_cost_per_min)})
+                              </span>
+                            </div>
+                            <p className="budget-spike-alert__desc">
+                              {liveBurnRate.dominant_agent && (
+                                <strong className="budget-spike-alert__agent">
+                                  [{getAgentLabel(liveBurnRate.dominant_agent)}]{' '}
+                                </strong>
+                              )}
+                              {liveBurnRate.recommendation}
+                            </p>
+                          </div>
                         </div>
-                        <p className="budget-spike-alert__desc">
-                          {liveBurnRate.dominant_agent && (
-                            <strong className="budget-spike-alert__agent">
-                              [{getAgentLabel(liveBurnRate.dominant_agent)}]{' '}
-                            </strong>
+                        <div className="budget-spike-alert__actions">
+                          {targetRunningRun && (
+                            <button
+                              type="button"
+                              className="btn btn--danger budget-spike-alert__action-btn"
+                              onClick={() => handleInlineAbort(targetRunningRun.id)}
+                              disabled={abortingRunId === targetRunningRun.id}
+                              data-testid="banner-abort-btn"
+                            >
+                              {abortingRunId === targetRunningRun.id ? '중단 중…' : '🚨 세션 중단'}
+                            </button>
                           )}
-                          {liveBurnRate.recommendation}
-                        </p>
+                          {targetRunningRun && (
+                            <button
+                              type="button"
+                              className="btn budget-spike-alert__action-btn"
+                              onClick={() => {
+                                setSelectedRun(targetRunningRun);
+                                setWasteModalOpen(true);
+                              }}
+                              data-testid="banner-deepdive-btn"
+                            >
+                              🔍 낭비 딥다이브
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="budget-spike-alert__dismiss"
+                            onClick={() => setSpikeAlertDismissed(true)}
+                            aria-label="알림 닫기"
+                          >
+                            닫기
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                    <button
-                      type="button"
-                      className="budget-spike-alert__dismiss"
-                      onClick={() => setSpikeAlertDismissed(true)}
-                      aria-label="알림 닫기"
-                    >
-                      닫기
-                    </button>
-                  </div>
-                )}
+                    );
+                  })()}
 
                 <TokenStockChart
                   data={
@@ -1272,12 +1331,32 @@ export function ProjectDetailPage() {
                     </div>
                     {usage.data.recent_runs.slice(0, 4).map((r) => {
                       const isRunning = r.status === 'running';
+                      const isCancelled = r.status === 'cancelled';
                       const badge = isRunning
                         ? { text: '작업 중', className: 'badge badge--pulse' }
-                        : getWasteBadge(r.waste?.level);
+                        : isCancelled
+                          ? { text: '강제 중단됨', className: 'badge badge--signal' }
+                          : getWasteBadge(r.waste?.level);
                       const agentLabel = getAgentLabel(r.agent_name);
                       return (
-                        <div key={r.id} className="session-row">
+                        <div
+                          key={r.id}
+                          className="session-row session-row--clickable"
+                          onClick={() => {
+                            setSelectedRun(r);
+                            setWasteModalOpen(true);
+                          }}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              setSelectedRun(r);
+                              setWasteModalOpen(true);
+                            }
+                          }}
+                          title="클릭하여 토큰 낭비 딥다이브 모달 열기"
+                          data-testid={`session-row-${r.id}`}
+                        >
                           <div className="session-row__left">
                             <span className={badge.className}>{badge.text}</span>
                             <span className="badge badge--agent-tag">{agentLabel}</span>
@@ -1291,6 +1370,21 @@ export function ProjectDetailPage() {
                             <span className="meta session-row__time">
                               {formatDateTime(r.started_at)}
                             </span>
+                            {isRunning && (
+                              <button
+                                type="button"
+                                className="session-row__abort-btn"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleInlineAbort(r.id);
+                                }}
+                                disabled={abortingRunId === r.id}
+                                title="이 세션 강제 중단"
+                                data-testid={`session-abort-btn-${r.id}`}
+                              >
+                                {abortingRunId === r.id ? '중단 중…' : '중단'}
+                              </button>
+                            )}
                           </div>
                         </div>
                       );
@@ -1412,6 +1506,15 @@ export function ProjectDetailPage() {
         projectId={id}
         projectName={project.data?.name}
         onClose={() => setApiKeyModalOpen(false)}
+      />
+
+      <SessionWasteModal
+        open={wasteModalOpen}
+        onClose={() => setWasteModalOpen(false)}
+        run={selectedRun}
+        onAbort={async () => {
+          await usage.reload();
+        }}
       />
     </section>
   );

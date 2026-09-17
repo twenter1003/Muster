@@ -41,12 +41,14 @@ const DEFAULT_THRESHOLD_PCT = '80';
 
 export interface SessionRunView {
   id: string;
+  agent_id: string;
   agent_name: string;
   tokens_used: number;
   cost: string;
   status: string;
   started_at: string;
   ended_at: string | null;
+  duration_seconds: number;
   waste: SessionWasteAssessment;
 }
 
@@ -463,16 +465,23 @@ export class BudgetService {
     });
     model_breakdown.sort((a, b) => Number(b.tokens) - Number(a.tokens));
 
-    const recent_runs: SessionRunView[] = recentRuns.map((r) => ({
-      id: r.id,
-      agent_name: r.agent?.name ?? 'agent',
-      tokens_used: r.tokens_used,
-      cost: r.cost,
-      status: r.status,
-      started_at: r.started_at.toISOString(),
-      ended_at: r.ended_at ? r.ended_at.toISOString() : null,
-      waste: assessSessionWaste(r.tokens_used),
-    }));
+    const recent_runs: SessionRunView[] = recentRuns.map((r) => {
+      const startMs = r.started_at.getTime();
+      const endMs = (r.ended_at ?? new Date()).getTime();
+      const duration_seconds = Math.max(0, Math.floor((endMs - startMs) / 1000));
+      return {
+        id: r.id,
+        agent_id: r.agent_id,
+        agent_name: r.agent?.name ?? 'agent',
+        tokens_used: r.tokens_used,
+        cost: r.cost,
+        status: r.status,
+        started_at: r.started_at.toISOString(),
+        ended_at: r.ended_at ? r.ended_at.toISOString() : null,
+        duration_seconds,
+        waste: assessSessionWaste(r.tokens_used),
+      };
+    });
 
     return {
       today_tokens: daily.at(-1)?.tokens ?? '0',
