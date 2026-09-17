@@ -6,6 +6,7 @@
 - **핵심 상태**:
   - ✅ **전수 테스트**: **729 passed, 729 total (100% All Green)** (API 498개, Web 218개, Connect 13개)
   - ✅ **프로덕션 빌드**: `pnpm -r build` 0 error, 0 warning (API NestJS build 성공, Web Vite 번들링 360ms 완료)
+  - ✅ **Cloud Run 원격 배포**: 리비전 `muster-00039-ksh` 배포 완료 (`https://muster-xcswvn6m2q-du.a.run.app`, 헬스체크 200 OK)
   - ✅ **지식 그래프**: `graphify update .` 최신화 동기화 완료 (3,200 노드, 7,821 엣지, 183 커뮤니티)
   - ✅ **QA 증거**: Chrome CDP 기반 데스크톱 & 모바일 29종 스크린샷 캡처 완료
 
