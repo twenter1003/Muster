@@ -46,11 +46,7 @@ export function BenchmarkHud() {
   }
 
   return (
-    <aside
-      className="bhud-panel"
-      role="region"
-      aria-label="실시간 A/B 벤치마크 및 성능 HUD"
-    >
+    <aside className="bhud-panel" role="region" aria-label="실시간 A/B 벤치마크 및 성능 HUD">
       <header className="bhud-panel__head">
         <div className="bhud-panel__title-wrap">
           <svg
@@ -128,7 +124,9 @@ export function BenchmarkHud() {
               <span className="bhud-metric-card__unit"> reqs</span>
             </span>
             <span className="bhud-metric-card__compare meta">
-              {variant === 'B' ? `vs A: ${metricsA.reqCount} reqs` : `vs B: ${metricsB.reqCount} req`}
+              {variant === 'B'
+                ? `vs A: ${metricsA.reqCount} reqs`
+                : `vs B: ${metricsB.reqCount} req`}
             </span>
           </div>
         </div>
@@ -141,7 +139,9 @@ export function BenchmarkHud() {
               <span className="bhud-metric-card__unit"> ms</span>
             </span>
             <span className="bhud-metric-card__compare meta">
-              {variant === 'B' ? `vs A: ${metricsA.durationMs} ms` : `vs B: ${metricsB.durationMs} ms`}
+              {variant === 'B'
+                ? `vs A: ${metricsA.durationMs} ms`
+                : `vs B: ${metricsB.durationMs} ms`}
             </span>
           </div>
         </div>

@@ -1,11 +1,4 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useState,
-  type ReactNode,
-} from 'react';
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 
 export type BenchmarkVariant = 'A' | 'B';
 
@@ -112,10 +105,7 @@ export function BenchmarkProvider({ children }: { children: ReactNode }) {
   }, [setCollapsed]);
 
   const recordMetrics = useCallback(
-    (
-      v: BenchmarkVariant,
-      m: { reqCount: number; durationMs: number; layoutShifts: number },
-    ) => {
+    (v: BenchmarkVariant, m: { reqCount: number; durationMs: number; layoutShifts: number }) => {
       const data: VariantMetrics = {
         reqCount: m.reqCount,
         durationMs: Math.max(1, Math.round(m.durationMs)),

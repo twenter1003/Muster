@@ -1,11 +1,7 @@
 export type StatusFilterType = 'all' | 'live' | 'deploy_success' | 'deploy_failure';
 
 export type SortOptionType =
-  | 'created_desc'
-  | 'updated_desc'
-  | 'tokens_desc'
-  | 'cost_desc'
-  | 'health_desc';
+  'created_desc' | 'updated_desc' | 'tokens_desc' | 'cost_desc' | 'health_desc';
 
 export interface ProjectListItemLike {
   id: string;
@@ -68,10 +64,7 @@ export function matchesSearch(project: ProjectListItemLike, query: string): bool
  * - 'deploy_success': 배포 성공
  * - 'deploy_failure': 배포 실패
  */
-export function matchesStatus(
-  project: ProjectListItemLike,
-  status: StatusFilterType,
-): boolean {
+export function matchesStatus(project: ProjectListItemLike, status: StatusFilterType): boolean {
   if (status === 'all') return true;
   if (status === 'live') {
     return (project.active_agents?.length ?? 0) > 0;

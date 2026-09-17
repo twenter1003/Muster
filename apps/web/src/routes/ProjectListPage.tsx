@@ -153,9 +153,11 @@ export function ProjectListPage() {
   const [apiKeyTarget, setApiKeyTarget] = useState<{ id: string; name: string } | null>(null);
 
   // Variant A 전용 상태
-  const { data: rawData, error: rawError, loading: rawLoading } = useApi<Page<ProjectView>>(
-    variant === 'A' ? '/projects?limit=50' : null,
-  );
+  const {
+    data: rawData,
+    error: rawError,
+    loading: rawLoading,
+  } = useApi<Page<ProjectView>>(variant === 'A' ? '/projects?limit=50' : null);
   const [details, dispatch] = useReducer(detailsReducer, {});
 
   // Variant B 전용 상태 (통합 1회 호출)
@@ -173,7 +175,9 @@ export function ProjectListPage() {
     setBError(null);
     const startMs = performance.now();
 
-    apiFetch<Page<ProjectSummaryView>>(`/projects?summary=true&limit=50&tz=${encodeURIComponent(tz)}`)
+    apiFetch<Page<ProjectSummaryView>>(
+      `/projects?summary=true&limit=50&tz=${encodeURIComponent(tz)}`,
+    )
       .then((res) => {
         if (!active) return;
         const durationMs = performance.now() - startMs;
@@ -493,15 +497,9 @@ export function ProjectListPage() {
             // Variant A 모드일 때는 세부 슬롯 렌더링 유지
             const d = detailOf(p.id);
             const deployStatus =
-              variant === 'B'
-                ? (p.deploy_status ?? p.latest_deploy_status ?? null)
-                : null;
-            const lastLog =
-              variant === 'B'
-                ? (p.last_log ?? p.latest_log_message ?? null)
-                : null;
-            const healthVal =
-              variant === 'B' ? (p.health_score ?? null) : null;
+              variant === 'B' ? (p.deploy_status ?? p.latest_deploy_status ?? null) : null;
+            const lastLog = variant === 'B' ? (p.last_log ?? p.latest_log_message ?? null) : null;
+            const healthVal = variant === 'B' ? (p.health_score ?? null) : null;
             const activeAgents = p.active_agents ?? [];
             const cleanRepo = cleanRepoUrl(p.repo_url);
 
@@ -511,9 +509,7 @@ export function ProjectListPage() {
                   <div className="plist__card-head">
                     <div className="plist__card-head-title">
                       <span className="plist__name">{p.name}</span>
-                      {cleanRepo && (
-                        <span className="meta plist__repo-sub">{cleanRepo}</span>
-                      )}
+                      {cleanRepo && <span className="meta plist__repo-sub">{cleanRepo}</span>}
                     </div>
 
                     <div className="plist__card-status-badges">
@@ -542,7 +538,11 @@ export function ProjectListPage() {
                             <span
                               className={status === 'failure' ? 'badge badge--signal' : 'badge'}
                             >
-                              {status === 'success' ? '성공' : status === 'failure' ? '실패' : status}
+                              {status === 'success'
+                                ? '성공'
+                                : status === 'failure'
+                                  ? '실패'
+                                  : status}
                             </span>
                           )}
                         />

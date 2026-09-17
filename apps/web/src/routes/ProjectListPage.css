@@ -64,7 +64,9 @@
   border: 1px solid var(--color-rule);
   border-radius: var(--radius);
   color: var(--color-ink);
-  transition: border-color 150ms ease-out, background 150ms ease-out;
+  transition:
+    border-color 150ms ease-out,
+    background 150ms ease-out;
 }
 
 .plist__search-input:focus {
@@ -118,8 +120,11 @@
   border: 1px solid var(--color-rule);
   background: transparent;
   color: var(--color-ink-mid);
-  transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background 150ms ease-out,
-    color 150ms ease-out, border-color 150ms ease-out;
+  transition:
+    transform 160ms cubic-bezier(0.23, 1, 0.32, 1),
+    background 150ms ease-out,
+    color 150ms ease-out,
+    border-color 150ms ease-out;
 }
 
 .plist__filter-chips .chip:hover {
@@ -184,8 +189,10 @@
   background: var(--color-surface);
   border: 1px solid var(--color-rule);
   border-radius: var(--radius);
-  transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1),
-    border-color 180ms ease-out, box-shadow 180ms ease-out;
+  transition:
+    transform 180ms cubic-bezier(0.23, 1, 0.32, 1),
+    border-color 180ms ease-out,
+    box-shadow 180ms ease-out;
   overflow: hidden;
 }
 
@@ -340,7 +347,10 @@
   border-radius: 4px;
   cursor: pointer;
   text-decoration: none;
-  transition: background 150ms ease-out, color 150ms ease-out, transform 150ms ease-out;
+  transition:
+    background 150ms ease-out,
+    color 150ms ease-out,
+    transform 150ms ease-out;
 }
 
 .plist__quick-btn:hover {
