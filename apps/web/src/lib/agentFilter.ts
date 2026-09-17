@@ -1,9 +1,11 @@
 export type AgentFilterType = 'all' | 'claude-code' | 'antigravity';
+export type TokenGranularity = 'hour' | 'day' | 'month';
 
 export function buildTokenUsageUrl(
   projectId: string,
   filter: AgentFilterType,
   tz?: string,
+  granularity?: TokenGranularity,
 ): string {
   const params = new URLSearchParams();
   if (filter !== 'all') {
@@ -11,6 +13,9 @@ export function buildTokenUsageUrl(
   }
   if (tz) {
     params.set('tz', tz);
+  }
+  if (granularity) {
+    params.set('granularity', granularity);
   }
   const qs = params.toString();
   return `/projects/${projectId}/token-usage${qs ? `?${qs}` : ''}`;

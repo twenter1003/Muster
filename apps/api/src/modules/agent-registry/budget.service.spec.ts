@@ -256,5 +256,121 @@ describe('BudgetService', () => {
       expect(result.month_cost).toBe('0.1800');
       expect(result.total_cost).toBe('0.1800');
     });
+
+    it('granularity=hour 요청 시 24개 시간별 버킷과 HH:00 라벨을 반환한다', async () => {
+      const qbMock = {
+        innerJoin: jest.fn().mockReturnThis(),
+        innerJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([]),
+        getRawOne: jest.fn().mockResolvedValue({ tokens: '1000', cost: '0.0050' }),
+        getMany: jest.fn().mockResolvedValue([]),
+      };
+
+      const runsRepo = {
+        createQueryBuilder: jest.fn().mockReturnValue(qbMock),
+      } as unknown as Repository<AgentRun>;
+
+      const service = new BudgetService({} as never, runsRepo, new EventEmitter2());
+
+      const result = await service.dailyUsage(PROJECT, undefined, 'Asia/Seoul', 'hour');
+
+      expect(result.granularity).toBe('hour');
+      expect(result.time_series).toBeDefined();
+      expect(result.time_series).toHaveLength(24);
+      expect(result.time_series![0].label).toMatch(/^\d{2}:00$/);
+      expect(result.time_series![23].label).toMatch(/^\d{2}:00$/);
+    });
+
+    it('granularity=month 요청 시 6개 월별 버킷과 YY.MM 라벨을 반환한다', async () => {
+      const qbMock = {
+        innerJoin: jest.fn().mockReturnThis(),
+        innerJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([]),
+        getRawOne: jest.fn().mockResolvedValue({ tokens: '5000', cost: '0.0200' }),
+        getMany: jest.fn().mockResolvedValue([]),
+      };
+
+      const runsRepo = {
+        createQueryBuilder: jest.fn().mockReturnValue(qbMock),
+      } as unknown as Repository<AgentRun>;
+
+      const service = new BudgetService({} as never, runsRepo, new EventEmitter2());
+
+      const result = await service.dailyUsage(PROJECT, undefined, 'Asia/Seoul', 'month');
+
+      expect(result.granularity).toBe('month');
+      expect(result.time_series).toBeDefined();
+      expect(result.time_series).toHaveLength(6);
+      expect(result.time_series![0].label).toMatch(/^\d{2}\.\d{2}$/);
+      expect(result.time_series![5].label).toMatch(/^\d{2}\.\d{2}$/);
+    });
+
+    it('model_breakdown이 에이전트별 토큰, 비용, 점유율(%)을 올바르게 집계한다', async () => {
+      const qbMock = {
+        innerJoin: jest.fn().mockReturnThis(),
+        innerJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getRawMany: jest
+          .fn()
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([
+            { agent_name: 'claude-code', tokens: '70000', cost: '0.2520', run_count: 5 },
+            { agent_name: 'antigravity', tokens: '30000', cost: '0.0270', run_count: 3 },
+          ]),
+        getRawOne: jest
+          .fn()
+          .mockResolvedValueOnce({ tokens: '100000', cost: '0.2790' })
+          .mockResolvedValueOnce({ tokens: '100000', cost: '0.2790' }),
+        getMany: jest.fn().mockResolvedValue([]),
+      };
+
+      const runsRepo = {
+        createQueryBuilder: jest.fn().mockReturnValue(qbMock),
+      } as unknown as Repository<AgentRun>;
+
+      const service = new BudgetService({} as never, runsRepo, new EventEmitter2());
+
+      const result = await service.dailyUsage(PROJECT);
+
+      expect(result.model_breakdown).toBeDefined();
+      expect(result.model_breakdown).toHaveLength(2);
+
+      const claude = result.model_breakdown![0];
+      expect(claude.model_name).toBe('claude-sonnet-5');
+      expect(claude.provider).toBe('anthropic');
+      expect(claude.tokens).toBe('70000');
+      expect(claude.percentage).toBe(70);
+      expect(claude.run_count).toBe(5);
+
+      const antigravity = result.model_breakdown![1];
+      expect(antigravity.model_name).toBe('gemini-3.6-flash');
+      expect(antigravity.provider).toBe('google');
+      expect(antigravity.tokens).toBe('30000');
+      expect(antigravity.percentage).toBe(30);
+      expect(antigravity.run_count).toBe(3);
+
+      expect(claude.percentage + antigravity.percentage).toBe(100);
+    });
   });
 });

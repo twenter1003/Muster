@@ -29,6 +29,15 @@ describe('agentFilter', () => {
         '/projects/proj-123/token-usage?agent_name=claude-code&tz=Asia%2FSeoul',
       );
     });
+
+    it('granularity가 주어지면 쿼리에 granularity를 붙인다', () => {
+      expect(buildTokenUsageUrl(projectId, 'all', 'Asia/Seoul', 'hour')).toBe(
+        '/projects/proj-123/token-usage?tz=Asia%2FSeoul&granularity=hour',
+      );
+      expect(buildTokenUsageUrl(projectId, 'claude-code', 'Asia/Seoul', 'month')).toBe(
+        '/projects/proj-123/token-usage?agent_name=claude-code&tz=Asia%2FSeoul&granularity=month',
+      );
+    });
   });
 
   describe('getAgentLabel', () => {

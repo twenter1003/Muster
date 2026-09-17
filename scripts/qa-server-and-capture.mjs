@@ -9,7 +9,7 @@ const DIST_DIR = path.resolve('/Users/kimtaewoo/Muster/apps/web/dist');
 const ARTIFACT_DIR_PARENT =
   '/Users/kimtaewoo/.gemini/antigravity/brain/e8458c2c-bf26-4777-b66f-1e307f2ffeaf';
 const ARTIFACT_DIR_SELF =
-  '/Users/kimtaewoo/.gemini/antigravity/brain/f504a32c-1c15-417b-aed7-2ca20c40ea7e';
+  '/Users/kimtaewoo/.gemini/antigravity/brain/43f56acb-3630-401b-9be3-cc73a2c54d90';
 
 fs.mkdirSync(ARTIFACT_DIR_PARENT, { recursive: true });
 fs.mkdirSync(ARTIFACT_DIR_SELF, { recursive: true });
@@ -239,6 +239,78 @@ const server = http.createServer((req, res) => {
     const matchTokens = url.pathname.match(/^\/api\/v1\/projects\/([^/]+)\/token-usage/);
     if (matchTokens) {
       const proj = MOCK_PROJECTS.find((p) => p.id === matchTokens[1]) || MOCK_PROJECTS[0];
+      const gran = url.searchParams.get('granularity') || 'day';
+
+      let time_series = [];
+      if (gran === 'hour') {
+        time_series = [
+          { key: '2026-09-17 14:00', label: '14:00', tokens: '4200', cost: '0.0151' },
+          { key: '2026-09-17 15:00', label: '15:00', tokens: '8900', cost: '0.0320' },
+          { key: '2026-09-17 16:00', label: '16:00', tokens: '14500', cost: '0.0522' },
+          { key: '2026-09-17 17:00', label: '17:00', tokens: '28000', cost: '0.1008' },
+          { key: '2026-09-17 18:00', label: '18:00', tokens: '19000', cost: '0.0684' },
+          { key: '2026-09-17 19:00', label: '19:00', tokens: '35000', cost: '0.1260' },
+          { key: '2026-09-17 20:00', label: '20:00', tokens: '48000', cost: '0.1728' },
+          { key: '2026-09-17 21:00', label: '21:00', tokens: '62000', cost: '0.2232' },
+        ];
+      } else if (gran === 'month') {
+        time_series = [
+          { key: '2026-04', label: '26.04', tokens: '450000', cost: '1.6200' },
+          { key: '2026-05', label: '26.05', tokens: '820000', cost: '2.9520' },
+          { key: '2026-06', label: '26.06', tokens: '1250000', cost: '4.5000' },
+          { key: '2026-07', label: '26.07', tokens: '2100000', cost: '7.5600' },
+          { key: '2026-08', label: '26.08', tokens: '3400000', cost: '12.2400' },
+          { key: '2026-09', label: '26.09', tokens: '4120000', cost: '14.8320' },
+        ];
+      } else {
+        time_series = [
+          { key: '2026-09-04', label: '09/04', tokens: '110000', cost: '0.3960' },
+          { key: '2026-09-05', label: '09/05', tokens: '135000', cost: '0.4860' },
+          { key: '2026-09-06', label: '09/06', tokens: '180000', cost: '0.6480' },
+          { key: '2026-09-07', label: '09/07', tokens: '95000', cost: '0.3420' },
+          { key: '2026-09-08', label: '09/08', tokens: '210000', cost: '0.7560' },
+          { key: '2026-09-09', label: '09/09', tokens: '320000', cost: '1.1520' },
+          { key: '2026-09-10', label: '09/10', tokens: '280000', cost: '1.0080' },
+          { key: '2026-09-11', label: '09/11', tokens: '350000', cost: '1.2600' },
+          { key: '2026-09-12', label: '09/12', tokens: '420000', cost: '1.5120' },
+          { key: '2026-09-13', label: '09/13', tokens: '290000', cost: '1.0440' },
+          { key: '2026-09-14', label: '09/14', tokens: '310000', cost: '1.1160' },
+          { key: '2026-09-15', label: '09/15', tokens: '480000', cost: '1.7280' },
+          { key: '2026-09-16', label: '09/16', tokens: '520000', cost: '1.8720' },
+          { key: '2026-09-17', label: '09/17', tokens: '640000', cost: '2.3040' },
+        ];
+      }
+
+      const model_breakdown = [
+        {
+          model_name: 'claude-sonnet-5',
+          display_name: 'Claude Sonnet 5 (claude-code)',
+          provider: 'anthropic',
+          tokens: '2850000',
+          cost: '10.2600',
+          run_count: 24,
+          percentage: 69.2,
+        },
+        {
+          model_name: 'gemini-3.6-flash',
+          display_name: 'Gemini 3.6 Flash (antigravity)',
+          provider: 'google',
+          tokens: '980000',
+          cost: '0.8820',
+          run_count: 18,
+          percentage: 23.8,
+        },
+        {
+          model_name: 'gpt-5.6-terra',
+          display_name: 'GPT-5.6 Terra (cursor)',
+          provider: 'openai',
+          tokens: '290000',
+          cost: '1.1600',
+          run_count: 7,
+          percentage: 7.0,
+        },
+      ];
+
       res.writeHead(200);
       res.end(
         JSON.stringify({
@@ -248,6 +320,9 @@ const server = http.createServer((req, res) => {
           today_cost: proj.tokens.todayCost,
           month_cost: '$14.20',
           total_cost: proj.tokens.totalCost,
+          granularity: gran,
+          time_series,
+          model_breakdown,
           daily: [
             { date: '2026-03-15', tokens: '110000', cost: '$0.33' },
             { date: '2026-03-16', tokens: '135000', cost: '$0.40' },
@@ -256,7 +331,7 @@ const server = http.createServer((req, res) => {
           recent_runs: [
             {
               id: 'run-1',
-              agent_name: 'claude-3-7-sonnet',
+              agent_name: 'claude-sonnet-5',
               tokens_used: 12500,
               cost: '$0.037',
               status: 'completed',
@@ -265,7 +340,7 @@ const server = http.createServer((req, res) => {
             },
             {
               id: 'run-2',
-              agent_name: 'gemini-2.5-flash',
+              agent_name: 'gemini-3.6-flash',
               tokens_used: 8200,
               cost: '$0.008',
               status: 'completed',
@@ -620,7 +695,29 @@ async function runCaptures() {
       waitMs: 1000,
     });
 
-    console.log('\n🎉 모든 뷰포트 및 A/B 테스트/목표 드로어 시각적 증거(스크린샷 10종) 완벽 캡처 완료!');
+    // 11. 데스크톱 뷰포트 (1280x800) - 주식 차트형 다차원 토큰 모니터링 & 모델 브레이크다운
+    await captureItem({
+      url: 'http://127.0.0.1:8765/projects/proj-001',
+      outName: 'desktop-token-stock-chart.png',
+      width: 1280,
+      height: 800,
+      isMobile: false,
+      waitMs: 1500,
+      evalScript: `document.querySelector('.token-stock-chart')?.scrollIntoView({ block: 'center' })`,
+    });
+
+    // 12. 모바일 뷰포트 (390x844) - 주식 차트형 다차원 토큰 모니터링 & 모델 브레이크다운 모바일 뷰
+    await captureItem({
+      url: 'http://127.0.0.1:8765/projects/proj-001',
+      outName: 'mobile-token-stock-chart.png',
+      width: 390,
+      height: 844,
+      isMobile: true,
+      waitMs: 1500,
+      evalScript: `document.querySelector('.token-stock-chart')?.scrollIntoView({ block: 'start' })`,
+    });
+
+    console.log('\n🎉 모든 뷰포트 및 주식 차트/모델 점유율 시각적 증거(스크린샷 12종) 완벽 캡처 완료!');
   } finally {
     ws.close();
     chrome.kill();
