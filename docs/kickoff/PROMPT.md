@@ -80,19 +80,81 @@ Claude Code/LLM 기반으로 여러 사이드 프로젝트를 진행하는 사�
 
 ## 차기 세션 최우선 착수 과제 (Current Priority Task)
 
-### 🚨 PR #65 머지 및 차기 과제 인계
+### 📊 에이전트 세션별 토큰/비용 낭비 이력 딥다이브 모달 및 원클릭 세션 중단(Kill/Abort) 기능 구축
 
-1. **PR #65 머지 및 로컬 main 동기화 (최우선)**:
-   - [PR #65](https://github.com/twenter1003/Muster/pull/65) (`feat/burn-rate-budget-spike-hud`)의 CI 통과를 확인하고 머지 진행 (`gh pr merge 65 --squash --delete-branch`).
-   - 머지 완료 후 로컬 main으로 전환하고 동기화:
-     ```bash
-     git checkout main && git pull origin main
-     ```
-2. **차기 고도화 과제: 에이전트 세션별 토큰/비용 낭비 이력 딥다이브 모달 및 원클릭 세션 중단(Kill/Abort) 기능 구축**:
-   - **배경**: Burn Rate 조기 경보 발생 시, 사용자가 어떤 세션/파일 읽기에서 토큰 폭주가 일어났는지 즉시 파악하고 불필요한 장기 세션을 대시보드에서 즉시 강제 종료(abort)할 수 있는 조치 수단 제공.
-   - **백엔드**: `AgentRunsController`에 `POST /agents/:agentId/runs/:runId/abort` 지원 (status -> 'cancelled' 및 감사 로그 기록).
-   - **프론트엔드**: 경보 배너 및 에이전트 상세 카드에 `[세션 중단]` 액션 버튼 및 세션 낭비 분석 딥다이브 모달 연동.
-   - **QA**: 취소 이벤트 및 SSE 갱신 테스트, 화면 스크린샷 캡처.
+> **상태 알림**: PR #65 머지 및 로컬 `main` 동기화 완료 (`d4b84e4`), 전체 704개 테스트 All Green 상태.
+> **다음 세션 에이전트는 본 프롬프트를 확인한 즉시 아래 설계서에 따라 브랜치 생성 및 구현에 착수할 것.**
+
+#### 1. 👥 4인 원팀 확정 설계 명세
+
+- **📌 PM (기획 및 인터페이스 계약)**:
+  - **배경**: 실시간 Burn Rate 조기 경보 발생 시, 대시보드 사용자가 어떤 세션/에이전트에서 토큰 폭주가 일어났는지 즉각 딥다이브하고, 불필요한 장기 세션을 대시보드에서 1클릭으로 강제 종료(abort)할 수 있는 제어 수단 제공.
+  - **API 계약**:
+    1. `POST /api/v1/agent-runs/:id/abort` (및 `POST /api/v1/agents/:agentId/runs/:runId/abort` 동시 지원):
+       - 실행 상태를 `running` → `cancelled`로 전이하고 종료 시각(`ended_at`) 기록.
+       - 예산 재계산(`budget.recalculateAndAlert`), 실시간 SSE `DomainEvent.AGENT_RUN_FINISHED` 방출 (`status: 'cancelled'`), 감사 로그(`agent_run.abort`) 기록.
+       - 이미 종료된 세션에 대해 호출 시 `409 Conflict` 반환.
+    2. `GET /api/v1/agent-runs/:id`: 세션 단건 상세 낭비 분석 및 실행 상태 조회 (`SessionRunDetailView`).
+  - **UI 인터랙션**:
+    - `BudgetSpikeAlertBanner`: 스파이크 유발 에이전트의 활성 세션이 있을 경우 `[세션 중단]` 및 `[낭비 딥다이브]` 버튼 제공.
+    - 최근 세션 목록 (`recent_runs`): 행 클릭 시 `SessionWasteModal` 오픈. `running` 세션에는 `[중단]` 인라인 버튼 제공.
+
+- **⚙️ 백엔드 (Backend)**:
+  - `apps/api/src/database/entities/enums.ts`:
+    - `AUDIT_ACTIONS`에 `'agent_run.abort'` 추가 (DB CHECK 형식 호환).
+  - `apps/api/src/modules/agent-registry/agent-runs.service.ts`:
+    - `abort(runId: string, identity: RunIdentity): Promise<AgentRun>` 메서드 구현.
+    - `detail(runId: string, identity: RunIdentity): Promise<SessionRunDetailView>` 구현.
+    - `heartbeat`: 세션이 이미 `cancelled` 상태라면 `ApiException.conflict` 던져서 CLI 에이전트 훅에 중단 통보.
+  - `apps/api/src/modules/agent-registry/agents.controller.ts`:
+    - `AgentRunsController`: `@Post(':id/abort')`, `@Get(':id')` 추가.
+    - `AgentsController`: `@Post(':agentId/runs/:runId/abort')` 추가.
+  - `apps/api/src/modules/agent-registry/budget.service.ts`:
+    - `SessionRunView`에 `agent_id: string`, `duration_seconds: number` 필드 포함.
+  - `apps/api/src/modules/agent-registry/agent-runs.service.spec.ts`: abort 정상 처리, 중복/종료 세션 abort 시 409, 권한 검증 테스트 추가.
+
+- **🎨 프론트엔드 (Frontend - Emil Kowalski & Minimalist UI 철학)**:
+  - `apps/web/src/components/SessionWasteModal.tsx` & `.css`:
+    - 네이티브 `<dialog>` 기반 `Modal.tsx` 활용.
+    - 헤더: 에이전트 도트/뱃지, 세션 ID, 상태 뱃지 (`작업 중`, `정상 완료`, `강제 중단됨`).
+    - 메트릭 카드: 토큰 수, 비용, 경과 시간, 분당 소모 속도 (Burn Rate).
+    - 낭비 진단 패널: `NORMAL` (에메랄드), `CAUTION` (앰버), `HIGH_WASTE` (레드 글로우), 추정 낭비 토큰/비용, 권장 조치(`/compact` 등).
+    - 세션 중단 버튼: `running` 세션일 때 `button--danger` 형태의 `[🚨 세션 강제 중단]` 버튼 및 로딩/에러 피드백.
+  - `apps/web/src/routes/ProjectDetailPage.tsx` & `.css`:
+    - `BudgetSpikeAlertBanner`에 `[세션 중단]`, `[세션 딥다이브]` 액션 버튼 연동.
+    - 최근 세션 행 클릭 인터랙션(호버 피드백, 딥다이브 모달 오픈) 및 `running` 세션 `[중단]` 미니 버튼 배치.
+    - SSE 이벤트 수신 시 세션 목록 자동 상태 갱신.
+  - 인터랙션 가이드: 버튼 `:active { transform: scale(0.97); }`, 모달 스케일업 트랜지션 (150ms ease-out).
+
+- **🧪 QA (검증 및 시각적 증거)**:
+  - 백엔드 단위 테스트 All Green (기존 489개 + 신규 4개 이상).
+  - 프론트엔드 단위 테스트 All Green (기존 202개 + 신규 3개 이상).
+  - 전체 워크스페이스 빌드(`pnpm -r build`) 0 error, 0 warning.
+  - Chrome CDP 기반 데스크톱/모바일 딥다이브 모달 및 배너 캡처.
+  - `graphify update .` 지식 그래프 최신화.
+
+#### 2. 🚀 차기 세션 실행 절차 (Turn-Key Runbook)
+1. **브랜치 생성**:
+   ```bash
+   git checkout main && git pull origin main
+   git checkout -b feat/agent-run-abort-waste-modal
+   ```
+2. **백엔드 구현 및 테스트**:
+   - `enums.ts`, `agent-runs.service.ts`, `agents.controller.ts`, `budget.service.ts` 수정.
+   - `pnpm --filter @muster/api test` 통과 확인.
+3. **프론트엔드 구현 및 테스트**:
+   - `SessionWasteModal.tsx`, `SessionWasteModal.css` 생성.
+   - `ProjectDetailPage.tsx`, `ProjectDetailPage.css` 연동.
+   - `pnpm --filter @muster/web test` 통과 확인.
+4. **전수 검증, 포맷팅, 빌드**:
+   - `pnpm format && pnpm -r test && pnpm -r build`
+5. **화면 캡처 (Chrome CDP)**:
+   - 데스크톱 & 모바일 뷰 캡처 및 아티팩트 디렉터리 저장.
+6. **지식 그래프 동기화**:
+   - `graphify update .`
+7. **PR 생성, CI 통과, 머지, main 동기화**:
+   - `git push origin feat/agent-run-abort-waste-modal`
+   - `gh pr create ...` → CI 확인 → `gh pr merge ... --squash --delete-branch` → `git checkout main && git pull origin main`
 
 ---
 
