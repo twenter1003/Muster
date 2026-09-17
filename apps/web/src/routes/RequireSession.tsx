@@ -15,7 +15,14 @@ export function RequireSession() {
   const { user, loading, failed } = useSession();
   const location = useLocation();
 
-  if (loading) return <p className="page__note">확인 중…</p>;
+  if (loading) {
+    return (
+      <div className="session-loading-view" aria-label="세션 확인 중">
+        <span className="login__spinner login__spinner--brand" aria-hidden="true" />
+        <p className="page__note session-loading-note">세션 확인 중…</p>
+      </div>
+    );
+  }
 
   // 서버 장애(500·네트워크)를 로그인 만료로 오해해 내보내지 않는다. 다시 시도할 여지를 남긴다.
   if (failed) {

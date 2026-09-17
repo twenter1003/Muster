@@ -100,10 +100,13 @@ export class GcpSecretManagerStore implements SecretStore {
       if (!res.ok) return;
 
       const { versions = [] } = (await res.json()) as { versions?: { name: string }[] };
-      for (const v of versions) {
-        if (v.name === keep) continue;
-        await this.call('POST', `${API}/${v.name}:destroy`, {});
-      }
+      const toDestroy = versions.filter((v) => v.name && v.name !== keep);
+      if (toDestroy.length === 0) return;
+
+      // 순차 호출 대신 병렬 실행하여 GCP Secret Manager API 지연 시간을 획기적으로 단축
+      await Promise.allSettled(
+        toDestroy.map((v) => this.call('POST', `${API}/${v.name}:destroy`, {})),
+      );
     } catch (err) {
       this.logger.warn(`시크릿 ${id}의 이전 버전 정리에 실패했습니다: ${String(err)}`);
     }

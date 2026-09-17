@@ -1,4 +1,7 @@
+import { useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import { API_BASE } from '../lib/api';
+import { useSession } from '../lib/session';
 
 /**
  * 로그인 (목업 1i · 설계서 08).
@@ -11,6 +14,14 @@ import { API_BASE } from '../lib/api';
  * 세션 쿠키가 SameSite=Lax인 것도 이 경로가 top-level 이동이라 성립한다.
  */
 export function LoginPage() {
+  const { user, loading } = useSession();
+  const [connecting, setConnecting] = useState(false);
+
+  // 이미 세션이 있는 사용자는 불필요한 로그인 대기 없이 즉시 홈으로 보낸다
+  if (!loading && user) {
+    return <Navigate to="/" replace />;
+  }
+
   return (
     <main className="login">
       <div className="login__panel">
@@ -22,9 +33,21 @@ export function LoginPage() {
           처리되고, 같은 인증으로 레포 연동 권한까지 함께 받습니다.
         </p>
 
-        {/* 이 화면의 유일한 솔리드 버튼이다 (설계서 10 · 화면당 1개). */}
-        <a className="btn btn--solid login__cta" href={`${API_BASE}/auth/github/login`}>
-          GitHub으로 계속하기
+        {/* 이 화면의 유일한 솔리드 버튼이다 (설계서 10 · 화면당 1개). 클릭 즉시 시각적 피드백을 제공한다. */}
+        <a
+          className={`btn btn--solid login__cta ${connecting ? 'btn--disabled' : ''}`}
+          href={`${API_BASE}/auth/github/login`}
+          onClick={() => setConnecting(true)}
+          aria-disabled={connecting}
+        >
+          {connecting ? (
+            <span className="login__loading-content">
+              <span className="login__spinner" aria-hidden="true" />
+              GitHub으로 연결 중…
+            </span>
+          ) : (
+            'GitHub으로 계속하기'
+          )}
         </a>
 
         <p className="login__meta">요청 스코프: read:user · repo (웹훅 등록 포함)</p>

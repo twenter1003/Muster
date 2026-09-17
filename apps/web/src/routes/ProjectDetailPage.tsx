@@ -15,6 +15,7 @@ import {
 } from '../lib/goalChecklist';
 import { formatCost, formatTokenCount, getWasteBadge } from '../lib/tokenIntelligence';
 import { buildTokenUsageUrl, getAgentLabel, type AgentFilterType } from '../lib/agentFilter';
+import { formatElapsedTime } from '../lib/projectListUtils';
 import { useSse } from '../lib/useSse';
 import { useApi } from '../lib/useApi';
 import './ProjectDetailPage.css';
@@ -552,10 +553,18 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
 
 export function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [level, setLevel] = useState<LogLevel | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false);
   const [agentFilter, setAgentFilter] = useState<AgentFilterType>('all');
+
+  // 빠른 프로젝트 전환기 목록
+  const allProjects = useApi<Page<ProjectView>>('/projects?limit=50');
+
+  // 원클릭 전체 동기화 상태
+  const [syncing, setSyncing] = useState(false);
+  const [justSynced, setJustSynced] = useState(false);
 
   const project = useApi<ProjectView>(id ? `/projects/${id}` : null);
   const git = useApi<{ integration: GitIntegrationView | null }>(
@@ -577,6 +586,17 @@ export function ProjectDetailPage() {
 
   const { events: sseEvents, state: sseState } = useSse(id ?? null);
   const [activeAgents, setActiveAgents] = useState<string[]>([]);
+  const [agentStartTimes, setAgentStartTimes] = useState<Record<string, number>>({});
+  const [nowSec, setNowSec] = useState<number>(() => Math.floor(Date.now() / 1000));
+
+  // 에이전트 작업 중 실시간 1초 카운트업 타이머
+  useEffect(() => {
+    if (activeAgents.length === 0) return;
+    const interval = setInterval(() => {
+      setNowSec(Math.floor(Date.now() / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [activeAgents.length]);
 
   useEffect(() => {
     if (!sseEvents.length) return;
@@ -584,12 +604,19 @@ export function ProjectDetailPage() {
     if (latest.type === 'agent_run_started') {
       const payload = latest.data as { agent_name?: string };
       const name = payload?.agent_name ?? 'agent';
+      const curSec = Math.floor(Date.now() / 1000);
       setActiveAgents((prev) => (prev.includes(name) ? prev : [...prev, name]));
+      setAgentStartTimes((prev) => ({ ...prev, [name]: prev[name] ?? curSec }));
       usage.reload();
     } else if (latest.type === 'agent_run_finished') {
       const payload = latest.data as { agent_name?: string };
       const name = payload?.agent_name ?? 'agent';
       setActiveAgents((prev) => prev.filter((a) => a !== name));
+      setAgentStartTimes((prev) => {
+        const next = { ...prev };
+        delete next[name];
+        return next;
+      });
       usage.reload();
       health.reload();
     } else if (latest.type === 'log') {
@@ -598,6 +625,27 @@ export function ProjectDetailPage() {
       health.reload();
     }
   }, [sseEvents]);
+
+  // 원클릭 전체 동기화 실행
+  const handleSyncAll = () => {
+    if (syncing) return;
+    setSyncing(true);
+    setJustSynced(false);
+    Promise.all([
+      project.reload(),
+      git.reload(),
+      health.reload(),
+      commits.reload(),
+      deployments.reload(),
+      logs.reload(),
+      usage.reload(),
+      documents.reload(),
+    ]).finally(() => {
+      setSyncing(false);
+      setJustSynced(true);
+      setTimeout(() => setJustSynced(false), 2500);
+    });
+  };
 
   const deploys = useMemo(
     () => (deployments.data?.items ?? []).filter((e) => e.kind === 'deployment').slice(0, 4),
@@ -628,10 +676,59 @@ export function ProjectDetailPage() {
       )}
 
       <div className="detail__toprow">
-        <Link to="/" className="meta">
-          ← 프로젝트 목록
-        </Link>
+        <div className="detail__switcher-group">
+          <Link to="/" className="meta detail__back-link">
+            ← 프로젝트 목록
+          </Link>
+          {allProjects.data && allProjects.data.items.length > 0 && (
+            <div className="detail__switcher">
+              <span className="meta detail__switcher-label">빠른 전환:</span>
+              <select
+                className="input detail__switcher-select"
+                value={id}
+                onChange={(e) => navigate(`/projects/${e.target.value}`)}
+                aria-label="다른 프로젝트로 바로 이동"
+              >
+                {allProjects.data.items.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
         <div className="detail__toprow-actions">
+          <div className="detail__sync-wrap">
+            <Button
+              type="button"
+              className="detail__sync-btn"
+              onClick={handleSyncAll}
+              disabled={syncing}
+              title="커밋·배포·로그·토큰 사용량 전체 동기화"
+            >
+              <svg
+                className={`detail__sync-icon ${syncing ? 'detail__sync-icon--spin' : ''}`}
+                viewBox="0 0 24 24"
+                width="14"
+                height="14"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <polyline points="23 4 23 10 17 10" />
+                <polyline points="1 20 1 14 7 14" />
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+              </svg>
+              <span>{syncing ? '동기화 중…' : '새로고침 / 동기화'}</span>
+            </Button>
+            {justSynced && <span className="detail__synced-feedback">방금 동기화됨</span>}
+          </div>
+
           <Button className="btn--primary" onClick={() => setApiKeyModalOpen(true)}>
             🔑 API 키 관리
           </Button>
@@ -645,6 +742,19 @@ export function ProjectDetailPage() {
         <div className="detail__head-row">
           <h1 className="page__title">{project.data?.name ?? EM_DASH}</h1>
           <span className="badge badge--operational">운영 중</span>
+          {activeAgents.length > 0 && (
+            <span className="badge badge--pulse" style={{ fontSize: '11px' }}>
+              ●{' '}
+              {activeAgents
+                .map((name) => {
+                  const start = agentStartTimes[name] ?? nowSec;
+                  const elapsed = Math.max(0, nowSec - start);
+                  return `${name} (${formatElapsedTime(elapsed)})`;
+                })
+                .join(', ')}{' '}
+              작업 중
+            </span>
+          )}
           {latestDeploy && (
             <span
               className={
@@ -710,7 +820,15 @@ export function ProjectDetailPage() {
               <span>에이전트 토큰 관제</span>
               {activeAgents.length > 0 ? (
                 <span className="badge badge--pulse" style={{ fontSize: '11px' }}>
-                  ● {activeAgents.join(', ')} 작업 중…
+                  ●{' '}
+                  {activeAgents
+                    .map((name) => {
+                      const start = agentStartTimes[name] ?? nowSec;
+                      const elapsed = Math.max(0, nowSec - start);
+                      return `${name} (${formatElapsedTime(elapsed)})`;
+                    })
+                    .join(', ')}{' '}
+                  작업 중
                 </span>
               ) : sseState === 'open' ? (
                 <span

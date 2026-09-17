@@ -1,0 +1,345 @@
+/* A/B 벤치마크 HUD — 미니멀 & 고대비 스타일 */
+
+.bhud-panel {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 999;
+  width: 440px;
+  max-width: calc(100vw - 48px);
+  background: var(--color-surface, #1e222b);
+  border: 1px solid var(--color-rule, rgba(255, 255, 255, 0.12));
+  border-radius: var(--radius, 8px);
+  padding: var(--space-3, 16px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3, 12px);
+  color: var(--color-ink, #f1f5f9);
+  transition:
+    transform 200ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 200ms ease-out;
+  backdrop-filter: blur(12px);
+}
+
+.bhud-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2, 8px);
+  padding-bottom: var(--space-2, 8px);
+  border-bottom: 1px solid var(--color-rule, rgba(255, 255, 255, 0.08));
+}
+
+.bhud-panel__title-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  flex-wrap: wrap;
+}
+
+.bhud-icon {
+  color: #fbbf24;
+  flex-shrink: 0;
+}
+
+.bhud-panel__title {
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: -0.01em;
+}
+
+.bhud-badge-speedup {
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(16, 185, 129, 0.18);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: 9999px;
+  padding: 1px 8px;
+  letter-spacing: 0.02em;
+}
+
+.bhud-panel__close-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--color-ink-mid, #94a3b8);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    transform 160ms ease-out,
+    color 160ms ease-out,
+    background 160ms ease-out;
+}
+
+.bhud-panel__close-btn:hover {
+  color: var(--color-ink, #f1f5f9);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.bhud-panel__close-btn:active {
+  transform: scale(0.92);
+}
+
+.bhud-panel__switch-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1, 6px);
+}
+
+.bhud-panel__label {
+  font-size: 11px;
+  color: var(--color-ink-mid, #94a3b8);
+  font-weight: 500;
+}
+
+.bhud-segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--color-rule, rgba(255, 255, 255, 0.08));
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.bhud-segmented__btn {
+  background: transparent;
+  border: none;
+  color: var(--color-ink-mid, #94a3b8);
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition:
+    background 150ms ease-out,
+    color 150ms ease-out,
+    transform 150ms ease-out;
+}
+
+.bhud-segmented__btn:hover {
+  color: var(--color-ink, #f1f5f9);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.bhud-segmented__btn:active {
+  transform: scale(0.97);
+}
+
+.bhud-segmented__btn--active {
+  background: var(--color-card, #282f3c);
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.bhud-segmented__tag {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+}
+
+.bhud-segmented__tag--b {
+  background: #10b981;
+  color: #042f2e;
+}
+
+.bhud-metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2, 8px);
+}
+
+.bhud-metric-card {
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--color-rule, rgba(255, 255, 255, 0.06));
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.bhud-metric-card--highlight {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.06);
+}
+
+.bhud-metric-card__label {
+  font-size: 10px;
+  color: var(--color-ink-mid, #94a3b8);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.bhud-metric-card__value-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.bhud-metric-card__value {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-ink, #f1f5f9);
+}
+
+.bhud-metric-card__unit {
+  font-size: 11px;
+  font-weight: normal;
+  color: var(--color-ink-mid, #94a3b8);
+}
+
+.bhud-metric-card__compare {
+  font-size: 10px;
+  color: var(--color-ink-mid, #94a3b8);
+  white-space: nowrap;
+}
+
+.bhud-metric--good {
+  color: #34d399;
+}
+
+.bhud-metric--warn {
+  color: #f87171;
+}
+
+.bhud-metric--accent {
+  color: #34d399;
+}
+
+.bhud-panel__foot {
+  padding-top: var(--space-2, 8px);
+  border-top: 1px solid var(--color-rule, rgba(255, 255, 255, 0.06));
+}
+
+.bhud-panel__hint {
+  font-size: 11px;
+  color: var(--color-ink-mid, #94a3b8);
+  line-height: 1.4;
+  margin: 0;
+}
+
+/* 축소 상태의 미니멀 플로팅 Pill */
+.bhud-pill {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 999;
+  background: var(--color-surface, #1e222b);
+  border: 1px solid var(--color-rule, rgba(255, 255, 255, 0.15));
+  border-radius: 9999px;
+  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(10px);
+  color: var(--color-ink, #f1f5f9);
+  transition:
+    transform 160ms cubic-bezier(0.23, 1, 0.32, 1),
+    border-color 160ms ease-out;
+}
+
+.bhud-pill:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.bhud-pill:active {
+  transform: scale(0.97);
+}
+
+.bhud-pill__indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bhud-pill__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.bhud-pill__dot--fast {
+  background: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+}
+
+.bhud-pill__dot--slow {
+  background: #f59e0b;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.6);
+}
+
+.bhud-pill__variant {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.bhud-pill__badge {
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(16, 185, 129, 0.18);
+  color: #34d399;
+  padding: 2px 7px;
+  border-radius: 9999px;
+}
+
+.bhud-pill__expand-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--color-ink, #f1f5f9);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 150ms ease-out;
+}
+
+.bhud-pill__expand-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+@media (max-width: 480px) {
+  .bhud-panel {
+    bottom: 12px;
+    right: 12px;
+    left: 12px;
+    width: auto;
+    max-width: none;
+    padding: 12px;
+  }
+
+  .bhud-metrics-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .bhud-pill {
+    bottom: 12px;
+    right: 12px;
+    padding: 5px 10px;
+    gap: 6px;
+  }
+
+  .bhud-pill__variant {
+    font-size: 11px;
+  }
+}
