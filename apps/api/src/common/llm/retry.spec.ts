@@ -1,9 +1,4 @@
-import {
-  executeWithRetry,
-  calculateBackoff,
-  defaultIsRetryable,
-  RetryableLlmError,
-} from './retry';
+import { executeWithRetry, calculateBackoff, defaultIsRetryable, RetryableLlmError } from './retry';
 import { ApiException } from '../errors/api.exception';
 import { ErrorCode } from '../errors/error-codes';
 
@@ -42,37 +37,39 @@ describe('LLM Retry & Resilience (executeWithRetry)', () => {
   it('최대 재시도 횟수를 초과하면 마지막 에러를 던진다', async () => {
     const fn = jest.fn().mockRejectedValue(new RetryableLlmError('Service Unavailable', 503));
 
-    await expect(
-      executeWithRetry(fn, { maxRetries: 3, initialDelayMs: 0 }),
-    ).rejects.toThrow('Service Unavailable');
+    await expect(executeWithRetry(fn, { maxRetries: 3, initialDelayMs: 0 })).rejects.toThrow(
+      'Service Unavailable',
+    );
     expect(fn).toHaveBeenCalledTimes(4);
   });
 
   it('400, 401, 403, 404 및 ApiException은 재시도 없이 즉시 실패한다', async () => {
-    const fnApi = jest.fn().mockRejectedValue(
-      new ApiException(ErrorCode.INTERNAL, '자격증명 오류', 503),
-    );
+    const fnApi = jest
+      .fn()
+      .mockRejectedValue(new ApiException(ErrorCode.INTERNAL, '자격증명 오류', 503));
     await expect(
       executeWithRetry(fnApi, { maxRetries: 3, initialDelayMs: 0 }),
     ).rejects.toBeInstanceOf(ApiException);
     expect(fnApi).toHaveBeenCalledTimes(1);
 
     const fn401 = jest.fn().mockRejectedValue({ status: 401, message: 'Unauthorized' });
-    await expect(
-      executeWithRetry(fn401, { maxRetries: 3, initialDelayMs: 0 }),
-    ).rejects.toEqual(expect.objectContaining({ status: 401 }));
+    await expect(executeWithRetry(fn401, { maxRetries: 3, initialDelayMs: 0 })).rejects.toEqual(
+      expect.objectContaining({ status: 401 }),
+    );
     expect(fn401).toHaveBeenCalledTimes(1);
 
     const fn403 = jest.fn().mockRejectedValue({ status: 403, message: 'Forbidden' });
-    await expect(
-      executeWithRetry(fn403, { maxRetries: 3, initialDelayMs: 0 }),
-    ).rejects.toEqual(expect.objectContaining({ status: 403 }));
+    await expect(executeWithRetry(fn403, { maxRetries: 3, initialDelayMs: 0 })).rejects.toEqual(
+      expect.objectContaining({ status: 403 }),
+    );
     expect(fn403).toHaveBeenCalledTimes(1);
   });
 
   it('네트워크 오류(fetch failed, ECONNRESET, timeout)는 재시도 대상이다', () => {
     expect(defaultIsRetryable(new TypeError('fetch failed'))).toBe(true);
-    expect(defaultIsRetryable({ name: 'AbortError', message: 'The operation was aborted' })).toBe(true);
+    expect(defaultIsRetryable({ name: 'AbortError', message: 'The operation was aborted' })).toBe(
+      true,
+    );
     expect(defaultIsRetryable({ code: 'ECONNRESET', message: 'read ECONNRESET' })).toBe(true);
     expect(defaultIsRetryable({ code: 'ETIMEDOUT', message: 'connect ETIMEDOUT' })).toBe(true);
     expect(defaultIsRetryable(new RetryableLlmError('rate limit', 429))).toBe(true);

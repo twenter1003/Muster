@@ -1,11 +1,7 @@
 import { Repository } from 'typeorm';
 import { ProjectGoalsService, parseProgress } from './project-goals.service';
 import { ApiException } from '../../common/errors/api.exception';
-import type {
-  ProjectGoals,
-  ProjectMember,
-  ProjectProgressSnapshot,
-} from '../../database/entities';
+import type { ProjectGoals, ProjectMember, ProjectProgressSnapshot } from '../../database/entities';
 import type { GeminiClient, GeminiGenerateParams } from '../../common/llm/gemini-client';
 import type { GitIntegrationService } from '../project-core/git-integration.service';
 import type { AuditService } from '../audit/audit.service';
@@ -76,9 +72,7 @@ const make = (opts: {
 
   const members = {
     findOne: async () =>
-      opts.membersRow !== undefined
-        ? opts.membersRow
-        : { user_id: USER, role: 'owner' as const },
+      opts.membersRow !== undefined ? opts.membersRow : { user_id: USER, role: 'owner' as const },
   } as unknown as Repository<ProjectMember>;
 
   const service = new ProjectGoalsService(goals, snapshots, gemini, gitIntegration, audit, members);

@@ -93,8 +93,7 @@ export async function executeWithRetry<T>(
   options: RetryOptions = {},
 ): Promise<T> {
   const maxRetries = options.maxRetries ?? 3;
-  const initialDelayMs =
-    options.initialDelayMs ?? (process.env.NODE_ENV === 'test' ? 0 : 1000);
+  const initialDelayMs = options.initialDelayMs ?? (process.env.NODE_ENV === 'test' ? 0 : 1000);
   const backoffMultiplier = options.backoffMultiplier ?? 2;
   const useJitter = options.jitter ?? true;
   const timeoutMs = options.timeoutMs ?? 30000;

@@ -5,7 +5,7 @@ describe('ProjectDetailPage 라이브 틱 격리 및 단조 증가 검증', () =
     // 시뮬레이션: Project A에서 활성 상태
     let activeAgents = ['claude-code', 'antigravity'];
     let agentStartTimes: Record<string, number> = { 'claude-code': 1000, antigravity: 1005 };
-    let agentHeartbeats: Record<string, any> = {
+    let agentHeartbeats: Record<string, { tokens_used: number; cost: string }> = {
       'claude-code': { tokens_used: 5000, cost: '0.0180' },
       antigravity: { tokens_used: 2000, cost: '0.0018' },
     };

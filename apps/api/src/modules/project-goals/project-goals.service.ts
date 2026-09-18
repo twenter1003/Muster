@@ -200,8 +200,7 @@ export class ProjectGoalsService {
       const owner = await this.members.findOne({
         where: { project_id: projectId, role: 'owner' },
       });
-      const anyMember =
-        owner ?? (await this.members.findOne({ where: { project_id: projectId } }));
+      const anyMember = owner ?? (await this.members.findOne({ where: { project_id: projectId } }));
       if (anyMember) {
         effectiveUserId = anyMember.user_id;
       }
