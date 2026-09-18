@@ -764,7 +764,7 @@ export function ProjectDetailPage() {
         const prevCostNum = Number(prevItem?.cost ?? '0');
         const nextCostNum = Number(payload.cost ?? '0');
         const nextCost =
-          nextCostNum >= prevCostNum ? payload.cost ?? '0' : prevItem?.cost ?? '0';
+          nextCostNum >= prevCostNum ? (payload.cost ?? '0') : (prevItem?.cost ?? '0');
 
         return {
           ...prev,
