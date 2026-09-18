@@ -663,20 +663,7 @@ export function ProjectDetailPage() {
   const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false);
   const [wasteModalOpen, setWasteModalOpen] = useState(false);
   const [selectedRun, setSelectedRun] = useState<SessionRunView | null>(null);
-  const [abortingRunId, setAbortingRunId] = useState<string | null>(null);
   const [agentFilter, setAgentFilter] = useState<AgentFilterType>('all');
-
-  const handleInlineAbort = async (runId: string) => {
-    setAbortingRunId(runId);
-    try {
-      await apiPost(`/agent-runs/${runId}/abort`);
-      usage.reload();
-    } catch (err: unknown) {
-      console.error('Failed to abort run', err);
-    } finally {
-      setAbortingRunId(null);
-    }
-  };
 
   // 빠른 프로젝트 전환기 목록
   const allProjects = useApi<Page<ProjectView>>('/projects?limit=50');
@@ -1206,17 +1193,6 @@ export function ProjectDetailPage() {
                           {targetRunningRun && (
                             <button
                               type="button"
-                              className="btn btn--danger budget-spike-alert__action-btn"
-                              onClick={() => handleInlineAbort(targetRunningRun.id)}
-                              disabled={abortingRunId === targetRunningRun.id}
-                              data-testid="banner-abort-btn"
-                            >
-                              {abortingRunId === targetRunningRun.id ? '중단 중…' : '🚨 세션 중단'}
-                            </button>
-                          )}
-                          {targetRunningRun && (
-                            <button
-                              type="button"
                               className="btn budget-spike-alert__action-btn"
                               onClick={() => {
                                 setSelectedRun(targetRunningRun);
@@ -1371,21 +1347,6 @@ export function ProjectDetailPage() {
                             <span className="meta session-row__time">
                               {formatDateTime(r.started_at)}
                             </span>
-                            {isRunning && (
-                              <button
-                                type="button"
-                                className="session-row__abort-btn"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleInlineAbort(r.id);
-                                }}
-                                disabled={abortingRunId === r.id}
-                                title="이 세션 강제 중단"
-                                data-testid={`session-abort-btn-${r.id}`}
-                              >
-                                {abortingRunId === r.id ? '중단 중…' : '중단'}
-                              </button>
-                            )}
                           </div>
                         </div>
                       );
@@ -1514,9 +1475,6 @@ export function ProjectDetailPage() {
         onClose={() => setWasteModalOpen(false)}
         run={selectedRun}
         projectId={id}
-        onAbort={async () => {
-          await usage.reload();
-        }}
       />
     </section>
   );

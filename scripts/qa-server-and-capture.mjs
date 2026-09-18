@@ -501,23 +501,7 @@ const server = http.createServer((req, res) => {
       return;
     }
 
-    // Agent Run Abort & Detail
-    const matchAbort = url.pathname.match(/^\/api\/v1\/(?:agents\/[^/]+\/runs|agent-runs)\/([^/]+)\/abort$/);
-    if (matchAbort && req.method === 'POST') {
-      const runId = matchAbort[1];
-      res.writeHead(200);
-      res.end(
-        JSON.stringify({
-          id: runId,
-          status: 'cancelled',
-          ended_at: new Date().toISOString(),
-          tokens_used: 145200,
-          cost: '$0.435',
-          message: 'Agent run aborted successfully',
-        }),
-      );
-      return;
-    }
+
 
     const matchRunDetail = url.pathname.match(/^\/api\/v1\/agent-runs\/([^/]+)$/);
     if (matchRunDetail && req.method === 'GET') {

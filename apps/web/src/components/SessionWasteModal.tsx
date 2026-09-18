@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Modal } from './Modal';
-import { apiPost, ApiError } from '../lib/api';
 import { downloadWasteReport } from '../lib/exportUtils';
 import {
   formatCost,
@@ -38,27 +37,14 @@ export interface SessionWasteModalProps {
   onClose: () => void;
   run: SessionWasteInfo | null;
   projectId?: string;
-  onAbort?: (runId: string) => Promise<void> | void;
 }
 
-export function SessionWasteModal({
-  open,
-  onClose,
-  run,
-  projectId,
-  onAbort,
-}: SessionWasteModalProps) {
-  const [aborting, setAborting] = useState(false);
-  const [abortError, setAbortError] = useState<string | null>(null);
-  const [isAbortedLocal, setIsAbortedLocal] = useState(false);
+export function SessionWasteModal({ open, onClose, run, projectId }: SessionWasteModalProps) {
   const [downloadingFormat, setDownloadingFormat] = useState<'csv' | 'json' | null>(null);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
 
-  // 모달이 열리거나 대상 run이 바뀔 때 로컬 상태 초기화
+  // 모달이 열리거나 대상 run이 바뀔 때 알림 초기화
   useEffect(() => {
-    setAborting(false);
-    setAbortError(null);
-    setIsAbortedLocal(false);
     setExportNotice(null);
   }, [run?.id, open]);
 
@@ -83,32 +69,9 @@ export function SessionWasteModal({
     [projectId, downloadingFormat],
   );
 
-  const handleAbort = useCallback(async () => {
-    if (!run || aborting) return;
-
-    setAborting(true);
-    setAbortError(null);
-
-    try {
-      await apiPost(`/agent-runs/${run.id}/abort`);
-      setIsAbortedLocal(true);
-      if (onAbort) {
-        await onAbort(run.id);
-      }
-    } catch (err: unknown) {
-      if (err instanceof ApiError) {
-        setAbortError(err.message);
-      } else {
-        setAbortError('세션 중단 요청 중 오류가 발생했습니다.');
-      }
-    } finally {
-      setAborting(false);
-    }
-  }, [run, aborting, onAbort]);
-
   if (!run) return null;
 
-  const currentStatus = isAbortedLocal ? 'cancelled' : run.status;
+  const currentStatus = run.status;
   const isRunning = currentStatus === 'running';
   const isCancelled = currentStatus === 'cancelled';
   const isSucceeded = currentStatus === 'succeeded';
@@ -242,41 +205,11 @@ export function SessionWasteModal({
           )}
         </div>
 
-        {/* 실행 제어 (원클릭 세션 중단) 섹션 */}
+        {/* 세션 상태 안내 배너 */}
         {isRunning && (
-          <div className="session-modal__control-box" data-testid="session-control-box">
-            <div className="session-modal__control-info">
-              <span className="session-modal__control-icon">⚡</span>
-              <div>
-                <strong>실시간 실행 중단 제어</strong>
-                <p className="meta">
-                  백그라운드에서 토큰을 소모 중인 에이전트 CLI 프로세스에 즉시 취소 신호를 전송하고
-                  세션을 안전하게 종료합니다.
-                </p>
-              </div>
-            </div>
-
-            {abortError && (
-              <p className="error-note" role="alert" style={{ margin: 'var(--space-2) 0' }}>
-                {abortError}
-              </p>
-            )}
-
-            <button
-              type="button"
-              className="btn btn--danger session-modal__abort-btn"
-              onClick={handleAbort}
-              disabled={aborting}
-              data-testid="modal-abort-button"
-            >
-              {aborting ? (
-                <span className="session-modal__loading">
-                  <span className="session-modal__spinner" /> 세션 중단 요청 중…
-                </span>
-              ) : (
-                '🚨 세션 강제 중단 (Abort)'
-              )}
-            </button>
+          <div className="session-modal__info-banner" data-testid="session-running-banner">
+            <span>⚡</span>
+            <p className="meta">이 세션은 현재 백그라운드에서 실시간 작업 중입니다.</p>
           </div>
         )}
 
@@ -284,9 +217,9 @@ export function SessionWasteModal({
           <div className="session-modal__alert-cancelled" data-testid="session-cancelled-alert">
             <span>🛑</span>
             <div>
-              <strong>강제 중단된 세션</strong>
+              <strong>중단된 세션</strong>
               <p className="meta">
-                관리자에 의해 작업이 강제 종료되었으며, 추가 토큰/비용 소모가 차단되었습니다.
+                작업이 중단되었으며 추가 토큰/비용 소모가 차단되었습니다.
                 {run.ended_at && ` (종료 시각: ${formatDateTime(run.ended_at)})`}
               </p>
             </div>

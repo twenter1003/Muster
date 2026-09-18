@@ -320,22 +320,6 @@ export class AgentsController {
 
     return toRunView(await this.runs.start(agent.id, dto));
   }
-
-  @Post(':agentId/runs/:runId/abort')
-  async abortRun(
-    @Param('agentId') agentId: string,
-    @Param('runId') runId: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ): Promise<RunView> {
-    const agent = await this.agents.detail(agentId, user.id);
-    const run = await this.runs.abort(runId, { userId: user.id });
-    await this.audit.record({
-      user_id: user.id,
-      action: 'agent_run.abort',
-      project_id: agent.project_id,
-    });
-    return toRunView(run);
-  }
 }
 
 /**
@@ -345,10 +329,7 @@ export class AgentsController {
  */
 @Controller('agent-runs')
 export class AgentRunsController {
-  constructor(
-    private readonly runs: AgentRunsService,
-    private readonly audit: AuditService,
-  ) {}
+  constructor(private readonly runs: AgentRunsService) {}
 
   @Get(':id')
   @Public()
@@ -359,32 +340,6 @@ export class AgentRunsController {
         ? { apiKeyProjectId: req.apiKeyProjectId }
         : { userId: req.user!.id };
     return this.runs.detail(id, identity);
-  }
-
-  @Post(':id/abort')
-  @Public()
-  @UseGuards(ApiKeyOrSessionGuard)
-  async abort(@Param('id') id: string, @Req() req: Request): Promise<RunView> {
-    const identity =
-      req.apiKeyProjectId !== undefined
-        ? { apiKeyProjectId: req.apiKeyProjectId }
-        : { userId: req.user!.id };
-    const run = await this.runs.abort(id, identity);
-
-    if (req.user?.id) {
-      try {
-        const detail = await this.runs.detail(id, identity);
-        await this.audit.record({
-          user_id: req.user.id,
-          action: 'agent_run.abort',
-          project_id: detail.project_id,
-        });
-      } catch {
-        // 감사 기록 실패가 abort 자체를 실패하게 하지 않음
-      }
-    }
-
-    return toRunView(run);
   }
 
   @Patch(':id')
