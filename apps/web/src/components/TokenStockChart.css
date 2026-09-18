@@ -82,6 +82,20 @@
   box-shadow: 0 1px 4px rgba(79, 70, 229, 0.28);
 }
 
+.stock-chart__metric-hint {
+  font-size: var(--font-size-meta, 11px);
+  color: var(--color-ink-mid, #4b5563);
+  background: var(--color-bg, #ffffff);
+  border: 1px solid var(--color-rule, #d1d5db);
+  border-radius: 4px;
+  padding: 3px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  user-select: none;
+  line-height: 1.2;
+}
+
 /* 인터랙티브 에이전트 범례(Legend) 툴바 */
 .token-stock-chart__legend {
   display: flex;
@@ -485,6 +499,16 @@
 .stock-tooltip__row--total {
   font-size: 12px;
   margin-bottom: 2px;
+}
+
+.stock-tooltip__row--cost {
+  font-size: 11px;
+  color: #34d399;
+  margin-bottom: 3px;
+}
+
+.stock-tooltip__row--cost .stock-tooltip__label {
+  color: #a7f3d0;
 }
 
 .stock-tooltip__label {

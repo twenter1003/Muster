@@ -83,7 +83,7 @@ describe('HttpGeminiClient (실제 요청 형태)', () => {
     await expect(client.generate({ prompt: '안녕' })).resolves.toBe('hello');
   });
 
-  it('401/403이면 자격증명 오류로 503을 던진다', async () => {
+  it('401/403이면 자격증명 오류로 즉시(재시도 없이 1회) 503을 던진다', async () => {
     fetchMock.mockResolvedValue(respond(403, { error: 'denied' }));
     try {
       await client.generate({ prompt: '안녕' });
@@ -91,16 +91,29 @@ describe('HttpGeminiClient (실제 요청 형태)', () => {
     } catch (e) {
       expect(e).toBeInstanceOf(ApiException);
       expect((e as ApiException).getStatus()).toBe(503);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
     }
   });
 
-  it('429면 한도 초과 메시지로 503을 던진다', async () => {
-    fetchMock.mockResolvedValue(respond(429, {}));
+  it('일시적 500 오류 후 2회차 시도에서 성공하면 정상 복구된다', async () => {
+    fetchMock
+      .mockResolvedValueOnce(respond(500, { error: 'Internal Server Error' }))
+      .mockResolvedValueOnce(respond(200, okBody));
+
+    const res = await client.generate({ prompt: '안녕' });
+    expect(res).toBe('hello');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('429면 최대 재시도(4회) 후 한도 초과 메시지로 503을 던진다', async () => {
+    fetchMock.mockResolvedValue(respond(429, { error: 'Quota exceeded' }));
     try {
       await client.generate({ prompt: '안녕' });
       throw new Error('던졌어야 합니다');
     } catch (e) {
+      expect(e).toBeInstanceOf(ApiException);
       expect((e as ApiException).getStatus()).toBe(503);
+      expect(fetchMock).toHaveBeenCalledTimes(4);
     }
   });
 

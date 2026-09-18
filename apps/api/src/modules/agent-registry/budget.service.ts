@@ -79,6 +79,7 @@ export interface SessionRunView {
   id: string;
   agent_id: string;
   agent_name: string;
+  model?: string;
   tokens_used: number;
   cost: string;
   status: string;
@@ -334,10 +335,11 @@ export class BudgetService {
       .innerJoin(Agent, 'a', 'a.id = r.agent_id')
       .where('a.project_id = :projectId', { projectId })
       .select('a.name', 'agent_name')
+      .addSelect('r.model', 'model_code')
       .addSelect('COALESCE(SUM(r.tokens_used), 0)', 'tokens')
       .addSelect('COALESCE(SUM(r.cost), 0)', 'cost')
       .addSelect('COUNT(r.id)', 'run_count')
-      .groupBy('a.name');
+      .groupBy('a.name, r.model');
 
     const filterAgents =
       agentName && agentName !== 'all'
@@ -380,6 +382,7 @@ export class BudgetService {
         recentQb.getMany(),
         modelQb.getRawMany<{
           agent_name: string;
+          model_code?: string;
           tokens: string;
           cost: string;
           run_count: string | number;
@@ -482,7 +485,10 @@ export class BudgetService {
     // model_breakdown 계산
     const totalTokensNum = Number(totalRow?.tokens ?? '0');
     const model_breakdown: ModelUsageItem[] = modelRows.map((row) => {
-      const { modelCode } = this.modelPricing.resolvePricing(undefined, row.agent_name);
+      const { modelCode } = this.modelPricing.resolvePricing(
+        row.model_code || undefined,
+        row.agent_name,
+      );
       const provider = resolveProvider(modelCode, row.agent_name);
       const displayName = resolveDisplayName(modelCode, row.agent_name);
       const tokensNum = Number(row.tokens);
@@ -509,6 +515,7 @@ export class BudgetService {
         id: r.id,
         agent_id: r.agent_id,
         agent_name: r.agent?.name ?? 'agent',
+        model: r.model ?? undefined,
         tokens_used: r.tokens_used,
         cost: r.cost,
         status: r.status,

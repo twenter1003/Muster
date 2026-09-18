@@ -28,6 +28,10 @@ export class AgentRun {
   @Column({ type: 'numeric', precision: 12, scale: 4, default: 0 })
   cost!: string;
 
+  /** 사용된 실제 LLM 모델명 (예: claude-3-5-sonnet, gemini-2.5-flash 등). */
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  model?: string | null;
+
   @Column({ type: 'timestamptz' })
   started_at!: Date;
 

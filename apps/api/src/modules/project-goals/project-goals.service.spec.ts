@@ -1,7 +1,11 @@
 import { Repository } from 'typeorm';
 import { ProjectGoalsService, parseProgress } from './project-goals.service';
 import { ApiException } from '../../common/errors/api.exception';
-import type { ProjectGoals, ProjectProgressSnapshot } from '../../database/entities';
+import type {
+  ProjectGoals,
+  ProjectMember,
+  ProjectProgressSnapshot,
+} from '../../database/entities';
 import type { GeminiClient, GeminiGenerateParams } from '../../common/llm/gemini-client';
 import type { GitIntegrationService } from '../project-core/git-integration.service';
 import type { AuditService } from '../audit/audit.service';
@@ -25,6 +29,7 @@ const make = (opts: {
   snapshotRow?: ProjectProgressSnapshot | null;
   docs?: RepoDoc[];
   commits?: CommitSummary[];
+  membersRow?: Partial<ProjectMember> | null;
 }) => {
   const saved: Record<string, unknown>[] = [];
 
@@ -69,7 +74,14 @@ const make = (opts: {
     recentCommits: async () => opts.commits ?? [],
   } as unknown as GitIntegrationService;
 
-  const service = new ProjectGoalsService(goals, snapshots, gemini, gitIntegration, audit);
+  const members = {
+    findOne: async () =>
+      opts.membersRow !== undefined
+        ? opts.membersRow
+        : { user_id: USER, role: 'owner' as const },
+  } as unknown as Repository<ProjectMember>;
+
+  const service = new ProjectGoalsService(goals, snapshots, gemini, gitIntegration, audit, members);
   return { service, gemini, saved, auditCalls };
 };
 
@@ -211,6 +223,76 @@ describe('ProjectGoalsService', () => {
       expect(auditCalls).toEqual([
         { user_id: USER, action: 'project_progress.analyze', project_id: PROJECT },
       ]);
+    });
+  });
+
+  describe('handleCodePushed (자동 갱신 훅 및 10분 쿨다운)', () => {
+    it('푸시 이벤트 수신 시 자동으로 analyzeProgress를 트리거하고 쿨다운을 기록한다', async () => {
+      const goalsRow = {
+        id: 'g1',
+        project_id: PROJECT,
+        content_md: '## 목표\n- [x] 기존 완료',
+        updated_at: new Date(),
+      } as ProjectGoals;
+
+      const { service, auditCalls } = make({ goalsRow });
+      await service.handleCodePushed({
+        project_id: PROJECT,
+        ref: 'refs/heads/main',
+        occurred_at: new Date().toISOString(),
+        repo_url: 'https://github.com/kimtaewoo/muster',
+        commits_count: 1,
+      });
+
+      expect(service.lastAutoAnalysisMap.has(PROJECT)).toBe(true);
+      expect(auditCalls).toEqual([
+        { user_id: USER, action: 'project_progress.analyze', project_id: PROJECT },
+      ]);
+    });
+
+    it('10분 쿨다운 이내에 다시 푸시되면 자동 분석을 건너뛴다', async () => {
+      const goalsRow = {
+        id: 'g1',
+        project_id: PROJECT,
+        content_md: '## 목표\n- [x] 기존 완료',
+        updated_at: new Date(),
+      } as ProjectGoals;
+
+      const { service, auditCalls } = make({ goalsRow });
+
+      // 1회차 실행
+      await service.handleCodePushed({
+        project_id: PROJECT,
+        ref: 'refs/heads/main',
+        occurred_at: new Date().toISOString(),
+        repo_url: 'https://github.com/kimtaewoo/muster',
+        commits_count: 1,
+      });
+      expect(auditCalls).toHaveLength(1);
+
+      // 즉시 2회차 실행 (쿨다운 상태)
+      await service.handleCodePushed({
+        project_id: PROJECT,
+        ref: 'refs/heads/main',
+        occurred_at: new Date().toISOString(),
+        repo_url: 'https://github.com/kimtaewoo/muster',
+        commits_count: 2,
+      });
+      // 호출 횟수가 늘어나지 않음
+      expect(auditCalls).toHaveLength(1);
+    });
+
+    it('목표 문서가 없는 프로젝트는 쿨다운을 소모하지 않고 건너뛴다', async () => {
+      const { service } = make({ goalsRow: null });
+      await service.handleCodePushed({
+        project_id: PROJECT,
+        ref: 'refs/heads/main',
+        occurred_at: new Date().toISOString(),
+        repo_url: 'https://github.com/kimtaewoo/muster',
+        commits_count: 1,
+      });
+
+      expect(service.lastAutoAnalysisMap.has(PROJECT)).toBe(false);
     });
   });
 });

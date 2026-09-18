@@ -51,7 +51,7 @@ test('loadConfig: 로컬 설정이 없으면 환경변수로 폴백한다', () =
 
 test('loadConfig: 아무것도 없으면 null — 무관한 레포는 조용히 건너뛴다', () => {
   withTempDir((dir) => {
-    assert.equal(loadConfig(dir, {}), null);
+    assert.equal(loadConfig(dir, {}, join(dir, 'no-global.json')), null);
   });
 });
 
@@ -88,9 +88,29 @@ test('sumUsageFromTranscript: assistant 턴의 usage 네 필드를 모두 더한
   });
 });
 
+test('sumUsageFromTranscript: assistant 메시지에서 model 필드를 추출한다', () => {
+  withTempDir((dir) => {
+    const file = join(dir, 'transcript.jsonl');
+    const lines = [
+      JSON.stringify({
+        type: 'assistant',
+        message: {
+          role: 'assistant',
+          model: 'claude-3-5-sonnet-20241022',
+          usage: { input_tokens: 10, output_tokens: 20 },
+        },
+      }),
+    ];
+    writeFileSync(file, lines.join('\n'));
+    const result = sumUsageFromTranscript(file);
+    assert.equal(result.model, 'claude-3-5-sonnet-20241022');
+    assert.equal(result.tokens_used, 30);
+  });
+});
+
 test('sumUsageFromTranscript: 파일이 없으면 0을 돌려준다 (예외를 던지지 않는다)', () => {
   const result = sumUsageFromTranscript('/no/such/file.jsonl');
-  assert.deepEqual(result, { tokens_used: 0, output_tokens: 0, turns: 0 });
+  assert.deepEqual(result, { tokens_used: 0, output_tokens: 0, turns: 0, model: undefined });
 });
 
 test('estimateCost: 요율이 둘 다 있어야 계산하고, 하나라도 없으면 undefined다', () => {

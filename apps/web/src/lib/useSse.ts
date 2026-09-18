@@ -38,7 +38,11 @@ export function useSse(projectId: string | null, limit = 50) {
   const [state, setState] = useState<ConnectionState>('closed');
 
   useEffect(() => {
-    if (!projectId) return;
+    setEvents([]);
+    if (!projectId) {
+      setState('closed');
+      return;
+    }
 
     const source = new EventSource(`${API_BASE}/projects/${projectId}/stream`);
     setState('connecting');
@@ -68,6 +72,7 @@ export function useSse(projectId: string | null, limit = 50) {
       for (const [type, handler] of handlers) source.removeEventListener(type, handler);
       source.close();
       setState('closed');
+      setEvents([]);
     };
   }, [projectId, limit]);
 
