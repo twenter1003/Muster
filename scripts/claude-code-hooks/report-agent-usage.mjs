@@ -83,11 +83,12 @@ export function loadConfig(
  * "assistant"인 줄에만 usage가 있다. 캐시 토큰도 실제로 쓴 용량이므로 합산에 포함한다.
  */
 export function sumUsageFromTranscript(transcriptPath) {
-  if (!existsSync(transcriptPath)) return { tokens_used: 0, output_tokens: 0, turns: 0 };
+  if (!existsSync(transcriptPath)) return { tokens_used: 0, output_tokens: 0, turns: 0, model: undefined };
 
   let inputSide = 0;
   let outputSide = 0;
   let turns = 0;
+  let model;
   const lines = readFileSync(transcriptPath, 'utf8').split('\n');
 
   for (const line of lines) {
@@ -99,6 +100,9 @@ export function sumUsageFromTranscript(transcriptPath) {
       continue;
     }
     if (entry.type !== 'assistant') continue;
+    if (!model && entry.message?.model) {
+      model = entry.message.model;
+    }
     const usage = entry.message?.usage;
     if (!usage) continue;
 
@@ -110,7 +114,7 @@ export function sumUsageFromTranscript(transcriptPath) {
     turns += 1;
   }
 
-  return { tokens_used: inputSide + outputSide, output_tokens: outputSide, turns };
+  return { tokens_used: inputSide + outputSide, output_tokens: outputSide, turns, model };
 }
 
 /**
@@ -197,7 +201,7 @@ export async function handleHeartbeat(hook, env) {
   const usage = sumUsageFromTranscript(transcriptPath);
   if (usage.tokens_used <= (state.last_heartbeat_tokens || 0)) return;
 
-  await sendHeartbeat(config, state.run_id, usage.tokens_used);
+  await sendHeartbeat(config, state.run_id, usage.tokens_used, usage.model);
   state.last_heartbeat_tokens = usage.tokens_used;
   writeFileSync(statePath, JSON.stringify(state), 'utf8');
 }
@@ -219,6 +223,7 @@ async function handleSessionEnd(hook, env) {
   await apiCall(config, 'PATCH', `/agent-runs/${state.run_id}`, {
     status: 'succeeded',
     tokens_used: usage.tokens_used,
+    ...(usage.model ? { model: usage.model } : {}),
     ...(cost !== undefined ? { cost } : {}),
   });
 

@@ -129,6 +129,13 @@ export function TokenStockChart({
     return max === 0 ? 1000 : max;
   }, [values, effectiveOverlay, agentSeries, activeAgents]);
 
+  // 하단 볼륨 막대 스케일링을 위한 구간 비용(Cost) 최대값 계산
+  const maxCost = useMemo(() => {
+    const costs = data.map((d) => Number(d.cost) || 0);
+    const max = Math.max(...costs, 0);
+    return max === 0 ? 0.0001 : max;
+  }, [data]);
+
   // 좌표 계산 (W: 600, H: height)
   const chartW = SVG_WIDTH - PADDING.left - PADDING.right;
   const chartH = height - PADDING.top - PADDING.bottom;
@@ -279,6 +286,10 @@ export function TokenStockChart({
               📊 {effectiveOverlay ? '단일 뷰로 전환' : '에이전트 비교'}
             </button>
           )}
+
+          <span className="stock-chart__metric-hint" data-testid="chart-metric-hint">
+            📈 선: 토큰 추이 · 📊 막대: 구간 비용 ($)
+          </span>
         </div>
 
         {activePoint && (
@@ -503,10 +514,11 @@ export function TokenStockChart({
                 className="chart-gridline chart-gridline--base"
               />
 
-              {/* 하단 볼륨 바 (하단 20% 영역에 거래량 스타일 표현) */}
+              {/* 하단 볼륨 바 (구간 비용 $ USD 기준 볼륨 막대 표현) */}
               {points.map((p) => {
                 const barMaxH = chartH * 0.22;
-                const barH = p.val > 0 ? Math.max((p.val / maxVal) * barMaxH, 2) : 0;
+                const costVal = Number(p.d.cost) || 0;
+                const barH = costVal > 0 ? Math.max((costVal / maxCost) * barMaxH, 2) : 0;
                 const barW = Math.max(chartW / (points.length * 2.2), 2);
                 const isHovered = hoveredIdx === p.i;
                 return (
@@ -518,7 +530,10 @@ export function TokenStockChart({
                     height={barH}
                     rx="1"
                     className={`stock-bar ${isHovered ? 'stock-bar--active' : ''}`}
-                  />
+                    data-testid={`stock-bar-${p.i}`}
+                  >
+                    <title>{`${p.d.key}: ${formatCost(p.d.cost)} (구간 비용)`}</title>
+                  </rect>
                 );
               })}
 
@@ -648,9 +663,12 @@ export function TokenStockChart({
                     <span className="stock-tooltip__label">전체 토큰</span>
                     <span className="stock-tooltip__value">
                       <strong>{formatTokenCount(activePoint.d.tokens)}</strong>
-                      <span className="stock-tooltip__cost">
-                        ({formatCost(activePoint.d.cost)})
-                      </span>
+                    </span>
+                  </div>
+                  <div className="stock-tooltip__row stock-tooltip__row--cost">
+                    <span className="stock-tooltip__label">구간 비용</span>
+                    <span className="stock-tooltip__value cost-text">
+                      <strong>{formatCost(activePoint.d.cost)}</strong>
                     </span>
                   </div>
 

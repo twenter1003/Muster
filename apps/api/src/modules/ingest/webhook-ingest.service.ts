@@ -15,6 +15,7 @@ import { ApiException } from '../../common/errors/api.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import {
   DomainEvent,
+  type CodePushedEvent,
   type HealthSnapshotCreatedEvent,
   type LogAppendedEvent,
   type WorkflowRunCompletedEvent,
@@ -140,6 +141,31 @@ export class WebhookIngestService {
         run_url: workflowRun.run_url,
         occurred_at: workflowRun.occurred_at.toISOString(),
       } satisfies WorkflowRunCompletedEvent);
+    }
+
+    if (req.eventType === 'push') {
+      const p = payload as {
+        ref?: string;
+        commits?: unknown[];
+        head_commit?: { id?: string };
+        pusher?: { name?: string };
+        sender?: { login?: string };
+      } | null;
+      const ref = p?.ref || 'refs/heads/main';
+      const commitSha = p?.head_commit?.id || null;
+      const commitsCount = Array.isArray(p?.commits) ? p!.commits.length : 1;
+      const pushedBy = p?.pusher?.name || p?.sender?.login;
+      const repoUrl = repoUrlOf(payload) || '';
+
+      this.events.emit(DomainEvent.CODE_PUSHED, {
+        project_id: projectId,
+        ref,
+        commit_sha: commitSha,
+        occurred_at: new Date().toISOString(),
+        commits_count: commitsCount,
+        repo_url: repoUrl,
+        pushed_by: pushedBy,
+      } satisfies CodePushedEvent);
     }
 
     return log || deployment || workflowRun ? 'processed' : 'ignored';

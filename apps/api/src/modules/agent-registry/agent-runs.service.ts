@@ -25,6 +25,7 @@ export interface SessionRunDetailView {
   agent_id: string;
   agent_name: string;
   project_id: string;
+  model?: string;
   status: string;
   tokens_used: number;
   cost: string;
@@ -82,6 +83,7 @@ export class AgentRunsService {
         agent_id: agentId,
         status,
         tokens_used: tokensUsed,
+        model: dto?.model ?? null,
         cost,
         started_at: startedAt,
         ended_at: endedAt,
@@ -99,6 +101,7 @@ export class AgentRunsService {
           agent_id: agentId,
           agent_name: agent?.name ?? 'agent',
           run_id: run.id,
+          model: run.model ?? null,
           status: 'running',
           started_at: run.started_at.toISOString(),
         });
@@ -108,6 +111,7 @@ export class AgentRunsService {
           agent_id: agentId,
           agent_name: agent?.name ?? 'agent',
           run_id: run.id,
+          model: run.model ?? null,
           status: run.status,
           tokens_used: run.tokens_used,
           cost: run.cost,
@@ -204,6 +208,7 @@ export class AgentRunsService {
 
     if (dto.status !== undefined) run.status = dto.status;
     if (dto.tokens_used !== undefined) run.tokens_used = dto.tokens_used;
+    if (dto.model !== undefined) run.model = dto.model;
     if (dto.cost !== undefined) {
       run.cost = dto.cost;
     } else if ((!run.cost || Number(run.cost) === 0) && run.tokens_used > 0) {
@@ -211,7 +216,7 @@ export class AgentRunsService {
       run.cost = this.modelPricing.calculateCost({
         tokens: run.tokens_used,
         agentName: agent?.name,
-        model: dto.model,
+        model: dto.model ?? run.model ?? undefined,
       });
     }
 
@@ -227,6 +232,7 @@ export class AgentRunsService {
       agent_id: saved.agent_id,
       agent_name: agent?.name ?? 'agent',
       run_id: saved.id,
+      model: saved.model ?? null,
       status: saved.status,
       tokens_used: saved.tokens_used,
       cost: saved.cost,
@@ -271,7 +277,7 @@ export class AgentRunsService {
       newCost = this.modelPricing.calculateCost({
         tokens: newTokens,
         agentName: agent?.name,
-        model: dto.model,
+        model: dto.model ?? run.model ?? undefined,
       });
     } else if (!newCost) {
       newCost = prevCost;
@@ -281,6 +287,9 @@ export class AgentRunsService {
 
     run.tokens_used = newTokens;
     run.cost = newCost;
+    if (dto.model !== undefined) {
+      run.model = dto.model;
+    }
 
     const saved = await this.runs.save(run);
 
@@ -290,6 +299,7 @@ export class AgentRunsService {
         agent_id: saved.agent_id,
         agent_name: agent?.name ?? 'agent',
         run_id: saved.id,
+        model: saved.model ?? null,
         tokens_used: saved.tokens_used,
         cost: saved.cost,
         delta_tokens: deltaTokens,
@@ -322,6 +332,7 @@ export class AgentRunsService {
       agent_id: run.agent_id,
       agent_name: agent?.name ?? 'agent',
       project_id: projectId,
+      model: run.model ?? undefined,
       status: run.status,
       tokens_used: run.tokens_used,
       cost: run.cost,

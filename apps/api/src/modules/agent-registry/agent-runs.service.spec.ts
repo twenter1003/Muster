@@ -140,6 +140,24 @@ describe('AgentRunsService', () => {
         }),
       );
     });
+
+    it('model이 전달되면 model 필드를 저장하고 AGENT_RUN_STARTED에 포함한다', async () => {
+      await service.start('agent-1', { status: 'running', model: 'claude-3-5-sonnet' });
+
+      expect(runsRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agent_id: 'agent-1',
+          model: 'claude-3-5-sonnet',
+        }),
+      );
+      expect(events.emit).toHaveBeenCalledWith(
+        DomainEvent.AGENT_RUN_STARTED,
+        expect.objectContaining({
+          agent_name: 'claude-code',
+          model: 'claude-3-5-sonnet',
+        }),
+      );
+    });
   });
 
   describe('recordByRepo', () => {
@@ -278,14 +296,17 @@ describe('AgentRunsService', () => {
         { apiKeyProjectId: 'proj-1' },
         {
           tokens_used: 8000,
+          model: 'gemini-3.8-flash',
         },
       );
 
       expect(result.tokens_used).toBe(8000);
+      expect(result.model).toBe('gemini-3.8-flash');
       expect(events.emit).toHaveBeenCalledWith(
         DomainEvent.AGENT_RUN_HEARTBEAT,
         expect.objectContaining({
           project_id: 'proj-1',
+          model: 'gemini-3.8-flash',
           delta_tokens: 3000,
         }),
       );
@@ -312,10 +333,11 @@ describe('AgentRunsService', () => {
   });
 
   describe('detail', () => {
-    it('세션 단건 상세 및 낭비 진단 데이터(waste, duration_seconds)를 정확히 반환한다', async () => {
+    it('세션 단건 상세 및 낭비 진단 데이터(waste, duration_seconds, model)를 정확히 반환한다', async () => {
       const run = {
         id: 'run-detail-1',
         agent_id: 'agent-1',
+        model: 'claude-3-5-sonnet',
         status: 'running',
         tokens_used: 45000,
         cost: '0.1500',
@@ -332,6 +354,7 @@ describe('AgentRunsService', () => {
       expect(detail.agent_id).toBe('agent-1');
       expect(detail.agent_name).toBe('claude-code');
       expect(detail.project_id).toBe('proj-1');
+      expect(detail.model).toBe('claude-3-5-sonnet');
       expect(detail.tokens_used).toBe(45000);
       expect(detail.duration_seconds).toBeGreaterThanOrEqual(30);
       expect(detail.waste).toBeDefined();

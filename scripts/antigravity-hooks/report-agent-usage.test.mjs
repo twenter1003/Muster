@@ -7,6 +7,7 @@ import {
   parseProto,
   loadConfig,
   sumUsageFromTranscript,
+  normalizeAntigravityModel,
   getGitRemoteUrl,
 } from './report-agent-usage.mjs';
 
@@ -97,9 +98,36 @@ test('Antigravity 훅: transcript 폴백 합산', async (t) => {
       assert.equal(usage.started_at, '2026-09-17T00:00:00Z');
       assert.equal(usage.ended_at, '2026-09-17T00:01:00Z');
       assert.ok(usage.tokens_used > 0);
+      assert.equal(usage.model, 'gemini-3.8-flash');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  await t.test('Model Selection 문자열에서 모델명을 추출한다', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'muster-test-'));
+    const transcriptPath = join(dir, 'transcript.jsonl');
+    try {
+      const lines = [
+        JSON.stringify({
+          step_index: 0,
+          type: 'USER_INPUT',
+          content: 'Switching model: `Model Selection` from auto to gemini-2.5-pro.',
+        }),
+      ];
+      writeFileSync(transcriptPath, lines.join('\n'));
+      const usage = sumUsageFromTranscript(transcriptPath);
+      assert.equal(usage.model, 'gemini-2.5-pro');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  await t.test('normalizeAntigravityModel: 모델 문자열을 표준 코드로 매핑한다', () => {
+    assert.equal(normalizeAntigravityModel('gemini-3.8-flash-preview'), 'gemini-3.8-flash');
+    assert.equal(normalizeAntigravityModel('gemini-2.5-pro'), 'gemini-2.5-pro');
+    assert.equal(normalizeAntigravityModel('claude-3-5-sonnet'), 'claude-sonnet-5');
+    assert.equal(normalizeAntigravityModel(null), 'gemini-3.8-flash');
   });
 });
 

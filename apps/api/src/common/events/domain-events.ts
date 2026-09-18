@@ -19,6 +19,8 @@ export const DomainEvent = {
   AGENT_RUN_FINISHED: 'agent-registry.run.finished',
   /** GitHub Actions 실행 하나가 끝난 순간. 환경 구성 실행 결과가 이 경로로 돌아온다. */
   WORKFLOW_RUN_COMPLETED: 'ingest.workflow_run.completed',
+  /** GitHub push 이벤트가 수신된 순간 (커밋 기반 자동 목표 갱신 훅 트리거). */
+  CODE_PUSHED: 'ingest.code.pushed',
 } as const;
 
 export interface LogAppendedEvent {
@@ -75,11 +77,22 @@ export interface WorkflowRunCompletedEvent {
   occurred_at: string;
 }
 
+export interface CodePushedEvent {
+  project_id: string;
+  ref: string;
+  commit_sha?: string | null;
+  occurred_at: string;
+  commits_count?: number;
+  repo_url?: string;
+  pushed_by?: string;
+}
+
 export interface AgentRunStartedEvent {
   project_id: string;
   agent_id: string;
   agent_name: string;
   run_id: string;
+  model?: string | null;
   status: 'running';
   started_at: string;
 }
@@ -89,6 +102,7 @@ export interface AgentRunHeartbeatEvent {
   agent_id: string;
   agent_name: string;
   run_id: string;
+  model?: string | null;
   tokens_used: number;
   cost: string;
   delta_tokens: number;
@@ -101,6 +115,7 @@ export interface AgentRunFinishedEvent {
   agent_id: string;
   agent_name: string;
   run_id: string;
+  model?: string | null;
   status: string;
   tokens_used: number;
   cost: string;
@@ -115,6 +130,7 @@ export interface DomainEventPayloads {
   [DomainEvent.PROJECT_STAGE_CHANGED]: ProjectStageChangedEvent;
   [DomainEvent.BUDGET_THRESHOLD_EXCEEDED]: BudgetThresholdExceededEvent;
   [DomainEvent.WORKFLOW_RUN_COMPLETED]: WorkflowRunCompletedEvent;
+  [DomainEvent.CODE_PUSHED]: CodePushedEvent;
   [DomainEvent.AGENT_RUN_STARTED]: AgentRunStartedEvent;
   [DomainEvent.AGENT_RUN_HEARTBEAT]: AgentRunHeartbeatEvent;
   [DomainEvent.AGENT_RUN_FINISHED]: AgentRunFinishedEvent;

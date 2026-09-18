@@ -14,11 +14,14 @@ const ARTIFACT_DIR_SESSION =
   '/Users/kimtaewoo/.gemini/antigravity/brain/1aa6d9ea-825f-4de3-b3a5-d2ef4a543122';
 const ARTIFACT_DIR_ABORT =
   '/Users/kimtaewoo/.gemini/antigravity/brain/0959bf44-17ba-4157-8495-db5e55b990da';
+const ARTIFACT_DIR_REFINEMENT =
+  '/Users/kimtaewoo/.gemini/antigravity/brain/790fd2c3-628d-47ce-b292-b00e99df3920';
 
 fs.mkdirSync(ARTIFACT_DIR_PARENT, { recursive: true });
 fs.mkdirSync(ARTIFACT_DIR_CURRENT, { recursive: true });
 fs.mkdirSync(ARTIFACT_DIR_SESSION, { recursive: true });
 fs.mkdirSync(ARTIFACT_DIR_ABORT, { recursive: true });
+fs.mkdirSync(ARTIFACT_DIR_REFINEMENT, { recursive: true });
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -814,10 +817,12 @@ async function runCaptures() {
     const destCurrent = path.join(ARTIFACT_DIR_CURRENT, outName);
     const destSession = path.join(ARTIFACT_DIR_SESSION, outName);
     const destAbort = path.join(ARTIFACT_DIR_ABORT, outName);
+    const destRefinement = path.join(ARTIFACT_DIR_REFINEMENT, outName);
     fs.writeFileSync(destParent, buffer);
     fs.writeFileSync(destCurrent, buffer);
     fs.writeFileSync(destSession, buffer);
     fs.writeFileSync(destAbort, buffer);
+    fs.writeFileSync(destRefinement, buffer);
 
     console.log(`  ✅ 저장 완료: ${outName} (${(buffer.length / 1024).toFixed(1)} KB)`);
   };

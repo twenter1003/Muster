@@ -710,6 +710,13 @@ export function ProjectDetailPage() {
   >({});
   const [nowSec, setNowSec] = useState<number>(() => Math.floor(Date.now() / 1000));
 
+  // 프로젝트 전환 시 활성 에이전트 및 틱 상태 완전 격리 (이전 프로젝트 잔류 방지)
+  useEffect(() => {
+    setActiveAgents([]);
+    setAgentStartTimes({});
+    setAgentHeartbeats({});
+  }, [id]);
+
   // 에이전트 작업 중 실시간 1초 카운트업 타이머
   useEffect(() => {
     if (activeAgents.length === 0) return;
@@ -751,16 +758,25 @@ export function ProjectDetailPage() {
       const curSec = Math.floor(Date.now() / 1000);
       setActiveAgents((prev) => (prev.includes(name) ? prev : [...prev, name]));
       setAgentStartTimes((prev) => ({ ...prev, [name]: prev[name] ?? curSec }));
-      setAgentHeartbeats((prev) => ({
-        ...prev,
-        [name]: {
-          tokens_used: payload.tokens_used ?? 0,
-          cost: payload.cost ?? '0',
-          delta_tokens: payload.delta_tokens ?? 0,
-          delta_cost: payload.delta_cost ?? '0',
-          last_tick_at: Date.now(),
-        },
-      }));
+      setAgentHeartbeats((prev) => {
+        const prevItem = prev[name];
+        const nextTokens = Math.max(prevItem?.tokens_used ?? 0, payload.tokens_used ?? 0);
+        const prevCostNum = Number(prevItem?.cost ?? '0');
+        const nextCostNum = Number(payload.cost ?? '0');
+        const nextCost =
+          nextCostNum >= prevCostNum ? (payload.cost ?? '0') : (prevItem?.cost ?? '0');
+
+        return {
+          ...prev,
+          [name]: {
+            tokens_used: nextTokens,
+            cost: nextCost,
+            delta_tokens: payload.delta_tokens ?? 0,
+            delta_cost: payload.delta_cost ?? '0',
+            last_tick_at: Date.now(),
+          },
+        };
+      });
     } else if (latest.type === 'agent_run_finished') {
       const payload = latest.data as { agent_name?: string };
       const name = payload?.agent_name ?? 'agent';

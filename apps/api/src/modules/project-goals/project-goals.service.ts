@@ -1,9 +1,16 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '../../database/inject-repository.decorator';
-import { ProjectGoals, ProjectProgressSnapshot, type RemainingItem } from '../../database/entities';
+import {
+  ProjectGoals,
+  ProjectMember,
+  ProjectProgressSnapshot,
+  type RemainingItem,
+} from '../../database/entities';
 import { ApiException } from '../../common/errors/api.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
+import { DomainEvent, type CodePushedEvent } from '../../common/events/domain-events';
 import { GEMINI_CLIENT, type GeminiClient } from '../../common/llm/gemini-client';
 import { GitIntegrationService } from '../project-core/git-integration.service';
 import { AuditService } from '../audit/audit.service';
@@ -83,6 +90,10 @@ const PROGRESS_RESPONSE_SCHEMA = {
 
 @Injectable()
 export class ProjectGoalsService {
+  private readonly logger = new Logger(ProjectGoalsService.name);
+  readonly lastAutoAnalysisMap = new Map<string, number>();
+  readonly COOLDOWN_MS = 10 * 60 * 1000; // 10분 쿨다운
+
   constructor(
     @InjectRepository(ProjectGoals) private readonly goals: Repository<ProjectGoals>,
     @InjectRepository(ProjectProgressSnapshot)
@@ -90,7 +101,40 @@ export class ProjectGoalsService {
     @Inject(GEMINI_CLIENT) private readonly gemini: GeminiClient,
     private readonly gitIntegration: GitIntegrationService,
     private readonly audit: AuditService,
+    @InjectRepository(ProjectMember) private readonly members?: Repository<ProjectMember>,
   ) {}
+
+  @OnEvent(DomainEvent.CODE_PUSHED, { async: true })
+  async handleCodePushed(event: CodePushedEvent): Promise<void> {
+    const projectId = event.project_id;
+    const now = Date.now();
+    const lastRun = this.lastAutoAnalysisMap.get(projectId) || 0;
+
+    if (now - lastRun < this.COOLDOWN_MS) {
+      this.logger.log(
+        `프로젝트(${projectId}) 코드 푸시 감지: 10분 쿨다운 중이므로 목표 자동 갱신을 건너뜁니다.`,
+      );
+      return;
+    }
+
+    // 목표 문서가 등록되어 있는지 확인
+    const goals = await this.goals.findOneBy({ project_id: projectId });
+    if (!goals?.content_md) {
+      return;
+    }
+
+    this.lastAutoAnalysisMap.set(projectId, now);
+
+    try {
+      this.logger.log(`프로젝트(${projectId}) 코드 푸시로 인한 목표 진행률 자동 갱신 시작`);
+      await this.analyzeProgress(projectId);
+      this.logger.log(`프로젝트(${projectId}) 목표 진행률 자동 갱신 완료`);
+    } catch (err) {
+      this.logger.warn(
+        `프로젝트(${projectId}) 목표 진행률 자동 갱신 중 오류: ${(err as Error)?.message ?? err}`,
+      );
+    }
+  }
 
   async getGoals(projectId: string): Promise<GoalsView> {
     const row = await this.goals.findOneBy({ project_id: projectId });
@@ -124,15 +168,19 @@ export class ProjectGoalsService {
     const docs = await this.gitIntegration.repoDocs(projectId, userId);
     if (docs.length === 0) {
       throw ApiException.notFound(
-        '레포에서 README나 문서를 찾지 못했습니다. 레포가 연동돼 있는지 확인하거나, 직접 입력해 주세요.',
+        '분석할 문서(README.md 등)를 찾지 못했습니다. 레포지토리에 마크다운 문서가 있는지 확인해 주세요.',
       );
     }
 
-    const prompt = docs.map((doc) => `### ${doc.path}\n\n${doc.content}`).join('\n\n---\n\n');
+    const prompt = [
+      '다음 프로젝트 문서들을 읽고 목표 문서를 작성해 주세요:',
+      ...docs.map((d) => `\n---\n### ${d.path}\n\n${d.content}\n`),
+    ].join('\n');
 
     const contentMd = await this.gemini.generate({
       systemInstruction: DRAFT_SYSTEM_INSTRUCTION,
       prompt,
+      temperature: 0.2,
     });
 
     return { content_md: contentMd, source_paths: docs.map((d) => d.path) };
@@ -146,14 +194,27 @@ export class ProjectGoalsService {
     return row ? toProgressView(row) : null;
   }
 
-  async analyzeProgress(projectId: string, userId: string): Promise<ProgressView> {
+  async analyzeProgress(projectId: string, userId?: string): Promise<ProgressView> {
+    let effectiveUserId = userId;
+    if (!effectiveUserId && this.members) {
+      const owner = await this.members.findOne({
+        where: { project_id: projectId, role: 'owner' },
+      });
+      const anyMember = owner ?? (await this.members.findOne({ where: { project_id: projectId } }));
+      if (anyMember) {
+        effectiveUserId = anyMember.user_id;
+      }
+    }
+
     const goals = await this.goals.findOneBy({ project_id: projectId });
     if (!goals?.content_md) {
       throw ApiException.conflict(ErrorCode.CONFLICT, '먼저 목표를 확정해 주세요.');
     }
 
     const items = parseGoalChecklist(goals.content_md);
-    const commits = await this.gitIntegration.recentCommits(projectId, userId);
+    const commits = effectiveUserId
+      ? await this.gitIntegration.recentCommits(projectId, effectiveUserId)
+      : [];
 
     // 1) 체크리스트 항목이 없는 경우
     if (items.length === 0) {
@@ -191,11 +252,13 @@ export class ProjectGoalsService {
         }),
       );
 
-      await this.audit.record({
-        user_id: userId,
-        action: 'project_progress.analyze',
-        project_id: projectId,
-      });
+      if (effectiveUserId) {
+        await this.audit.record({
+          user_id: effectiveUserId,
+          action: 'project_progress.analyze',
+          project_id: projectId,
+        });
+      }
 
       return toProgressView(saved);
     }
@@ -214,11 +277,13 @@ export class ProjectGoalsService {
         }),
       );
 
-      await this.audit.record({
-        user_id: userId,
-        action: 'project_progress.analyze',
-        project_id: projectId,
-      });
+      if (effectiveUserId) {
+        await this.audit.record({
+          user_id: effectiveUserId,
+          action: 'project_progress.analyze',
+          project_id: projectId,
+        });
+      }
 
       return toProgressView(saved);
     }
@@ -241,11 +306,13 @@ export class ProjectGoalsService {
         }),
       );
 
-      await this.audit.record({
-        user_id: userId,
-        action: 'project_progress.analyze',
-        project_id: projectId,
-      });
+      if (effectiveUserId) {
+        await this.audit.record({
+          user_id: effectiveUserId,
+          action: 'project_progress.analyze',
+          project_id: projectId,
+        });
+      }
 
       return toProgressView(saved);
     }
@@ -314,11 +381,13 @@ export class ProjectGoalsService {
       }),
     );
 
-    await this.audit.record({
-      user_id: userId,
-      action: 'project_progress.analyze',
-      project_id: projectId,
-    });
+    if (effectiveUserId) {
+      await this.audit.record({
+        user_id: effectiveUserId,
+        action: 'project_progress.analyze',
+        project_id: projectId,
+      });
+    }
 
     return toProgressView(saved);
   }

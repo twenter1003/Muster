@@ -128,16 +128,30 @@ export function loadConfig(
   return null;
 }
 
+/** 모델명 정규화 */
+export function normalizeAntigravityModel(model) {
+  if (!model) return 'gemini-3.8-flash';
+  const m = model.toLowerCase();
+  if (m.includes('3.8') && m.includes('flash')) return 'gemini-3.8-flash';
+  if (m.includes('3.7') && m.includes('flash')) return 'gemini-3.7-flash';
+  if (m.includes('3.6') && m.includes('flash')) return 'gemini-3.6-flash';
+  if (m.includes('3.1') && m.includes('lite')) return 'gemini-3.1-flash-lite';
+  if (m.includes('2.5') && m.includes('pro')) return 'gemini-2.5-pro';
+  if (m.includes('claude')) return 'claude-sonnet-5';
+  return 'gemini-3.8-flash';
+}
+
 /** transcript.jsonl 폴백 토큰 계산 */
 export function sumUsageFromTranscript(transcriptPath) {
   if (!transcriptPath || !existsSync(transcriptPath)) {
-    return { tokens_used: 0, turns: 0, started_at: null, ended_at: null };
+    return { tokens_used: 0, turns: 0, started_at: null, ended_at: null, model: 'gemini-3.8-flash' };
   }
 
   let chars = 0;
   let turns = 0;
   let started_at = null;
   let ended_at = null;
+  let rawModel = null;
 
   try {
     const lines = readFileSync(transcriptPath, 'utf8').split('\n');
@@ -154,6 +168,16 @@ export function sumUsageFromTranscript(transcriptPath) {
         if (!started_at) started_at = ts;
         ended_at = ts;
       }
+      if (!rawModel) {
+        if (entry.model && typeof entry.model === 'string') {
+          rawModel = entry.model;
+        } else if (entry.content && typeof entry.content === 'string') {
+          const match = entry.content.match(/`Model Selection` from \S+ to [`"]?([^`"\s]+)[`"]?/i);
+          if (match) {
+            rawModel = match[1].trim().replace(/[.,;]$/, '');
+          }
+        }
+      }
       if (entry.content) chars += String(entry.content).length;
       if (entry.thinking) chars += String(entry.thinking).length;
       turns++;
@@ -164,7 +188,13 @@ export function sumUsageFromTranscript(transcriptPath) {
 
   // 1 토큰 ~= 약 4자 (영어/코드 기준 근사치)
   const tokens_used = Math.round(chars / 4);
-  return { tokens_used, turns, started_at, ended_at };
+  return {
+    tokens_used,
+    turns,
+    started_at,
+    ended_at,
+    model: normalizeAntigravityModel(rawModel),
+  };
 }
 
 /** SQLite DB에서 Protobuf Tag 9 실측 토큰 추출 */
@@ -214,6 +244,7 @@ export function extractAntigravityUsage(conversationId, transcriptPath) {
       turns: dbUsage.turns,
       started_at: transcriptUsage.started_at || new Date().toISOString(),
       ended_at: transcriptUsage.ended_at || new Date().toISOString(),
+      model: transcriptUsage.model || 'gemini-3.8-flash',
     };
   }
 
@@ -232,9 +263,10 @@ async function apiCall(config, method, path, body) {
   return res.json();
 }
 
-export async function sendHeartbeat(config, runId, tokensUsed) {
+export async function sendHeartbeat(config, runId, tokensUsed, model) {
   return apiCall(config, 'PATCH', `/agent-runs/${runId}/heartbeat`, {
     tokens_used: tokensUsed,
+    ...(model ? { model } : {}),
   });
 }
 
@@ -281,6 +313,7 @@ export async function handleStop(hook, env = process.env) {
           tokens_used: usage.tokens_used,
           cost: '0',
           started_at: usage.started_at,
+          model: usage.model,
         });
       } catch (err) {
         process.stderr.write(`[Muster] Git 자동 라우팅 리포팅 건너뜀: ${err.message}\n`);
@@ -292,6 +325,7 @@ export async function handleStop(hook, env = process.env) {
         tokens_used: usage.tokens_used,
         cost: '0',
         started_at: usage.started_at,
+        model: usage.model,
       });
     }
     writeFileSync(
@@ -301,7 +335,7 @@ export async function handleStop(hook, env = process.env) {
     );
   } else {
     // 이미 세션이 진행 중이면 하트비트 중간 갱신 스트리밍
-    await sendHeartbeat(config, runId, usage.tokens_used);
+    await sendHeartbeat(config, runId, usage.tokens_used, usage.model);
     writeFileSync(
       statePath,
       JSON.stringify({ run_id: runId, tokens_used: usage.tokens_used, cwd }),

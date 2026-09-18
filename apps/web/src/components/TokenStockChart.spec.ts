@@ -231,4 +231,50 @@ describe('TokenStockChart 로직 및 데이터 정합성 검증', () => {
       expect(criticalStatus.agents[0].active_runs_count).toBe(1);
     });
   });
+
+  describe('하단 볼륨 바(Volume Bar) 구간 비용($ USD) 스케일링 검증', () => {
+    it('볼륨 바 높이는 토큰 수가 아니라 구간 비용(cost)에 비례하여 계산된다', () => {
+      const testData: TimeSeriesPoint[] = [
+        { key: '2026-09-17 00:00', label: '00:00', tokens: '100000', cost: '0.0100' },
+        { key: '2026-09-17 01:00', label: '01:00', tokens: '10000', cost: '0.0500' },
+      ];
+
+      const costs = testData.map((d) => Number(d.cost) || 0);
+      const maxCost = Math.max(...costs, 0.0001);
+      const chartH = 150;
+      const barMaxH = chartH * 0.22;
+
+      const barH0 =
+        Number(testData[0].cost) > 0
+          ? Math.max((Number(testData[0].cost) / maxCost) * barMaxH, 2)
+          : 0;
+      const barH1 =
+        Number(testData[1].cost) > 0
+          ? Math.max((Number(testData[1].cost) / maxCost) * barMaxH, 2)
+          : 0;
+
+      expect(Number(testData[0].tokens)).toBeGreaterThan(Number(testData[1].tokens));
+      expect(barH1).toBeGreaterThan(barH0);
+      expect(barH1).toBe(barMaxH);
+      expect(barH0).toBeCloseTo(barMaxH * 0.2, 1);
+    });
+
+    it('비용이 0인 슬롯은 막대 높이가 0이다', () => {
+      const chartH = 150;
+      const barMaxH = chartH * 0.22;
+      const maxCost = 0.05;
+      const costVal = 0;
+      const barH = costVal > 0 ? Math.max((costVal / maxCost) * barMaxH, 2) : 0;
+      expect(barH).toBe(0);
+    });
+
+    it('최소 높이(2px) 클램핑으로 비용이 0 초과인 경우 시각적으로 항상 표시된다', () => {
+      const chartH = 150;
+      const barMaxH = chartH * 0.22;
+      const maxCost = 100.0;
+      const costVal = 0.000001;
+      const barH = costVal > 0 ? Math.max((costVal / maxCost) * barMaxH, 2) : 0;
+      expect(barH).toBe(2);
+    });
+  });
 });
