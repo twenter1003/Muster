@@ -158,8 +158,10 @@ export function InvitePage() {
           <>
             <h1 className="invite__title">{preview.project_name}</h1>
             <p className="meta">
-              {preview.invited_by === null ? '누군가' : preview.invited_by}가 이 프로젝트로
-              초대했습니다. 수락하면 <span className="badge">member</span>로 합류합니다.
+              {/* ?? 로 받는 이유: 서버가 필드를 아예 생략하면 undefined가 되는데 === null로는
+                  걸러지지 않아 "가 이 프로젝트로 초대했습니다"처럼 주어가 빈 문장이 나온다. */}
+              {preview.invited_by ?? '누군가'}가 이 프로젝트로 초대했습니다. 수락하면{' '}
+              <span className="badge">member</span>로 합류합니다.
             </p>
             <p className="meta">
               멤버는 이 프로젝트의 문서·개발환경·에이전트·로그를 볼 수 있습니다. 다른 프로젝트는

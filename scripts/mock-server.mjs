@@ -526,7 +526,13 @@ function handleApi(req, res, url) {
   // ── invites ──
   if (s[0] === 'invites') {
     if (s[1] === 'lookup' || s[1] === 'accept') {
-      return json(res, 200, { project_id: 'proj-001', project_name: 'muster-api-server' });
+      return json(res, 200, {
+        project_id: 'proj-001',
+        project_name: 'muster-api-server',
+        invited_by: 'muster-dev',
+        expires_at: iso(-3 * DAY),
+        already_member: false,
+      });
     }
     return json(res, 200, { ok: true });
   }
