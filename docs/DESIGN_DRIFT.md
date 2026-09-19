@@ -374,9 +374,47 @@ report-agent-usage.mjs`, 설치는 `docs/AGENT_TOKEN_REPORTING.md`):
 
 ---
 
+## 17. 토큰 관제 6대 핵심 품질 개선 (개선 채택) — PR #69
+
+기존 토큰 관제 시스템에서 발견된 데이터 중복, 라우트 이동 시 상태 누수, 하드코딩 모델 추론, LLM 호출 간헐적 오류, 틱 역전, 목표 갱신 수동 의존성을 6대 핵심 영역에 걸쳐 전면 개선했다.
+
+1. **`TokenStockChart` 하단 바 그래프의 구간 소모 비용(`cost`, $ USD) 전환**:
+   - 상단 라인은 토큰 사용량 추이(`tokens`), 하단 볼륨 바는 해당 구간 비용(`cost`)을 기준으로 독립 스케일링(`maxCost` 기반, 최소 2px 높이 가드). 주식 차트(가격 라인 + 거래대금 바)의 시각적 패턴을 차용해 토큰량과 실제 과금 비용의 괴리를 직관적으로 비교.
+   - 범례 우측 `선: 토큰 추이 · 막대: 구간 비용 ($)` 안내 힌트 뱃지 추가.
+   - 플로팅 툴팁 내 `전체 토큰`과 `구간 비용`을 독립 행으로 분리 표기.
+
+2. **프로젝트 라우트 전환 시 라이브 틱 잔여 데이터 격리 플러시**:
+   - `ProjectDetailPage.tsx`에서 URL `id` 변경 시 `liveTick`, `burnRate`, `activeLiveRun`, `agentHeartbeats`를 즉시 초기화.
+   - `useSse.ts` 훅에서 `projectId` 변경 시 이전 SSE 이벤트 버퍼를 즉각 비우고(`setEvents([])`), unmount 시 연결 클린업 보장.
+
+3. **실측 트랜스크립트 모델명 바인딩 및 DB 스키마 마이그레이션**:
+   - `agent_runs` 테이블에 `model` nullable 컬럼 추가 (`1788910000000-AddAgentRunModel.ts`).
+   - Claude Code 훅(`report-agent-usage.mjs`): assistant 메시지 내 `model` 필드 실측 파싱.
+   - Antigravity 훅(`report-agent-usage.mjs`): `Model Selection` 로그 문자열 파싱 및 표준 모델명 정규화.
+   - `muster-connect.mjs` 내장 훅 Base64 동기화.
+   - `budget.service.ts`: `GROUP BY COALESCE(r.model, a.name)`으로 실측 모델별 토큰 및 비용 정확히 집계.
+
+4. **Gemini LLM 장애 복원력 (지수 백오프 + 지터 + 타임아웃)**:
+   - `apps/api/src/common/llm/retry.ts`: 3회 재시도, 지수 백오프(1s, 2s, 4s) + Jitter, 30초 타임아웃 AbortSignal 적용.
+   - 429(Rate Limit), 500, 502, 503, 504 및 네트워크 단절 시 자동 재시도, 400/401/403/404 클라이언트 에러는 즉시 실패 처리.
+   - `HttpGeminiClient` 및 `VertexGeminiClient` 공통 투명 연동.
+
+5. **라이브 틱 단조 증가 보정 & `burnRate` 안정화**:
+   - `Math.max`를 적용하여 네트워크 지연이나 SSE 재전송에 의한 토큰·비용 카운트 역전 차단.
+   - `burnRate.ts`에서 음수 차분 0 클램핑 및 비정상 스파이크 방지.
+
+6. **GitHub push 수신 시 목표 진행률 자동 갱신 훅 & 10분 쿨다운**:
+   - `WebhookIngestService`에서 push 웹훅 수신 시 `DomainEvent.CODE_PUSHED` 비동기 발행.
+   - `ProjectGoalsService`에서 `@OnEvent(DomainEvent.CODE_PUSHED, { async: true })`로 목표 달성도 자동 재분석 트리거.
+   - 인메모리 맵 기반 **10분 쿨다운 가드**를 적용하여 불필요한 LLM 비용 폭증 방지.
+   - Ingest ↔ ProjectGoals 간 직접 참조 없이 도메인 이벤트로 디커플링 유지 (`module-boundary.spec.ts` 100% 준수).
+
+---
+
 ## 경미한 추가 (보고용)
 
 | 컬럼 | 이유 |
 |---|---|
 | `SESSIONS.created_at` | 세션 목록·이상 로그인 추적 |
 | `AGENTS.created_at` | 커서 페이지네이션 정렬 기준 |
+| `AGENT_RUNS.model` | 실측 모델명(Claude 3.5 Sonnet, Gemini 3.8 Flash 등) 영속화 |
