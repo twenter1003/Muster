@@ -1,4 +1,4 @@
-import { useState, useId, useMemo, useRef, useEffect } from 'react';
+import { useState, useId, useMemo, useRef, useEffect, type CSSProperties } from 'react';
 import { formatCost, formatTokenCount } from '../lib/tokenIntelligence';
 import { getAgentTheme, getAgentLabel } from '../lib/agentFilter';
 import {
@@ -39,6 +39,23 @@ export interface TokenStockChartProps {
 const SVG_WIDTH = 600;
 const DEFAULT_HEIGHT = 190;
 const PADDING = { top: 20, right: 20, bottom: 28, left: 20 };
+
+/**
+ * 축 라벨의 font-size(사용자 단위). SVG는 viewBox(600)를 실제 렌더 폭으로 늘리거나 줄이는데,
+ * 그 배율만큼 글자도 같이 늘거나 줄어든다. 그래서 화면에 몇 px로 보일지는 CSS에 적은 값이
+ * 아니라 "적은 값 × (렌더 폭 / 600)"이다.
+ *
+ * 폭 구간(@media)으로 잡지 않는 이유: 화면이 넓어도 차트가 좁아질 수 있다. 상세 화면은
+ * 1100px부터 2단이 되면서 차트 폭이 1009px에서 521px로 오히려 줄어, 데스크톱에서 8.7px로
+ * 그려지고 있었다(측정값). 뷰포트가 아니라 **차트 자신의 렌더 폭**을 보고 되돌려야 맞다.
+ */
+export function axisFontSizeFor(renderedWidth: number, targetPx = 10): number {
+  if (!Number.isFinite(renderedWidth) || renderedWidth <= 0) return targetPx;
+  const declared = (targetPx * SVG_WIDTH) / renderedWidth;
+  // 극단적인 폭에서 글자가 터무니없이 커지거나 작아지지 않게 가둔다.
+  const clamped = Math.min(32, Math.max(6, declared));
+  return Math.round(clamped * 10) / 10;
+}
 
 /**
  * X축에 라벨을 그릴 인덱스. 전부 그리면 좁은 화면에서 글자가 서로 겹치므로 6개 안팎으로 솎는다.
@@ -85,7 +102,24 @@ export function TokenStockChart({
   const [showTotalLine, setShowTotalLine] = useState(true);
   const [showBurnRatePopover, setShowBurnRatePopover] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
   const gradId = useId();
+
+  /*
+   * 차트가 실제로 몇 px로 그려지는지 지켜본다. 축 라벨 크기를 이 값으로 되돌려야
+   * 좁은 폰에서도, 2단으로 접혀 차트가 좁아진 데스크톱에서도 같은 크기로 읽힌다.
+   */
+  const [renderedWidth, setRenderedWidth] = useState(SVG_WIDTH);
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width ?? 0;
+      if (width > 0) setRenderedWidth(width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   // 바깥 클릭 시 팝오버 닫기
   useEffect(() => {
@@ -473,7 +507,11 @@ export function TokenStockChart({
       )}
 
       {/* 3. 고반응형 SVG Area/Line 차트 */}
-      <div className="token-stock-chart__canvas-wrap">
+      <div
+        className="token-stock-chart__canvas-wrap"
+        ref={canvasRef}
+        style={{ '--chart-axis-font': `${axisFontSizeFor(renderedWidth)}px` } as CSSProperties}
+      >
         {isLoading && (
           <div className="token-stock-chart__overlay">
             <span className="meta">차트 갱신 중…</span>

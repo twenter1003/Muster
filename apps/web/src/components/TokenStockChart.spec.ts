@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pickAxisLabelIndices, type TimeSeriesPoint } from './TokenStockChart';
+import { axisFontSizeFor, pickAxisLabelIndices, type TimeSeriesPoint } from './TokenStockChart';
 
 describe('TokenStockChart 로직 및 데이터 정합성 검증', () => {
   const mockHourlyData: TimeSeriesPoint[] = [
@@ -315,6 +315,40 @@ describe('TokenStockChart 로직 및 데이터 정합성 검증', () => {
       for (let len = 8; len <= 60; len++) {
         expect(pickAxisLabelIndices(len).size).toBeLessThanOrEqual(7);
       }
+    });
+  });
+
+  describe('축 라벨 크기 보정 (SVG viewBox 배율 상쇄)', () => {
+    const SVG_WIDTH = 600;
+    /** 화면에 실제로 그려지는 크기 = 지정값 × (렌더 폭 / 600) */
+    const effective = (renderedWidth: number) =>
+      axisFontSizeFor(renderedWidth) * (renderedWidth / SVG_WIDTH);
+
+    it('viewBox와 렌더 폭이 같으면 보정하지 않는다', () => {
+      expect(axisFontSizeFor(600)).toBe(10);
+    });
+
+    it('좁아진 만큼 키운다 — 절반 폭이면 두 배', () => {
+      expect(axisFontSizeFor(300)).toBe(20);
+    });
+
+    it('넓어지면 줄이되 하한(6) 아래로는 내리지 않는다', () => {
+      expect(axisFontSizeFor(900)).toBe(6.7);
+      // 1200px이면 계산값은 5지만 너무 작아지지 않게 6에서 멈춘다.
+      expect(axisFontSizeFor(1200)).toBe(6);
+    });
+
+    it('실기기 폭 전 구간에서 읽을 수 있는 크기를 유지한다', () => {
+      // 320px 폰부터 2단으로 접혀 차트가 좁아진 데스크톱(521px)까지 실제 측정된 렌더 폭들.
+      for (const w of [237, 277, 307, 347, 521, 517, 556, 677, 809, 933, 1009]) {
+        expect(effective(w)).toBeGreaterThanOrEqual(9);
+      }
+    });
+
+    it('비정상 입력에서도 기본값으로 안전하게 떨어진다', () => {
+      expect(axisFontSizeFor(0)).toBe(10);
+      expect(axisFontSizeFor(-100)).toBe(10);
+      expect(axisFontSizeFor(Number.NaN)).toBe(10);
     });
   });
 });
