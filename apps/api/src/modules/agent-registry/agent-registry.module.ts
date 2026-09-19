@@ -8,6 +8,8 @@ import {
 import { AgentsService } from './agents.service';
 import { AgentRunsService } from './agent-runs.service';
 import { BudgetService } from './budget.service';
+import { UsageTimeseriesService } from './usage-timeseries.service';
+import { TokenWasteReportService } from './token-waste-report.service';
 import { ModelPricingService } from './model-pricing.service';
 
 /**
@@ -24,7 +26,14 @@ import { ModelPricingService } from './model-pricing.service';
     AgentRunsController,
     ConnectScriptController,
   ],
-  providers: [AgentsService, AgentRunsService, BudgetService, ModelPricingService],
+  providers: [
+    AgentsService,
+    AgentRunsService,
+    BudgetService,
+    UsageTimeseriesService,
+    TokenWasteReportService,
+    ModelPricingService,
+  ],
   exports: [ModelPricingService],
 })
 export class AgentRegistryModule {}
