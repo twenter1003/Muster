@@ -110,7 +110,45 @@ test('sumUsageFromTranscript: assistant 메시지에서 model 필드를 추출�
 
 test('sumUsageFromTranscript: 파일이 없으면 0을 돌려준다 (예외를 던지지 않는다)', () => {
   const result = sumUsageFromTranscript('/no/such/file.jsonl');
-  assert.deepEqual(result, { tokens_used: 0, output_tokens: 0, turns: 0, model: undefined });
+  assert.deepEqual(result, {
+    tokens_used: 0,
+    input_tokens: 0,
+    output_tokens: 0,
+    cache_read_tokens: 0,
+    cache_write_tokens: 0,
+    turns: 0,
+    model: undefined,
+  });
+});
+
+test('sumUsageFromTranscript: 캐시 토큰을 합치지 않고 종류별로 남긴다', () => {
+  const file = join(tmpdir(), `muster-breakdown-${Date.now()}.jsonl`);
+  writeFileSync(
+    file,
+    [
+      JSON.stringify({
+        type: 'assistant',
+        message: {
+          model: 'claude-sonnet-5',
+          usage: {
+            input_tokens: 100,
+            output_tokens: 200,
+            cache_creation_input_tokens: 300,
+            cache_read_input_tokens: 400,
+          },
+        },
+      }),
+    ].join('\n'),
+  );
+
+  const r = sumUsageFromTranscript(file);
+  assert.equal(r.input_tokens, 100);
+  assert.equal(r.output_tokens, 200);
+  assert.equal(r.cache_write_tokens, 300);
+  assert.equal(r.cache_read_tokens, 400);
+  // 합계는 종전과 같은 의미를 유지한다 — 화면의 "토큰" 숫자가 이 값을 쓴다.
+  assert.equal(r.tokens_used, 1000);
+  rmSync(file, { force: true });
 });
 
 test('estimateCost: 요율이 둘 다 있어야 계산하고, 하나라도 없으면 undefined다', () => {
@@ -125,4 +163,32 @@ test('estimateCost: 요율이 둘 다 있어야 계산하고, 하나라도 없�
   });
   // 입력측 80만 토큰 * $3/M + 출력 20만 토큰 * $15/M = 2.4 + 3.0 = 5.4
   assert.equal(cost, '5.400000');
+});
+
+test('estimateCost: 캐시 읽기를 정규 입력가로 세지 않는다 — 이게 비용을 부풀리던 원인이다', () => {
+  // 입력 10만 + 캐시쓰기 10만 + 캐시읽기 80만 + 출력 10만 (합계 110만)
+  const usage = {
+    tokens_used: 1_100_000,
+    input_tokens: 100_000,
+    cache_write_tokens: 100_000,
+    cache_read_tokens: 800_000,
+    output_tokens: 100_000,
+  };
+  const env = {
+    MUSTER_COST_PER_MTOK_INPUT: '2',
+    MUSTER_COST_PER_MTOK_OUTPUT: '10',
+    MUSTER_COST_PER_MTOK_CACHE_READ: '0.2',
+    MUSTER_COST_PER_MTOK_CACHE_WRITE: '2.5',
+  };
+
+  // 0.1*2 + 0.1*2.5 + 0.8*0.2 + 0.1*10 = 0.2 + 0.25 + 0.16 + 1.0 = 1.61
+  assert.equal(estimateCost(usage, env), '1.610000');
+
+  // 캐시 요율을 안 주면 캐시 토큰도 정규 입력가로 센다 — 싸게 보이게 지어내지 않는다.
+  const noCacheRates = {
+    MUSTER_COST_PER_MTOK_INPUT: '2',
+    MUSTER_COST_PER_MTOK_OUTPUT: '10',
+  };
+  // 0.1*2 + 0.1*2 + 0.8*2 + 0.1*10 = 0.2 + 0.2 + 1.6 + 1.0 = 3.0
+  assert.equal(estimateCost(usage, noCacheRates), '3.000000');
 });

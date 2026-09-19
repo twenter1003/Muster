@@ -1,12 +1,13 @@
 import { IsIn, IsInt, IsNumberString, IsOptional, IsString, Min } from 'class-validator';
 import { AGENT_RUN_STATUSES, type AgentRunStatus } from '../../../database/entities/enums';
+import { TokenBreakdownDto } from './token-breakdown.dto';
 
 /**
  * 설계서 Part 4 §6 — 실행 종료 기록.
  * cost는 문자열로 받는다. 부동소수점으로 금액을 다루면 반올림 오차가 쌓여
  * 예산 임계치 판정이 어긋난다 (AgentRun.cost가 numeric인 것과 같은 이유).
  */
-export class UpdateRunDto {
+export class UpdateRunDto extends TokenBreakdownDto {
   @IsOptional()
   @IsIn(AGENT_RUN_STATUSES, {
     message: `status는 ${AGENT_RUN_STATUSES.join('|')} 중 하나여야 합니다.`,
