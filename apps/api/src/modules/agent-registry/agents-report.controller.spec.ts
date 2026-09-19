@@ -1,16 +1,16 @@
 import { ProjectAgentsController } from './agents.controller';
-import { BudgetService } from './budget.service';
+import { TokenWasteReportService } from './token-waste-report.service';
 import type { Response } from 'express';
 
 describe('ProjectAgentsController - Waste Report Export', () => {
   let controller: ProjectAgentsController;
-  let budgetService: Partial<BudgetService>;
+  let wasteReportService: Partial<TokenWasteReportService>;
 
   beforeEach(() => {
-    budgetService = {
+    wasteReportService = {
       generateWasteReportCsv: jest
         .fn()
-        .mockResolvedValue('\uFEFF"session_id","agent_name"\r\n"run-1","claude"'),
+        .mockResolvedValue('﻿"session_id","agent_name"\r\n"run-1","claude"'),
       generateWasteReportJson: jest.fn().mockResolvedValue({
         project_id: 'proj-1',
         exported_at: '2026-09-18T00:00:00Z',
@@ -37,7 +37,9 @@ describe('ProjectAgentsController - Waste Report Export', () => {
 
     controller = new ProjectAgentsController(
       {} as never,
-      budgetService as BudgetService,
+      {} as never,
+      {} as never,
+      wasteReportService as TokenWasteReportService,
       {} as never,
     );
   });
@@ -52,7 +54,7 @@ describe('ProjectAgentsController - Waste Report Export', () => {
 
     const result = await controller.getWasteReportCsv('proj-1', res);
 
-    expect(budgetService.generateWasteReportCsv).toHaveBeenCalledWith('proj-1');
+    expect(wasteReportService.generateWasteReportCsv).toHaveBeenCalledWith('proj-1');
     expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/csv; charset=utf-8');
     expect(headers['Content-Disposition']).toMatch(
       /^attachment; filename="muster-waste-report-proj-1-\d{4}-\d{2}-\d{2}\.csv"$/,
@@ -70,7 +72,7 @@ describe('ProjectAgentsController - Waste Report Export', () => {
 
     const result = await controller.getWasteReportJson('proj-1', res);
 
-    expect(budgetService.generateWasteReportJson).toHaveBeenCalledWith('proj-1');
+    expect(wasteReportService.generateWasteReportJson).toHaveBeenCalledWith('proj-1');
     expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/json; charset=utf-8');
     expect(headers['Content-Disposition']).toMatch(
       /^attachment; filename="muster-waste-report-proj-1-\d{4}-\d{2}-\d{2}\.json"$/,

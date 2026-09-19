@@ -26,13 +26,10 @@ import { toPageRequest, withProjectName, type Page } from '../../common/paginati
 import { ProjectMemberGuard } from '../../common/auth/project-member.guard';
 import { AgentsService } from './agents.service';
 import { AgentRunsService, type SessionRunDetailView } from './agent-runs.service';
-import {
-  BudgetService,
-  type BudgetUsage,
-  type UsageBreakdown,
-  type BurnRateStatus,
-  type WasteReportJsonPayload,
-} from './budget.service';
+import { BudgetService, type BudgetUsage } from './budget.service';
+import { UsageTimeseriesService, type UsageBreakdown } from './usage-timeseries.service';
+import { TokenWasteReportService, type WasteReportJsonPayload } from './token-waste-report.service';
+import type { BurnRateStatus } from './burn-rate';
 import type { TokenWasteIntelligence } from './token-waste';
 import { ApiKeyOrSessionGuard } from '../../common/auth/api-key-or-session.guard';
 import { ApiKeyGuard } from '../../common/auth/api-key.guard';
@@ -90,6 +87,8 @@ export class ProjectAgentsController {
   constructor(
     private readonly agents: AgentsService,
     private readonly budget: BudgetService,
+    private readonly usageTimeseries: UsageTimeseriesService,
+    private readonly wasteReport: TokenWasteReportService,
     private readonly audit: AuditService,
   ) {}
 
@@ -135,7 +134,7 @@ export class ProjectAgentsController {
     @Query('agent_name') agentName?: string,
     @Query('tz') tz?: string,
   ): Promise<UsageBreakdown> {
-    return this.budget.dailyUsage(projectId, agentName, tz, granularity);
+    return this.usageTimeseries.dailyUsage(projectId, agentName, tz, granularity);
   }
 
   /**
@@ -144,7 +143,7 @@ export class ProjectAgentsController {
   @Get(':id/token-waste-intelligence')
   @UseGuards(ProjectMemberGuard)
   async getTokenWasteIntelligence(@Param('id') projectId: string): Promise<TokenWasteIntelligence> {
-    return this.budget.getTokenWasteIntelligence(projectId);
+    return this.wasteReport.getTokenWasteIntelligence(projectId);
   }
 
   /**
@@ -158,7 +157,7 @@ export class ProjectAgentsController {
   ): Promise<BurnRateStatus> {
     const parsedMinutes = windowMinutes ? parseInt(windowMinutes, 10) : 15;
     const minutes = Number.isNaN(parsedMinutes) || parsedMinutes <= 0 ? 15 : parsedMinutes;
-    return this.budget.calculateBurnRate(projectId, minutes);
+    return this.usageTimeseries.calculateBurnRate(projectId, minutes);
   }
 
   /**
@@ -170,7 +169,7 @@ export class ProjectAgentsController {
     @Param('id') projectId: string,
     @Res({ passthrough: true }) res: Response,
   ): Promise<string> {
-    const csv = await this.budget.generateWasteReportCsv(projectId);
+    const csv = await this.wasteReport.generateWasteReportCsv(projectId);
     const dateStr = new Date().toISOString().slice(0, 10);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader(
@@ -189,7 +188,7 @@ export class ProjectAgentsController {
     @Param('id') projectId: string,
     @Res({ passthrough: true }) res: Response,
   ): Promise<WasteReportJsonPayload> {
-    const json = await this.budget.generateWasteReportJson(projectId);
+    const json = await this.wasteReport.generateWasteReportJson(projectId);
     const dateStr = new Date().toISOString().slice(0, 10);
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader(
