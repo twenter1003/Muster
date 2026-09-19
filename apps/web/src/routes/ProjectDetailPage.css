@@ -444,6 +444,19 @@
 }
 
 @media (max-width: 640px) {
+  /*
+   * 손가락 표적. 데스크톱에서는 마우스라 11px 글자에 3px 패딩이면 충분하지만, 그대로 두면
+   * 터치에서는 20px 안팎이라 누르기 어렵다. 글자 크기는 두고 눌리는 영역만 키운다.
+   */
+  .detail__goals-drawer-trigger-btn,
+  .detail__goals-cta-btn,
+  .budget-spike-alert__dismiss {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
   .detail__switcher-group {
     flex-direction: column;
     align-items: flex-start;

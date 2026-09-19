@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { TimeSeriesPoint } from './TokenStockChart';
+import { pickAxisLabelIndices, type TimeSeriesPoint } from './TokenStockChart';
 
 describe('TokenStockChart 로직 및 데이터 정합성 검증', () => {
   const mockHourlyData: TimeSeriesPoint[] = [
@@ -275,6 +275,46 @@ describe('TokenStockChart 로직 및 데이터 정합성 검증', () => {
       const costVal = 0.000001;
       const barH = costVal > 0 ? Math.max((costVal / maxCost) * barMaxH, 2) : 0;
       expect(barH).toBe(2);
+    });
+  });
+
+  describe('X축 라벨 솎기 (모바일 겹침 방지)', () => {
+    it('7개 이하면 전부 보여 준다', () => {
+      expect([...pickAxisLabelIndices(4)]).toEqual([0, 1, 2, 3]);
+      expect(pickAxisLabelIndices(7).size).toBe(7);
+    });
+
+    it('빈 데이터에서도 안전하다', () => {
+      expect(pickAxisLabelIndices(0).size).toBe(0);
+    });
+
+    it('마지막 점은 항상 포함된다 — "지금" 값이 사라지면 안 된다', () => {
+      for (const len of [8, 12, 14, 24, 30]) {
+        expect(pickAxisLabelIndices(len).has(len - 1)).toBe(true);
+      }
+    });
+
+    it('마지막 라벨이 직전 라벨과 붙으면 직전 라벨을 뺀다 — 겹쳐 그리면 둘 다 못 읽는다', () => {
+      // 14개 · step 3 → 0,3,6,9,12 에 마지막 13이 붙어 12와 이웃이 된다.
+      const indices = pickAxisLabelIndices(14);
+      expect(indices.has(13)).toBe(true);
+      expect(indices.has(12)).toBe(false);
+      expect([...indices]).toEqual([0, 3, 6, 9, 13]);
+    });
+
+    it('어떤 길이에서도 인접한 두 라벨이 남지 않는다', () => {
+      for (let len = 8; len <= 60; len++) {
+        const sorted = [...pickAxisLabelIndices(len)].sort((a, b) => a - b);
+        for (let i = 1; i < sorted.length; i++) {
+          expect(sorted[i] - sorted[i - 1]).toBeGreaterThan(1);
+        }
+      }
+    });
+
+    it('라벨 수를 7개 이하로 유지한다', () => {
+      for (let len = 8; len <= 60; len++) {
+        expect(pickAxisLabelIndices(len).size).toBeLessThanOrEqual(7);
+      }
     });
   });
 });

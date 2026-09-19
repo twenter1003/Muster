@@ -40,6 +40,31 @@ const SVG_WIDTH = 600;
 const DEFAULT_HEIGHT = 190;
 const PADDING = { top: 20, right: 20, bottom: 28, left: 20 };
 
+/**
+ * X축에 라벨을 그릴 인덱스. 전부 그리면 좁은 화면에서 글자가 서로 겹치므로 6개 안팎으로 솎는다.
+ *
+ * 마지막 점은 "지금"이라 항상 보여 주는데, 그것이 직전 라벨과 붙어 버리면(예: 14개 · step 3 →
+ * 12와 13이 이웃) 오히려 두 글자가 겹쳐 읽히지 않는다. 그럴 때는 직전 라벨을 뺀다 —
+ * 마지막 값을 포기하는 것보다 그 앞 눈금 하나를 포기하는 쪽이 읽기에 낫다.
+ */
+export function pickAxisLabelIndices(len: number): Set<number> {
+  if (len <= 0) return new Set();
+  if (len <= 7) return new Set(Array.from({ length: len }, (_, i) => i));
+
+  const step = Math.ceil(len / 6);
+  const indices = new Set<number>();
+  for (let i = 0; i < len; i += step) indices.add(i);
+
+  const last = len - 1;
+  if (!indices.has(last)) {
+    const prev = last - (last % step);
+    // 바로 옆(간격 1)이면 무조건 겹친다. 그보다 멀어도 스텝의 절반이 안 되면 눈에 띄게 촘촘하다.
+    if (last - prev < Math.max(2, step / 2)) indices.delete(prev);
+    indices.add(last);
+  }
+  return indices;
+}
+
 export function TokenStockChart({
   data = [],
   agentSeries,
@@ -224,18 +249,7 @@ export function TokenStockChart({
     setHoveredIdx(closestIdx);
   };
 
-  // X축 라벨 인덱스 선별 (최대 5~7개로 축약하여 모바일 겹침 방지)
-  const visibleLabelIndices = useMemo(() => {
-    const len = data.length;
-    if (len <= 7) return new Set(data.map((_, i) => i));
-    const step = Math.ceil(len / 6);
-    const indices = new Set<number>();
-    for (let i = 0; i < len; i += step) {
-      indices.add(i);
-    }
-    indices.add(len - 1);
-    return indices;
-  }, [data]);
+  const visibleLabelIndices = useMemo(() => pickAxisLabelIndices(data.length), [data.length]);
 
   return (
     <div className="token-stock-chart" data-testid="token-stock-chart">
