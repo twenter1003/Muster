@@ -10,7 +10,6 @@ import {
   Param,
   Patch,
   Post,
-  Put,
   Query,
   Req,
   Res,
@@ -25,7 +24,6 @@ import { toPageRequest, type Page } from '../../common/pagination/paginate';
 import { ProjectMemberGuard } from '../../common/auth/project-member.guard';
 import { AgentsService } from './agents.service';
 import { AgentRunsService } from './agent-runs.service';
-import { BudgetService, type BudgetUsage } from './budget.service';
 import { UsageTimeseriesService, type UsageBreakdown } from './usage-timeseries.service';
 import { TokenWasteReportService, type WasteReportJsonPayload } from './token-waste-report.service';
 import { ApiKeyOrSessionGuard } from '../../common/auth/api-key-or-session.guard';
@@ -36,7 +34,6 @@ import { HeartbeatRunDto } from './dto/heartbeat-run.dto';
 import { RecordRunByRepoDto } from './dto/record-run-by-repo.dto';
 import { UpdateRunDto } from './dto/update-run.dto';
 
-import { PutBudgetDto } from './dto/put-budget.dto';
 import type { Agent, AgentRun } from '../../database/entities';
 import { AuditService } from '../audit/audit.service';
 
@@ -82,7 +79,6 @@ const toRunView = (r: AgentRun): RunView => ({
 export class ProjectAgentsController {
   constructor(
     private readonly agents: AgentsService,
-    private readonly budget: BudgetService,
     private readonly usageTimeseries: UsageTimeseriesService,
     private readonly wasteReport: TokenWasteReportService,
     private readonly audit: AuditService,
@@ -166,27 +162,6 @@ export class ProjectAgentsController {
       `attachment; filename="muster-waste-report-${projectId}-${dateStr}.json"`,
     );
     return json;
-  }
-
-  /**
-   * 읽기 짝(`GET :id/budget`)은 호출자가 없어 지웠다. 이 PUT을 남긴 이유는 이것이
-   * project_budgets 행을 만드는 유일한 경로이기 때문이다 — 지우면 BudgetService의
-   * 임계 알림(budget_alert)이 한도를 영영 못 읽어 사실상 죽는다.
-   *
-   * PUT이므로 **전체 교체**다. 생략한 한도는 "안 건드림"이 아니라 "한도 없음"이 된다.
-   * 예산은 필드가 셋뿐이고 클라이언트가 전체를 알고 있으므로, 동사와 의미를 맞추는 쪽이
-   * 부분 갱신 규칙을 따로 외우는 것보다 낫다.
-   */
-  @Put(':id/budget')
-  @UseGuards(ProjectMemberGuard)
-  async putBudget(
-    @Param('id') projectId: string,
-    @CurrentUser() user: AuthenticatedUser,
-    @Body() dto: PutBudgetDto,
-  ): Promise<BudgetUsage> {
-    const usage = await this.budget.put(projectId, dto);
-    await this.audit.record({ user_id: user.id, action: 'budget.update', project_id: projectId });
-    return usage;
   }
 }
 

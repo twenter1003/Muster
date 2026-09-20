@@ -6,10 +6,8 @@ import {
   type AgentRunFinishedEvent,
   type AgentRunHeartbeatEvent,
   type AgentRunStartedEvent,
-  type BudgetThresholdExceededEvent,
   type HealthSnapshotCreatedEvent,
   type LogAppendedEvent,
-  type ProjectStageChangedEvent,
 } from '../../common/events/domain-events';
 
 /**
@@ -41,18 +39,6 @@ export class StreamService {
         'health_update',
         projectId,
       ),
-      this.typed<ProjectStageChangedEvent>(
-        DomainEvent.PROJECT_STAGE_CHANGED,
-        'stage_change',
-        projectId,
-      ),
-      // 설계서 §7.3의 목록에 없는 넷째 타입이다. 근거는 DESIGN_DRIFT.md 10번 —
-      // 요약하면, 임계치를 넘는 순간은 지나가면 사라지고 인박스는 사람이 열어야 보인다.
-      this.typed<BudgetThresholdExceededEvent>(
-        DomainEvent.BUDGET_THRESHOLD_EXCEEDED,
-        'budget_alert',
-        projectId,
-      ),
       // 에이전트 세션 실시간 관제 (Running 시작 점멸, 10초 하트비트 라이브 틱 및 종료 시 수치 갱신)
       this.typed<AgentRunStartedEvent>(
         DomainEvent.AGENT_RUN_STARTED,
@@ -76,13 +62,7 @@ export class StreamService {
   private typed<T extends { project_id: string }>(
     name: string,
     type:
-      | 'log'
-      | 'health_update'
-      | 'stage_change'
-      | 'budget_alert'
-      | 'agent_run_started'
-      | 'agent_run_heartbeat'
-      | 'agent_run_finished',
+      'log' | 'health_update' | 'agent_run_started' | 'agent_run_heartbeat' | 'agent_run_finished',
     projectId: string,
   ): Observable<MessageEvent> {
     return fromEvent<T>(this.events, name).pipe(

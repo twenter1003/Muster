@@ -7,7 +7,6 @@ import { DomainEvent } from '../../common/events/domain-events';
 import { ApiException } from '../../common/errors/api.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { normalizeGitRepoUrl } from '../project-core/repo-url';
-import { BudgetService } from './budget.service';
 import { ModelPricingService } from './model-pricing.service';
 import type { CreateRunDto } from './dto/create-run.dto';
 import type { HeartbeatRunDto } from './dto/heartbeat-run.dto';
@@ -26,7 +25,6 @@ export class AgentRunsService {
     @InjectRepository(Agent) private readonly agents: Repository<Agent>,
     @InjectRepository(ProjectMember) private readonly members: Repository<ProjectMember>,
     @InjectRepository(GitIntegration) private readonly gitIntegrations: Repository<GitIntegration>,
-    private readonly budget: BudgetService,
     private readonly modelPricing: ModelPricingService,
     private readonly events: EventEmitter2,
   ) {}
@@ -47,7 +45,6 @@ export class AgentRunsService {
 
     const agent = await this.agents.findOneBy({ id: agentId });
     const projectId = agent?.project_id;
-    const before = projectId && status !== 'running' ? await this.budget.sumUsage(projectId) : null;
 
     const tokensUsed = dto?.tokens_used ?? 0;
     const hasBreakdown =
@@ -97,10 +94,6 @@ export class AgentRunsService {
         ended_at: endedAt,
       }),
     );
-
-    if (projectId && before) {
-      await this.budget.recalculateAndAlert(projectId, before);
-    }
 
     if (projectId) {
       if (status === 'running') {
@@ -255,8 +248,6 @@ export class AgentRunsService {
         : await this.findAccessibleOrFail(runId, identity.userId);
     const projectId = await this.projectIdOfRun(run);
 
-    const before = await this.budget.sumUsage(projectId);
-
     if (dto.status !== undefined) run.status = dto.status;
     if (dto.tokens_used !== undefined) run.tokens_used = dto.tokens_used;
     if (dto.model !== undefined) run.model = dto.model;
@@ -284,7 +275,6 @@ export class AgentRunsService {
     if (run.status !== 'running' && !run.ended_at) run.ended_at = new Date();
 
     const saved = await this.runs.save(run);
-    await this.budget.recalculateAndAlert(projectId, before);
 
     const agent = await this.agents.findOneBy({ id: saved.agent_id });
     this.events.emit(DomainEvent.AGENT_RUN_FINISHED, {

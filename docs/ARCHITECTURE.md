@@ -59,7 +59,7 @@
 | `GET/POST /projects/:id/api-keys` · `DELETE /api-keys/:id` | `ApiKeyModal` |
 | `GET /projects/:id/token-usage` | `lib/agentFilter.ts` — 소모 속도(burn rate)도 이 응답에 실려 온다 |
 | `GET /projects/:id/waste-report.csv` · `.json` | `lib/exportUtils.ts` |
-| `SSE /projects/:id/stream` | `lib/useSse.ts` |
+| `SSE /projects/:id/stream` | `lib/useSse.ts`. 타입 5종 — `log`·`health_update`·`agent_run_started`·`agent_run_heartbeat`·`agent_run_finished`(+하트비트 `ping`). **화면이 실제로 분기하는 것만 있다** |
 | `GET /search` | `shell/SearchBox.tsx` **하나뿐이다**. 프로젝트·에이전트 이름만 찾는다. 목록·가져오기·체크리스트 화면의 검색 입력은 서버에 안 가고 받아 둔 목록을 그 자리에서 거른다 |
 | `POST /invites/lookup` · `POST /invites/accept` | `InvitePage` |
 
@@ -80,7 +80,6 @@
 |---|---|
 | `POST /projects/:id/invites` | 초대 토큰의 **유일한 생산자**. 살아 있는 `/invite/:token` 화면과 `POST /invites/lookup`·`accept`가 그 토큰을 소비한다. 발급 UI(SettingsPage)는 PR #76에서 지워졌지만 소비자는 살아 있다 |
 | `DELETE /invites/:id` | 위 발급의 취소 경로. 이것까지 없으면 한 번 낸 초대를 영영 못 막는다 |
-| `PUT /projects/:id/budget` | `project_budgets` 행을 만드는 **유일한 경로**. 지우면 `BudgetService.recalculateAndAlert`가 한도를 못 읽어 `budget_alert` SSE가 사실상 죽는다 |
 | `POST /projects` | e2e가 쓴다. 화면에서 프로젝트를 만드는 길은 `POST /projects/import`뿐이다 |
 
 ## 2026-09-20에 지운 엔드포인트
@@ -98,7 +97,7 @@ PR #76이 화면 11개를 지우면서 소비자를 잃은 것들이다. 되살�
 | `POST /projects/:id/documents` · 루트 `GET /documents` · `GET/PATCH/DELETE /documents/:id` · `POST /documents/:id/complete` | `DocumentsController` 통째로, `DocumentsService`의 메서드 5개. **`GET /projects/:id/documents`는 남았다** |
 | `GET /projects/:id/members` · `GET /projects/:id/invites` | `MembersService` 통째로, `InvitesService.listForProject` |
 | `GET /agents` · `GET/PATCH/DELETE /agents/:id` · `GET /agents/:id/runs` · `GET /agent-runs/:id` | `AgentsService`의 메서드 3개, `AgentRunsService`의 둘, `UpdateAgentDto` |
-| `GET /projects/:id/budget` | `BudgetService.get`은 private으로 남았다 (`put`이 쓴다) |
+| `GET /projects/:id/budget` | 나머지 예산 표면은 PR #87에서 같이 지웠다(아래) |
 | `GET /projects/:id/burn-rate` | 없음 — `calculateBurnRate`는 `token-usage`가 계속 쓴다 |
 | `GET /projects/:id/token-waste-intelligence` | `TokenWasteReportService.getTokenWasteIntelligence`. 순수함수 `computeTokenWasteIntelligence`는 `waste-report.json`이 쓴다 |
 
@@ -117,6 +116,26 @@ GCS 연동 전체가 따라 죽었다. 문서 기능을 접기로 하고 통째�
 **`documents` 테이블과 `Document` 엔티티는 남겼다** — 기존 레코드는 그대로 있고 읽는 코드만
 없다. GCS 버킷(`muster-docs-taewoo`)은 비어 있어서(객체 0개) 함께 삭제했다.
 `GCP_PROJECT_ID`는 남는다 — Vertex AI(Gemini 폴백)와 Secret Manager가 쓴다.
+
+## 2026-09-20에 지운 것 — 죽은 SSE 이벤트
+
+`stream.service.ts`가 도메인 이벤트의 **유일한 소비자**다(`@OnEvent` 리스너가 하나도 없다).
+그래서 "웹이 안 받는 이벤트"는 곧 "아무도 안 받는 이벤트"다. 그런 것이 넷 있었다.
+
+| 이벤트 | 어디까지 갔었나 | 지운 것 |
+|---|---|---|
+| `budget_alert` | SSE까지 가고 화면이 버림 | 구독·SSE 매핑·도메인 이벤트·`BudgetService` 전체·`PUT /projects/:id/budget`·`PutBudgetDto` |
+| `stage_change` | SSE까지 가고 화면이 버림 | 구독·SSE 매핑·도메인 이벤트·`projects.service.ts`의 발행부 |
+| `WORKFLOW_RUN_COMPLETED` | **SSE 매핑조차 없었다** | 도메인 이벤트·`webhook-ingest.service.ts`의 발행부. env-catalog(PR #79에서 삭제)가 받으려던 것이다 |
+| `CODE_PUSHED` | **SSE 매핑조차 없었다** | 같음. "커밋 기반 자동 목표 갱신"용인데 끝내 안 붙었다 |
+
+**`project_stage_history`에는 계속 쌓인다** — 단계 전환 이력은 `current_stage` 변경과 같은
+트랜잭션에서 기록되고, 지운 것은 그 뒤에 발행하던 이벤트뿐이다. `project_budgets` 테이블도
+남겼다(읽는 코드는 없다).
+
+남은 SSE 타입 5종은 전부 `ProjectDetailPage`가 분기해서 쓴다. **여기에 타입을 더하려면
+받아서 무엇을 할지부터 정할 것** — 구독만 늘리면 조용히 죽은 코드가 된다(DESIGN_DRIFT 10번이
+바로 그렇게 됐다).
 
 ## 알아 둘 구조적 제약
 

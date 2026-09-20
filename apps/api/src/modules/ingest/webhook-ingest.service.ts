@@ -15,10 +15,8 @@ import { ApiException } from '../../common/errors/api.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import {
   DomainEvent,
-  type CodePushedEvent,
   type HealthSnapshotCreatedEvent,
   type LogAppendedEvent,
-  type WorkflowRunCompletedEvent,
 } from '../../common/events/domain-events';
 import { isValidSignature } from './github-signature';
 import { interpret } from './github-events';
@@ -131,42 +129,6 @@ export class WebhookIngestService {
     // 커밋 뒤에 발행한다. 롤백된 트랜잭션의 로그가 SSE로 나가면 화면에만 존재하는 줄이 생긴다.
     if (appended) this.emitLogAppended(appended);
     if (snapshot) this.emitHealthSnapshot(snapshot);
-    // 중복 배달은 위에서 빠져나가므로 여기까지 오지 않는다 — 같은 실행 결과로 두 번
-    // 전이시키지 않는다.
-    if (workflowRun) {
-      this.events.emit(DomainEvent.WORKFLOW_RUN_COMPLETED, {
-        project_id: projectId,
-        run_name: workflowRun.run_name,
-        conclusion: workflowRun.conclusion,
-        run_url: workflowRun.run_url,
-        occurred_at: workflowRun.occurred_at.toISOString(),
-      } satisfies WorkflowRunCompletedEvent);
-    }
-
-    if (req.eventType === 'push') {
-      const p = payload as {
-        ref?: string;
-        commits?: unknown[];
-        head_commit?: { id?: string };
-        pusher?: { name?: string };
-        sender?: { login?: string };
-      } | null;
-      const ref = p?.ref || 'refs/heads/main';
-      const commitSha = p?.head_commit?.id || null;
-      const commitsCount = Array.isArray(p?.commits) ? p!.commits.length : 1;
-      const pushedBy = p?.pusher?.name || p?.sender?.login;
-      const repoUrl = repoUrlOf(payload) || '';
-
-      this.events.emit(DomainEvent.CODE_PUSHED, {
-        project_id: projectId,
-        ref,
-        commit_sha: commitSha,
-        occurred_at: new Date().toISOString(),
-        commits_count: commitsCount,
-        repo_url: repoUrl,
-        pushed_by: pushedBy,
-      } satisfies CodePushedEvent);
-    }
 
     return log || deployment || workflowRun ? 'processed' : 'ignored';
   }

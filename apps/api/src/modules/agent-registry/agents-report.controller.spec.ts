@@ -42,7 +42,6 @@ describe('ProjectAgentsController - Waste Report Export', () => {
     controller = new ProjectAgentsController(
       {} as never,
       {} as never,
-      {} as never,
       wasteReportService as TokenWasteReportService,
       {} as never,
     );
