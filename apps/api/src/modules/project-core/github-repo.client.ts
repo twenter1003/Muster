@@ -115,7 +115,7 @@ function capDocs(files: RepoDoc[]): RepoDoc[] {
  * 없으면 실행한 구성이 running에 영영 머문다.
  *
  * **이 목록을 바꿔도 이미 등록된 웹훅은 갱신되지 않는다.** 기존 연동은 해제 후 다시 걸어야
- * workflow_run을 받는다(docs/EXECUTION.md).
+ * workflow_run을 받는다.
  */
 export const WEBHOOK_EVENTS = ['push', 'pull_request', 'workflow_run'] as const;
 
