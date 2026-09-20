@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   formatCost,
   formatTokenCount,
+  getCacheBadge,
   type TokenWasteIntelligence,
 } from '../lib/tokenIntelligence';
 import { downloadWasteReport } from '../lib/exportUtils';
@@ -14,6 +15,8 @@ export interface TokenWasteIntelligenceCardProps {
   intelligence?: TokenWasteIntelligence | null;
   totalCost?: string;
   totalTokens?: string;
+  /** 이상치 세션 칩을 클릭했을 때 해당 세션 상세를 열기 위한 콜백. */
+  onJumpToSession?: (sessionId: string) => void;
 }
 
 export function TokenWasteIntelligenceCard({
@@ -21,6 +24,7 @@ export function TokenWasteIntelligenceCard({
   intelligence,
   totalCost,
   totalTokens,
+  onJumpToSession,
 }: TokenWasteIntelligenceCardProps) {
   const [guideModalOpen, setGuideModalOpen] = useState(false);
   const [downloadingFormat, setDownloadingFormat] = useState<'csv' | 'json' | null>(null);
@@ -48,26 +52,16 @@ export function TokenWasteIntelligenceCard({
     return null;
   }
 
-  const { cache_efficiency, waste_breakdown, optimization_guides, model_cache_benchmarks } =
+  const { cache_efficiency, cost_distribution, optimization_guides, model_cache_benchmarks } =
     intelligence;
 
-  const level = waste_breakdown.level;
-  let levelBadge = { text: '캐시 최적 상태', className: 'badge badge--ok' };
-  if (level === 'HIGH_WASTE') {
-    levelBadge = {
-      text: `컨텍스트 팽창 (${waste_breakdown.waste_percentage}% 낭비)`,
-      className: 'badge badge--warn',
-    };
-  } else if (level === 'CAUTION') {
-    levelBadge = {
-      text: `컴팩션 권장 (${waste_breakdown.waste_percentage}% 낭비)`,
-      className: 'badge badge--caution',
-    };
-  }
-
   const hitRate = cache_efficiency.hit_rate_percentage;
-  const progressClass =
-    hitRate >= 70
+  const headerBadge = getCacheBadge(hitRate);
+  const hasCacheData = hitRate !== null;
+  const gaugeValue = hitRate ?? 0;
+  const progressClass = !hasCacheData
+    ? 'cache-gauge--poor'
+    : hitRate >= 70
       ? 'cache-gauge--good'
       : hitRate >= 40
         ? 'cache-gauge--moderate'
@@ -77,8 +71,8 @@ export function TokenWasteIntelligenceCard({
     <div className="token-waste-card" data-testid="token-waste-intelligence-card">
       <div className="token-waste-card__header">
         <div className="token-waste-card__title-wrap">
-          <span className="token-waste-card__title">🧠 2026 프롬프트 캐싱 인텔리전스</span>
-          <span className={levelBadge.className}>{levelBadge.text}</span>
+          <span className="token-waste-card__title">🧠 캐싱 인텔리전스 (실측)</span>
+          <span className={headerBadge.className}>{headerBadge.text}</span>
         </div>
         <div className="token-waste-card__actions">
           {projectId && (
@@ -89,7 +83,7 @@ export function TokenWasteIntelligenceCard({
                 onClick={() => handleExport('csv')}
                 disabled={downloadingFormat !== null}
                 data-testid="export-csv-btn"
-                title="CSV 형식으로 낭비 분석 데이터 다운로드"
+                title="CSV 형식으로 캐시 효율 데이터 다운로드"
               >
                 {downloadingFormat === 'csv' ? '⏳ 생성 중...' : '📥 CSV 리포트'}
               </button>
@@ -99,7 +93,7 @@ export function TokenWasteIntelligenceCard({
                 onClick={() => handleExport('json')}
                 disabled={downloadingFormat !== null}
                 data-testid="export-json-btn"
-                title="JSON 형식으로 낭비 분석 데이터 다운로드"
+                title="JSON 형식으로 캐시 효율 데이터 다운로드"
               >
                 {downloadingFormat === 'json' ? '⏳ 생성 중...' : '📥 JSON'}
               </button>
@@ -131,56 +125,71 @@ export function TokenWasteIntelligenceCard({
       )}
 
       <div className="token-waste-card__grid">
-        {/* 1. 절감 시뮬레이션 */}
+        {/* 1. 캐싱으로 아낀 금액 (실측) */}
         <div className="token-waste-card__metric-box" data-testid="savings-simulation-box">
-          <span className="token-waste-card__metric-label">예상 절감 잠재력 (90% 캐시 할인)</span>
+          <span className="token-waste-card__metric-label">캐싱으로 아낀 금액 (실측)</span>
           <div className="token-waste-card__metric-value-wrap">
             <span className="token-waste-card__savings-amount">
-              {formatCost(cache_efficiency.potential_savings)}
-            </span>
-            <span className="token-waste-card__savings-pct">
-              ({cache_efficiency.savings_percentage}% 절감)
+              {formatCost(cache_efficiency.savings_usd)}
             </span>
           </div>
           <p className="meta token-waste-card__metric-sub">
-            최적화 시 예상 비용: {formatCost(cache_efficiency.optimized_cost)}{' '}
-            <span className="token-waste-card__strikethrough">
-              (현재 {formatCost(totalCost ?? cache_efficiency.current_estimated_cost)})
-            </span>
+            {cache_efficiency.sessions_with_breakdown > 0
+              ? `캐시 읽기 ${formatTokenCount(cache_efficiency.cache_read_tokens)} / 전체 ${formatTokenCount(totalTokens ?? '0')} 토큰 · 캐시 읽기가 정규 입력가보다 쌀 때만 절감이 생긴다`
+              : `내역 있는 세션 ${cache_efficiency.sessions_with_breakdown}건, 없는 세션 ${cache_efficiency.sessions_without_breakdown}건 — 계산할 데이터가 없다`}
           </p>
         </div>
 
-        {/* 2. 캐시 적중률 게이지 */}
+        {/* 2. 캐시 적중률 게이지 (실측) */}
         <div className="token-waste-card__metric-box" data-testid="cache-hit-rate-box">
           <div className="token-waste-card__gauge-header">
-            <span className="token-waste-card__metric-label">추정 캐시 적중률</span>
-            <span className="token-waste-card__gauge-val">{hitRate}%</span>
+            <span className="token-waste-card__metric-label">캐시 적중률 (실측)</span>
+            <span className="token-waste-card__gauge-val">
+              {hasCacheData ? `${hitRate}%` : '모름'}
+            </span>
           </div>
           <div className="cache-gauge-bar">
             <div
               className={`cache-gauge-bar__fill ${progressClass}`}
-              style={{ width: `${Math.min(100, Math.max(5, hitRate))}%` }}
+              style={{ width: `${hasCacheData ? Math.min(100, Math.max(5, gaugeValue)) : 0}%` }}
             />
           </div>
           <p className="meta token-waste-card__metric-sub">
-            목표 적중률: 85%+ (권장 컨텍스트 상단 고정)
+            {hasCacheData
+              ? `= 캐시 읽기 / (입력 + 캐시 읽기 + 캐시 쓰기)`
+              : '토큰 내역이 있는 실행이 없어 계산할 수 없다.'}
           </p>
         </div>
 
-        {/* 3. 컨텍스트 팽창 & 낭비 토큰 */}
-        <div className="token-waste-card__metric-box" data-testid="context-bloat-box">
-          <span className="token-waste-card__metric-label">컨텍스트 팽창 누적 토큰</span>
+        {/* 3. 세션 비용 분포 */}
+        <div className="token-waste-card__metric-box" data-testid="cost-distribution-box">
+          <span className="token-waste-card__metric-label">세션 비용 분포</span>
           <div className="token-waste-card__metric-value-wrap">
             <span className="token-waste-card__bloat-amount">
-              {formatTokenCount(waste_breakdown.total_wasted_tokens)}
+              중앙값 {formatCost(cost_distribution.median_cost_usd)}
             </span>
-            <span className="meta">/ {formatTokenCount(totalTokens ?? '0')} 토큰</span>
           </div>
           <p className="meta token-waste-card__metric-sub">
-            {waste_breakdown.high_waste_sessions_count > 0
-              ? `초장기 세션 ${waste_breakdown.high_waste_sessions_count}건 감지 (세션 분리 필요)`
-              : '세션 길이가 적정 수준으로 관리되고 있습니다.'}
+            p99 {formatCost(cost_distribution.p99_cost_usd)} · 표본 {cost_distribution.sample_size}건
+            {totalCost ? ` · 총 ${formatCost(totalCost)}` : ''}
           </p>
+          {cost_distribution.outliers.length > 0 && (
+            <div className="token-waste-card__chip-list" style={{ marginTop: 6 }}>
+              {cost_distribution.outliers.slice(0, 4).map((o) => (
+                <button
+                  key={o.session_id}
+                  type="button"
+                  className="token-waste-card__chip"
+                  style={{ cursor: onJumpToSession ? 'pointer' : 'default', border: 'none' }}
+                  onClick={() => onJumpToSession?.(o.session_id)}
+                  data-testid={`cost-outlier-${o.session_id}`}
+                  title="클릭하여 해당 세션으로 이동"
+                >
+                  <strong>{formatCost(o.cost_usd)}</strong> (중앙값의 {o.multiple_of_median}배)
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -201,14 +210,15 @@ export function TokenWasteIntelligenceCard({
       {/* 캐싱 최적화 가이드 모달 */}
       <Modal
         open={guideModalOpen}
-        title="2026 프롬프트 캐싱(Prompt Caching) 최적화 가이드"
+        title="프롬프트 캐싱(Prompt Caching) 최적화 가이드"
         onClose={() => setGuideModalOpen(false)}
       >
         <div className="cache-guide-modal-content">
           <p className="cache-guide-intro">
             2026년 기준 Claude Sonnet 5, Gemini 3.8/3.6 Flash, GPT-5.6 Terra 등 최신 에이전트 모델은
             <strong> 프롬프트 캐싱 적용 시 90%~97.5%의 파격적인 입력 비용 할인</strong>을
-            제공합니다. 아래 가이드를 적용하여 토큰 비용을 극대화하여 절감하세요.
+            제공합니다. 아래는 일반적인 캐싱 실천 가이드입니다(이 프로젝트만의 진단이 아니라 공통
+            참고 정보).
           </p>
 
           <div className="cache-guide-list">

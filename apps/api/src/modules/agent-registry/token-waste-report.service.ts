@@ -2,13 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '../../database/inject-repository.decorator';
 import { AgentRun } from '../../database/entities';
+import { ModelPricingService } from './model-pricing.service';
 import {
-  assessSessionWaste,
+  computeSessionCacheView,
   computeTokenWasteIntelligence,
   type CacheEfficiencyMetric,
+  type CostDistribution,
   type OptimizationGuide,
   type TokenWasteIntelligence,
-  type WasteLevel,
 } from './token-waste';
 
 export interface SessionWasteReportRow {
@@ -21,10 +22,9 @@ export interface SessionWasteReportRow {
   tokens_used: number;
   cost_usd: string;
   burn_rate_tokens_per_min: number;
-  waste_level: WasteLevel;
-  wasted_tokens: number;
-  wasted_cost_usd: string;
-  recommendation: string;
+  cache_hit_rate_percentage: number | null;
+  cache_savings_usd: string;
+  has_cache_breakdown: boolean;
 }
 
 export interface WasteReportJsonPayload {
@@ -34,27 +34,33 @@ export interface WasteReportJsonPayload {
     total_sessions: number;
     total_tokens: number;
     total_cost: string;
-    total_wasted_tokens: number;
-    total_wasted_cost: string;
-    waste_percentage: number;
-    overall_waste_level: WasteLevel;
   };
-  cache_roi_simulation: CacheEfficiencyMetric;
+  cache_efficiency: CacheEfficiencyMetric;
+  cost_distribution: CostDistribution;
   optimization_guides: OptimizationGuide[];
   sessions: SessionWasteReportRow[];
 }
 
 /**
- * 2026 프롬프트 캐싱 최적화 시뮬레이션 및 토큰 낭비 인텔리전스 리포트(JSON/CSV).
+ * 캐싱 적중률·절감액(실측) 및 세션당 비용 분포 리포트(JSON/CSV).
  * `budget.service.ts`에서 분리했다 — 예산 한도/알림과는 다른 책임(사후 분석 리포트)이다.
+ *
+ * 임계값 기반 "낭비 판정"은 제거했다(DESIGN_DRIFT 18번) — 캐시 읽기가 쌓인 세션을
+ * 가장 낭비가 심하다고 찍는 오류가 있었고, 실제 캐시 내역 컬럼이 있는 지금은
+ * 추정 대신 측정값을 낼 수 있다.
  */
 @Injectable()
 export class TokenWasteReportService {
-  constructor(@InjectRepository(AgentRun) private readonly runs: Repository<AgentRun>) {}
+  constructor(
+    @InjectRepository(AgentRun) private readonly runs: Repository<AgentRun>,
+    private readonly modelPricing: ModelPricingService = new ModelPricingService(),
+  ) {}
+
+  private readonly resolvePricing = (model?: string, agentName?: string) =>
+    this.modelPricing.resolvePricingRates(model, agentName);
 
   /**
-   * 프로젝트의 에이전트 실행 이력을 바탕으로 2026 프롬프트 캐싱 최적화 시뮬레이션 및
-   * 토큰 낭비 인텔리전스를 산출한다.
+   * 프로젝트의 에이전트 실행 이력을 바탕으로 캐시 적중률·절감액 및 비용 분포를 산출한다.
    */
   async getTokenWasteIntelligence(projectId: string): Promise<TokenWasteIntelligence> {
     const runs = await this.runs
@@ -67,16 +73,20 @@ export class TokenWasteReportService {
 
     return computeTokenWasteIntelligence(
       runs.map((r) => ({
-        tokens_used: r.tokens_used,
+        id: r.id,
         cost: r.cost,
+        input_tokens: r.input_tokens,
+        cache_read_tokens: r.cache_read_tokens,
+        cache_write_tokens: r.cache_write_tokens,
+        model: r.model,
         agent_name: r.agent?.name,
       })),
+      this.resolvePricing,
     );
   }
 
   /**
-   * 프로젝트의 세션별 토큰/비용 낭비 이력과 프롬프트 캐싱 ROI 시뮬레이션을
-   * 구조화된 JSON 데이터로 생성한다.
+   * 프로젝트의 세션별 캐시 효율 이력과 비용 분포를 구조화된 JSON 데이터로 생성한다.
    */
   async generateWasteReportJson(projectId: string): Promise<WasteReportJsonPayload> {
     const runs = await this.runs
@@ -89,16 +99,19 @@ export class TokenWasteReportService {
 
     const wasteIntelligence = computeTokenWasteIntelligence(
       runs.map((r) => ({
-        tokens_used: r.tokens_used,
+        id: r.id,
         cost: r.cost,
+        input_tokens: r.input_tokens,
+        cache_read_tokens: r.cache_read_tokens,
+        cache_write_tokens: r.cache_write_tokens,
+        model: r.model,
         agent_name: r.agent?.name,
       })),
+      this.resolvePricing,
     );
 
     let totalTokens = 0;
     let totalCostNum = 0;
-    let totalWastedTokens = 0;
-    let totalWastedCostNum = 0;
 
     const sessions: SessionWasteReportRow[] = runs.map((r) => {
       const durationSeconds = r.ended_at
@@ -114,14 +127,20 @@ export class TokenWasteReportService {
       const costNum = typeof r.cost === 'string' ? parseFloat(r.cost) : Number(r.cost || 0);
       const safeCostNum = Number.isFinite(costNum) ? costNum : 0;
 
-      const waste = assessSessionWaste(r.tokens_used);
-      const wastedCostNum =
-        (safeCostNum * waste.estimated_wasted_tokens) / Math.max(1, r.tokens_used);
+      const cache = computeSessionCacheView(
+        {
+          id: r.id,
+          input_tokens: r.input_tokens,
+          cache_read_tokens: r.cache_read_tokens,
+          cache_write_tokens: r.cache_write_tokens,
+          model: r.model,
+          agent_name: r.agent?.name,
+        },
+        this.resolvePricing,
+      );
 
       totalTokens += r.tokens_used;
       totalCostNum += safeCostNum;
-      totalWastedTokens += waste.estimated_wasted_tokens;
-      totalWastedCostNum += wastedCostNum;
 
       return {
         session_id: r.id,
@@ -133,15 +152,11 @@ export class TokenWasteReportService {
         tokens_used: r.tokens_used,
         cost_usd: safeCostNum.toFixed(4),
         burn_rate_tokens_per_min: burnRate,
-        waste_level: waste.level,
-        wasted_tokens: waste.estimated_wasted_tokens,
-        wasted_cost_usd: wastedCostNum.toFixed(4),
-        recommendation: waste.reason,
+        cache_hit_rate_percentage: cache.hit_rate_percentage,
+        cache_savings_usd: cache.savings_usd,
+        has_cache_breakdown: cache.has_breakdown,
       };
     });
-
-    const wastePercentage =
-      totalTokens > 0 ? Math.round((totalWastedTokens / totalTokens) * 100) : 0;
 
     return {
       project_id: projectId,
@@ -150,19 +165,16 @@ export class TokenWasteReportService {
         total_sessions: sessions.length,
         total_tokens: totalTokens,
         total_cost: totalCostNum.toFixed(4),
-        total_wasted_tokens: totalWastedTokens,
-        total_wasted_cost: totalWastedCostNum.toFixed(4),
-        waste_percentage: wastePercentage,
-        overall_waste_level: wasteIntelligence.waste_breakdown.level,
       },
-      cache_roi_simulation: wasteIntelligence.cache_efficiency,
+      cache_efficiency: wasteIntelligence.cache_efficiency,
+      cost_distribution: wasteIntelligence.cost_distribution,
       optimization_guides: wasteIntelligence.optimization_guides,
       sessions,
     };
   }
 
   /**
-   * 프로젝트의 세션별 토큰/비용 낭비 이력과 2026 캐싱 ROI 시뮬레이션을
+   * 프로젝트의 세션별 캐시 효율 이력과 비용 분포를
    * RFC 4180 호환 CSV 문자열로 생성한다.
    * Excel에서 열었을 때 한글이 깨지지 않도록 UTF-8 BOM(﻿)을 포함한다.
    */
@@ -187,10 +199,9 @@ export class TokenWasteReportService {
       'tokens_used',
       'cost_usd',
       'burn_rate_tokens_per_min',
-      'waste_level',
-      'wasted_tokens',
-      'wasted_cost_usd',
-      'recommendation',
+      'cache_hit_rate_percentage',
+      'cache_savings_usd',
+      'has_cache_breakdown',
     ];
     lines.push(headers.map(escapeCell).join(','));
 
@@ -207,10 +218,9 @@ export class TokenWasteReportService {
           s.tokens_used,
           s.cost_usd,
           s.burn_rate_tokens_per_min,
-          s.waste_level,
-          s.wasted_tokens,
-          s.wasted_cost_usd,
-          s.recommendation,
+          s.cache_hit_rate_percentage ?? '',
+          s.cache_savings_usd,
+          s.has_cache_breakdown,
         ]
           .map(escapeCell)
           .join(','),
@@ -224,11 +234,10 @@ export class TokenWasteReportService {
       'total_sessions',
       'total_tokens',
       'total_cost_usd',
-      'total_wasted_tokens',
-      'total_wasted_cost_usd',
-      'waste_percentage',
-      'potential_cache_savings_usd',
-      'savings_percentage',
+      'cache_hit_rate_percentage',
+      'cache_savings_usd',
+      'cost_median_usd',
+      'cost_p99_usd',
     ];
     lines.push(summaryHeaders.map(escapeCell).join(','));
 
@@ -238,11 +247,10 @@ export class TokenWasteReportService {
         report.summary.total_sessions,
         report.summary.total_tokens,
         report.summary.total_cost,
-        report.summary.total_wasted_tokens,
-        report.summary.total_wasted_cost,
-        `${report.summary.waste_percentage}%`,
-        report.cache_roi_simulation.potential_savings,
-        `${report.cache_roi_simulation.savings_percentage}%`,
+        report.cache_efficiency.hit_rate_percentage ?? '',
+        report.cache_efficiency.savings_usd,
+        report.cost_distribution.median_cost_usd,
+        report.cost_distribution.p99_cost_usd,
       ]
         .map(escapeCell)
         .join(','),

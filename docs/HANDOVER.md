@@ -1,24 +1,63 @@
 # Muster 프로젝트 세션 인수인계서 (Handover Document)
 
 - **작성 일시**: 2026-09-20
-- **작업자 / 모델**: Claude Code (Claude Opus 5)
-- **현재 브랜치**: `refactor/reorganize-god-files` (원격에 푸시됨)
+- **작업자 / 모델**: Claude Code (Claude Sonnet 5)
+- **현재 브랜치**: `refactor/measured-cache-roi` (PR 대기)
 
-## 저장소 상태 — 코드는 정리됨, 프로덕션 반영은 남음
+## 저장소 상태 — 낭비 판정→측정값 교체 완료, 마이그레이션·배포는 여전히 남음
 
-- ✅ **코드**: [PR #71](https://github.com/twenter1003/Muster/pull/71) 머지 완료(`20cf209`).
-  이번 세션 작업 7개 커밋이 전부 `main`에 들어갔다. 로컬 `main`도 동기화됨.
-  - (경위: PR #70이 리팩토링 2건만 담은 채 머지되어 이후 작업 6개가 브랜치에 남았고, #71로 정리했다.)
-- ✅ **검증**: 769개 통과 (API 511 + Web 236 + 훅 22), 빌드·린트·CI 전부 통과
+- ✅ **코드**: 이번 세션에서 `token-waste.ts`의 임계값 기반 낭비 판정을 실측 캐시 적중률·절감액·
+  비용 분포로 교체(HANDOVER 후보 1, DESIGN_DRIFT 18번의 남은 과제). 백엔드 3곳(`usage-timeseries`,
+  `token-waste-report`, `agent-runs`)·프론트 3곳(`TokenWasteIntelligenceCard`, `SessionWasteModal`,
+  `ProjectDetailPage`)·`mock-server.mjs`까지 전부 갱신. 브랜치 `refactor/measured-cache-roi`에
+  푸시 대기 — **PR·머지·`main` 동기화가 아직 안 끝났다.**
+- ✅ **검증**: 780개 통과(API 517 + Web 241 + 훅 22, 이전 769개에서 +11), 빌드·린트 통과,
+  목 서버로 데스크톱·모바일 시각 확인 완료.
 - ⚠️ **마이그레이션 미적용**: `1788920000000-AddAgentRunTokenBreakdown`이 **프로덕션 DB에 적용되지
   않았다.** 이 마이그레이션 없이 새 코드가 뜨면 토큰 4종 컬럼이 없어 실행 기록 저장이 실패한다.
   **배포보다 먼저 적용할 것.**
-- ⚠️ **Cloud Run 미배포**: 프로덕션은 여전히 이전 리비전이다. 비용 7.6배 정정은 아직 사용자가
-  보는 화면에 반영되지 않았다.
+- ⚠️ **Cloud Run 미배포**: 프로덕션은 여전히 이전 리비전이다. 비용 7.6배 정정과 이번 캐시 지표
+  교체 모두 아직 사용자가 보는 화면에 반영되지 않았다.
 
 ---
 
-## 1. 이번 세션 완료 내역
+## 0. 이번 세션 완료 내역 — 낭비 판정을 실측값으로 교체
+
+`docs/kickoff/PROMPT.md`가 지정한 최우선 과제(후보 1)를 처리했다. `a29ce7a`로 토큰 4종 컬럼이
+들어왔지만 그 위의 판정 로직은 여전히 임계값 상수였다 — 이번 세션에서 실측값으로 바꿨다.
+
+**무엇을 바꿨나** (`apps/api/src/modules/agent-registry/token-waste.ts` 전면 재작성):
+- `assessSessionWaste()`(토큰 5천만/1천만 → 60%/25% 낭비 판정)와 `computeWasteInsight()`를
+  제거했다. 캐시 읽기가 쌓인 세션을 가장 낭비가 심하다고 찍는 오류가 있었다(DESIGN_DRIFT 18번).
+- `computeCacheEfficiency()`: 캐시 적중률 = `cache_read / (input + cache_write + cache_read)`,
+  절감액 = `cache_read_tokens × (모델별 정규 입력가 − 캐시 읽기가)`. 둘 다 실측 컬럼에서 바로
+  나온다. 토큰 내역이 없는(예전) 실행은 **0이 아니라 집계에서 제외**한다 — "모름"과 "캐시 안 씀"은
+  다르다.
+- `computeCostDistribution()`: 세션당 비용의 중앙값·p99와, 중앙값의 2배 이상이면서 상위 1%에
+  드는 이상치 세션 목록(점프 가능). 임계값으로 "낭비"를 선언하지 않고 분포만 보여준다
+  (Braintrust 방식 — HANDOVER 벤치마크 조사 참조).
+- 정적인 캐싱 실천 가이드(`OPTIMIZATION_GUIDES`)와 모델별 캐시 단가 벤치마크는 유지했다 — 이건
+  프로젝트별 "판정"이 아니라 공통 참고 정보라 남겨 둘 근거가 있었다.
+
+**호출부 갱신**: `usage-timeseries.service.ts`(대시보드 API), `token-waste-report.service.ts`
+(CSV/JSON 내보내기), `agent-runs.service.ts`(세션 상세)의 세 갈래 모두 새 지표로 교체.
+`ModelPricingService.resolvePricingRates()`를 추가해 세 곳이 같은 어댑터로 모델별 단가를 주입한다.
+
+**프론트엔드**: `TokenWasteIntelligenceCard.tsx`(낭비 뱃지·게이지 제거 → 절감액/적중률/비용
+분포 3분할 + 이상치 클릭 시 세션 점프), `SessionWasteModal.tsx`("심각한 낭비 감지" 진단 제거 →
+캐시 적중률(실측) + "프로젝트 중앙값의 N배" 상대 비교), `ProjectDetailPage.tsx`(세션 행 뱃지를
+캐시 적중률 칩으로 교체, 내역 없으면 "캐시 내역 없음"으로 표시). `mock-server.mjs`도 새 응답
+형태로 갱신하고 목 서버 + iOS 시뮬레이터로 데스크톱·모바일 렌더링을 확인했다.
+
+**검증**: 신규/수정 테스트 포함 780개 통과(이전 769개 → API 517·Web 241·훅 22 그대로).
+`token-waste.spec.ts`는 실측 시나리오(입력 98.6%가 캐시 읽기인 경우 등)로 전면 재작성했다.
+
+**남은 것**: 브랜치 `refactor/measured-cache-roi`는 아직 PR·머지 전이다. 마이그레이션
+`1788920000000`과 Cloud Run 배포는 사용자 지시로 이번 과제 완료 후 처리하기로 미뤘다.
+
+---
+
+## 1. 이전 세션 완료 내역 (2026-09-19)
 
 세션은 "기능 추가"가 아니라 **재정비 → 모바일 품질 → 비용 정확도**로 흘렀다.
 
@@ -139,24 +178,21 @@ xcrun simctl boot "iPhone 16e" && xcrun simctl ui <UDID> appearance dark
 
 사용자 지시: **서비스 범위를 넓히는 신규 기능은 금지**. 다만 개선에 필요한 추가 개발은 허용.
 
-### 🎯 후보 1 (강력 추천): 낭비 판정·캐싱 ROI를 측정값으로 교체
+### ✅ 후보 1 완료 (2026-09-20): 낭비 판정·캐싱 ROI를 측정값으로 교체
 
-이제 진짜 캐시 수치가 들어온다. 상수 추정을 **측정된 반사실**로 바꿀 차례다.
+`refactor/measured-cache-roi` 브랜치에서 완료. 상세는 위 "0. 이번 세션 완료 내역" 참조.
+PR·머지가 아직이라 다음 세션은 그것부터 확인할 것.
 
-- `token-waste.ts`의 임계값 기반 판정(5천만/1천만 토큰 → 60%/25% 낭비)을 걷어낸다.
-  **캐시 읽기가 많은 세션을 낭비로 찍는 현재 동작은 사실과 반대다.**
-- 캐싱 절감액은 추정이 아니라 `cache_read_tokens × (정규 입력가 − 캐시 읽기가)`로 낸다
-- 낭비는 판정 대신 **분포**로 — 세션당 비용의 중앙값 대비 p99, 이상치는 해당 세션으로 점프
-
-**벤치마크 근거(이번 세션 조사)**: 조사한 제품 중 "낭비 토큰"이라는 숫자를 주장하는 곳은
-**하나도 없었다**. Helicone은 관측된 캐시 읽기 토큰으로 "73% 적중, $1,247 절감"이라는 반사실만
-보여주고, OpenRouter는 "프롬프트의 어디서 캐시가 깨졌는지"를 짚고, Braintrust는 세션당 비용의
-중앙값 대비 p99로 이상치를 지목한다. 공통점은 **판정을 발표하지 않고 산수를 보여준다**는 것.
+**벤치마크 근거(조사 결과, 참고용으로 남겨 둠)**: 조사한 제품 중 "낭비 토큰"이라는 숫자를
+주장하는 곳은 **하나도 없었다**. Helicone은 관측된 캐시 읽기 토큰으로 "73% 적중, $1,247 절감"
+이라는 반사실만 보여주고, OpenRouter는 "프롬프트의 어디서 캐시가 깨졌는지"를 짚고, Braintrust는
+세션당 비용의 중앙값 대비 p99로 이상치를 지목한다. 공통점은 **판정을 발표하지 않고 산수를
+보여준다**는 것.
 - Helicone: https://docs.helicone.ai/guides/cookbooks/cost-tracking
 - OpenRouter Activity: https://openrouter.ai/blog/announcements/activity-dashboard/
 - Braintrust: https://www.braintrust.dev/articles/how-to-track-llm-costs-2026
 
-### 🎯 후보 2: 상세 페이지 재편 (기능 추가 없이 재배치)
+### 🎯 후보 2 (다음 최우선): 상세 페이지 재편 (기능 추가 없이 재배치)
 
 카드 12개를 항상 펼친 채 쌓아 두는 현재 구조는 현행 규범과 어긋난다.
 

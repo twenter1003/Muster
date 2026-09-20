@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SessionWasteInfo } from './SessionWasteModal';
-import { formatCost, formatTokenCount, getWasteBadge } from '../lib/tokenIntelligence';
+import { formatCost, formatTokenCount, getCacheBadge } from '../lib/tokenIntelligence';
 import { formatBurnRate } from '../lib/burnRate';
 import { formatElapsedTime } from '../lib/projectListUtils';
 
@@ -15,13 +15,12 @@ describe('SessionWasteModal 로직 및 데이터 정합성 검증', () => {
     started_at: '2026-09-18T07:30:00.000Z',
     ended_at: null,
     duration_seconds: 600, // 10분
-    waste: {
-      level: 'HIGH_WASTE',
-      reason:
-        '100턴 이상의 장기 대화로 인해 매 턴마다 30k 이상의 이전 히스토리가 재전송되고 있습니다.',
-      estimated_wasted_tokens: 65000,
-      estimated_wasted_cost: '0.1950',
-      recommendation: '/compact 명령어로 컨텍스트를 요약 압축하세요.',
+    cache: {
+      hit_rate_percentage: 92,
+      input_tokens: 12000,
+      cache_read_tokens: 138000,
+      savings_usd: '0.2070',
+      has_breakdown: true,
     },
   };
 
@@ -35,11 +34,12 @@ describe('SessionWasteModal 로직 및 데이터 정합성 검증', () => {
     started_at: '2026-09-18T06:00:00.000Z',
     ended_at: '2026-09-18T06:08:30.000Z',
     duration_seconds: 510, // 8분 30초
-    waste: {
-      level: 'CAUTION',
-      reason: '컨텍스트 누적이 시작되었습니다.',
-      estimated_wasted_tokens: 12000,
-      estimated_wasted_cost: '0.0090',
+    cache: {
+      hit_rate_percentage: 30,
+      input_tokens: 29400,
+      cache_read_tokens: 12600,
+      savings_usd: '0.0090',
+      has_breakdown: true,
     },
   };
 
@@ -53,9 +53,7 @@ describe('SessionWasteModal 로직 및 데이터 정합성 검증', () => {
     started_at: '2026-09-18T05:00:00.000Z',
     ended_at: '2026-09-18T05:03:00.000Z',
     duration_seconds: 180, // 3분
-    waste: {
-      level: 'NORMAL',
-    },
+    cache: undefined,
   };
 
   it('실행 중인 세션(running)의 메트릭과 분당 소모율(Burn Rate)이 올바르게 계산된다', () => {
@@ -79,31 +77,27 @@ describe('SessionWasteModal 로직 및 데이터 정합성 검증', () => {
     expect(formatCost(mockCancelledSession.cost)).toBe('$0.03');
   });
 
-  it('낭비 위험도(HIGH_WASTE, CAUTION, NORMAL)에 따른 뱃지 매핑이 정확하다', () => {
-    const highBadge = getWasteBadge('HIGH_WASTE');
-    expect(highBadge.text).toBe('낭비 위험');
-    expect(highBadge.className).toContain('badge--warn');
+  it('캐시 적중률(실측)에 따른 뱃지 매핑이 정확하다', () => {
+    const highBadge = getCacheBadge(92);
+    expect(highBadge.text).toBe('캐시 적중 92%');
+    expect(highBadge.className).toContain('badge--ok');
 
-    const cautionBadge = getWasteBadge('CAUTION');
-    expect(cautionBadge.text).toBe('주의');
-    expect(cautionBadge.className).toContain('badge--caution');
+    const lowBadge = getCacheBadge(30);
+    expect(lowBadge.text).toBe('캐시 적중 30%');
+    expect(lowBadge.className).toContain('badge--warn');
 
-    const normalBadge = getWasteBadge('NORMAL');
-    expect(normalBadge.text).toBe('정상');
-    expect(normalBadge.className).toContain('badge--ok');
+    const noBadge = getCacheBadge(null);
+    expect(noBadge.text).toBe('캐시 내역 없음');
   });
 
-  it('추정 낭비 토큰 및 낭비 비용이 정확히 포맷팅된다', () => {
-    const wastedTokens = mockRunningSession.waste?.estimated_wasted_tokens ?? 0;
-    const wastedCost = mockRunningSession.waste?.estimated_wasted_cost ?? '0.00';
-
-    expect(formatTokenCount(wastedTokens)).toBe('65K');
-    expect(formatCost(wastedCost)).toBe('$0.20');
+  it('캐싱으로 아낀 금액이 실측값으로 포맷팅된다', () => {
+    const savingsUsd = mockRunningSession.cache?.savings_usd ?? '0.00';
+    expect(formatCost(savingsUsd)).toBe('$0.21');
   });
 
-  it('정상 완료된 세션(succeeded)의 상태가 정상 인식된다', () => {
+  it('내역 없는 세션(succeeded)은 cache가 undefined로 남는다 — 0%로 지어내지 않는다', () => {
     expect(mockSucceededSession.status).toBe('succeeded');
-    expect(mockSucceededSession.waste?.level).toBe('NORMAL');
+    expect(mockSucceededSession.cache).toBeUndefined();
     expect(formatTokenCount(mockSucceededSession.tokens_used)).toBe('12K');
   });
 

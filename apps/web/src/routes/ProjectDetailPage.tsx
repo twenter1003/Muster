@@ -18,7 +18,9 @@ import {
 import {
   formatCost,
   formatTokenCount,
-  getWasteBadge,
+  getCacheBadge,
+  multipleOfMedian,
+  type SessionCacheView,
   type TokenWasteIntelligence,
 } from '../lib/tokenIntelligence';
 import {
@@ -94,20 +96,7 @@ interface SessionRunView {
   started_at: string;
   ended_at: string | null;
   duration_seconds?: number;
-  waste?: {
-    level: 'NORMAL' | 'CAUTION' | 'HIGH_WASTE';
-    reason?: string;
-    estimated_wasted_tokens?: number;
-    estimated_wasted_cost?: string;
-    recommendation?: string;
-  };
-}
-
-interface WasteInsightSummary {
-  total_wasted_tokens: number;
-  waste_percentage: number;
-  high_waste_sessions_count: number;
-  recommendation: string;
+  cache?: SessionCacheView;
 }
 
 interface UsageBreakdown {
@@ -133,7 +122,6 @@ interface UsageBreakdown {
   >;
   available_agents?: string[];
   model_breakdown?: ModelUsageItem[];
-  waste_insight?: WasteInsightSummary;
   waste_intelligence?: TokenWasteIntelligence;
   burn_rate?: BurnRateStatus;
   recent_runs?: SessionRunView[];
@@ -1274,6 +1262,13 @@ export function ProjectDetailPage() {
                     intelligence={usage.data.waste_intelligence}
                     totalTokens={usage.data.total_tokens || usage.data.month_tokens}
                     totalCost={usage.data.total_cost || usage.data.month_cost}
+                    onJumpToSession={(sessionId) => {
+                      const target = usage.data?.recent_runs?.find((r) => r.id === sessionId);
+                      if (target) {
+                        setSelectedRun(target);
+                        setWasteModalOpen(true);
+                      }
+                    }}
                   />
                 )}
 
@@ -1286,21 +1281,6 @@ export function ProjectDetailPage() {
                     💡 에이전트 연동 방법 및 API 키 발급받기 →
                   </button>
                 </div>
-
-                {!usage.data.waste_intelligence &&
-                  usage.data.waste_insight &&
-                  usage.data.waste_insight.high_waste_sessions_count > 0 && (
-                    <div
-                      className="detail__goals-remaining"
-                      style={{ marginTop: 'var(--space-2)' }}
-                    >
-                      <p className="meta" style={{ color: 'var(--color-signal, #e05252)' }}>
-                        ⚠️ <strong>컨텍스트 팽창 주의</strong> (
-                        {usage.data.waste_insight.waste_percentage}% 낭비 추정)
-                      </p>
-                      <p className="meta">{usage.data.waste_insight.recommendation}</p>
-                    </div>
-                  )}
 
                 {usage.data.recent_runs && usage.data.recent_runs.length > 0 && (
                   <div style={{ marginTop: 'var(--space-3)' }}>
@@ -1328,7 +1308,7 @@ export function ProjectDetailPage() {
                         ? { text: '작업 중', className: 'badge badge--pulse' }
                         : isCancelled
                           ? { text: '강제 중단됨', className: 'badge badge--signal' }
-                          : getWasteBadge(r.waste?.level);
+                          : getCacheBadge(r.cache?.hit_rate_percentage ?? null);
                       const agentLabel = getAgentLabel(r.agent_name);
                       return (
                         <div
@@ -1346,7 +1326,7 @@ export function ProjectDetailPage() {
                               setWasteModalOpen(true);
                             }
                           }}
-                          title="클릭하여 토큰 낭비 딥다이브 모달 열기"
+                          title="클릭하여 세션 상세 모달 열기"
                           data-testid={`session-row-${r.id}`}
                         >
                           <div className="session-row__left">
@@ -1490,6 +1470,10 @@ export function ProjectDetailPage() {
         onClose={() => setWasteModalOpen(false)}
         run={selectedRun}
         projectId={id}
+        multipleOfMedian={multipleOfMedian(
+          selectedRun?.cost,
+          usage.data?.waste_intelligence?.cost_distribution,
+        )}
       />
     </section>
   );

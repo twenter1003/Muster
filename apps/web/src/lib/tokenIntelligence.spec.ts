@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatCost, formatTokenCount, getWasteBadge } from './tokenIntelligence';
+import { formatCost, formatTokenCount, getCacheBadge, multipleOfMedian } from './tokenIntelligence';
 
 describe('tokenIntelligence', () => {
   describe('formatTokenCount', () => {
@@ -29,17 +29,53 @@ describe('tokenIntelligence', () => {
     });
   });
 
-  describe('getWasteBadge', () => {
-    it('HIGH_WASTE는 warn 뱃지를 반환한다', () => {
-      const badge = getWasteBadge('HIGH_WASTE');
-      expect(badge.text).toBe('낭비 위험');
-      expect(badge.className).toContain('badge--warn');
+  describe('getCacheBadge', () => {
+    it('내역이 없으면(null) "캐시 내역 없음"을 반환한다 — 0%로 세지 않는다', () => {
+      const badge = getCacheBadge(null);
+      expect(badge.text).toBe('캐시 내역 없음');
     });
 
-    it('NORMAL 또는 미지정은 ok badge를 반환한다', () => {
-      const badge = getWasteBadge('NORMAL');
-      expect(badge.text).toBe('정상');
+    it('적중률 70% 이상은 ok 뱃지를 반환한다', () => {
+      const badge = getCacheBadge(85);
+      expect(badge.text).toBe('캐시 적중 85%');
       expect(badge.className).toContain('badge--ok');
+    });
+
+    it('적중률 40~69%는 caution 뱃지를 반환한다', () => {
+      const badge = getCacheBadge(50);
+      expect(badge.className).toContain('badge--caution');
+    });
+
+    it('적중률 40% 미만은 warn 뱃지를 반환한다', () => {
+      const badge = getCacheBadge(10);
+      expect(badge.className).toContain('badge--warn');
+    });
+  });
+
+  describe('multipleOfMedian', () => {
+    it('분포 데이터가 없으면 null을 반환한다', () => {
+      expect(multipleOfMedian('10.00', null)).toBeNull();
+    });
+
+    it('분포 표본이 0이면 null을 반환한다', () => {
+      expect(
+        multipleOfMedian('10.00', {
+          median_cost_usd: '0.0000',
+          p99_cost_usd: '0.0000',
+          sample_size: 0,
+          outliers: [],
+        }),
+      ).toBeNull();
+    });
+
+    it('중앙값 대비 배수를 계산한다', () => {
+      const result = multipleOfMedian('5.00', {
+        median_cost_usd: '2.00',
+        p99_cost_usd: '10.00',
+        sample_size: 5,
+        outliers: [],
+      });
+      expect(result).toBe(2.5);
     });
   });
 

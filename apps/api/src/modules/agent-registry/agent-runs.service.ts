@@ -10,7 +10,7 @@ import { buildPage, type Page, type PageRequest } from '../../common/pagination/
 import { normalizeGitRepoUrl } from '../project-core/repo-url';
 import { BudgetService } from './budget.service';
 import { ModelPricingService } from './model-pricing.service';
-import { assessSessionWaste, type SessionWasteAssessment } from './token-waste';
+import { computeSessionCacheView, type SessionCacheView } from './token-waste';
 import type { CreateRunDto } from './dto/create-run.dto';
 import type { HeartbeatRunDto } from './dto/heartbeat-run.dto';
 import type { TokenBreakdownDto } from './dto/token-breakdown.dto';
@@ -33,7 +33,7 @@ export interface SessionRunDetailView {
   started_at: string;
   ended_at: string | null;
   duration_seconds: number;
-  waste: SessionWasteAssessment;
+  cache: SessionCacheView;
 }
 
 /** 설계서 Part 4 §6 — 실행 이력. 토큰/비용 집계의 원천. */
@@ -384,7 +384,17 @@ export class AgentRunsService {
       started_at: run.started_at.toISOString(),
       ended_at: run.ended_at ? run.ended_at.toISOString() : null,
       duration_seconds,
-      waste: assessSessionWaste(run.tokens_used),
+      cache: computeSessionCacheView(
+        {
+          id: run.id,
+          input_tokens: run.input_tokens,
+          cache_read_tokens: run.cache_read_tokens,
+          cache_write_tokens: run.cache_write_tokens,
+          model: run.model,
+          agent_name: agent?.name,
+        },
+        (model, agentName) => this.modelPricing.resolvePricingRates(model, agentName),
+      ),
     };
   }
 

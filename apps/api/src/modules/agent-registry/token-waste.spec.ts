@@ -1,85 +1,151 @@
 import {
-  assessSessionWaste,
-  computeWasteInsight,
+  computeCacheEfficiency,
+  computeCostDistribution,
+  computeSessionCacheView,
   computeTokenWasteIntelligence,
+  type PricingLookup,
 } from './token-waste';
 
+const sonnetPricing: PricingLookup = () => ({
+  inputPerMillion: 2.0,
+  cacheReadPerMillion: 0.2,
+});
+
+const noCacheRatePricing: PricingLookup = () => ({ inputPerMillion: 2.0 });
+
 describe('token-waste', () => {
-  describe('assessSessionWaste', () => {
-    it('5천만 토큰 이상이거나 300턴 이상이면 HIGH_WASTE를 반환한다', () => {
-      const res = assessSessionWaste(720_000_000, 1766);
-      expect(res.level).toBe('HIGH_WASTE');
-      expect(res.estimated_wasted_tokens).toBe(Math.round(720_000_000 * 0.6));
-      expect(res.reason).toContain('장기 세션');
+  describe('computeCacheEfficiency', () => {
+    it('빈 목록이면 적중률 null, 절감액 0을 반환한다', () => {
+      const eff = computeCacheEfficiency([], sonnetPricing);
+      expect(eff.hit_rate_percentage).toBeNull();
+      expect(eff.savings_usd).toBe('0.0000');
+      expect(eff.sessions_with_breakdown).toBe(0);
+      expect(eff.sessions_without_breakdown).toBe(0);
     });
 
-    it('1천만 토큰 이상이거나 100턴 이상이면 CAUTION을 반환한다', () => {
-      const res = assessSessionWaste(15_000_000, 120);
-      expect(res.level).toBe('CAUTION');
-      expect(res.estimated_wasted_tokens).toBe(Math.round(15_000_000 * 0.25));
+    it('내역 없는(예전) 실행은 0이 아니라 집계에서 제외한다', () => {
+      const eff = computeCacheEfficiency([{ id: 'r1' }, { id: 'r2' }], sonnetPricing);
+      expect(eff.hit_rate_percentage).toBeNull();
+      expect(eff.sessions_without_breakdown).toBe(2);
+      expect(eff.sessions_with_breakdown).toBe(0);
     });
 
-    it('소규모 세션은 NORMAL 및 낭비 토큰 0을 반환한다', () => {
-      const res = assessSessionWaste(2_000_000, 40);
-      expect(res.level).toBe('NORMAL');
-      expect(res.estimated_wasted_tokens).toBe(0);
+    it('입력의 98.6%가 캐시 읽기인 실측 비율로 적중률을 계산한다', () => {
+      const eff = computeCacheEfficiency(
+        [
+          {
+            id: 'r1',
+            input_tokens: 14_000,
+            cache_read_tokens: 986_000,
+            cache_write_tokens: 0,
+          },
+        ],
+        sonnetPricing,
+      );
+      expect(eff.hit_rate_percentage).toBe(99); // round(986000/1000000*100)
+      expect(eff.sessions_with_breakdown).toBe(1);
+    });
+
+    it('절감액을 캐시 읽기 토큰 × (정규 입력가 − 캐시 읽기가)로 실측한다', () => {
+      const eff = computeCacheEfficiency(
+        [{ id: 'r1', input_tokens: 0, cache_read_tokens: 1_000_000, cache_write_tokens: 0 }],
+        sonnetPricing,
+      );
+      // 1M 토큰 × (2.0 - 0.2) / 1M = $1.80
+      expect(eff.savings_usd).toBe('1.8000');
+    });
+
+    it('모델 단가표에 캐시 읽기가가 없으면 정규 입력가로 셈해 절감액 0을 낸다', () => {
+      const eff = computeCacheEfficiency(
+        [{ id: 'r1', cache_read_tokens: 1_000_000 }],
+        noCacheRatePricing,
+      );
+      expect(eff.savings_usd).toBe('0.0000');
     });
   });
 
-  describe('computeWasteInsight', () => {
-    it('빈 목록이면 0 및 정상 안내를 반환한다', () => {
-      const insight = computeWasteInsight([]);
-      expect(insight.total_wasted_tokens).toBe(0);
-      expect(insight.waste_percentage).toBe(0);
-      expect(insight.high_waste_sessions_count).toBe(0);
+  describe('computeSessionCacheView', () => {
+    it('단건 실행의 적중률·절감액을 계산한다', () => {
+      const view = computeSessionCacheView(
+        { id: 'r1', input_tokens: 100, cache_read_tokens: 900, cache_write_tokens: 0 },
+        sonnetPricing,
+      );
+      expect(view.has_breakdown).toBe(true);
+      expect(view.hit_rate_percentage).toBe(90);
     });
 
-    it('초장기 세션이 포함되어 있으면 적절한 낭비 비율과 권고 문구를 계산한다', () => {
-      const insight = computeWasteInsight([
-        { tokens_used: 100_000_000, turns: 400 }, // 60M waste
-        { tokens_used: 5_000_000, turns: 30 }, // 0 waste
+    it('내역이 없으면 has_breakdown이 false다', () => {
+      const view = computeSessionCacheView({ id: 'r1' }, sonnetPricing);
+      expect(view.has_breakdown).toBe(false);
+      expect(view.hit_rate_percentage).toBeNull();
+    });
+  });
+
+  describe('computeCostDistribution', () => {
+    it('빈 목록이면 표본 0을 반환한다', () => {
+      const dist = computeCostDistribution([]);
+      expect(dist.sample_size).toBe(0);
+      expect(dist.outliers).toEqual([]);
+    });
+
+    it('중앙값과 p99를 계산한다', () => {
+      const runs = Array.from({ length: 10 }, (_, i) => ({ id: `r${i}`, cost: String(i + 1) }));
+      const dist = computeCostDistribution(runs);
+      expect(dist.sample_size).toBe(10);
+      expect(Number(dist.median_cost_usd)).toBeGreaterThan(0);
+      expect(Number(dist.p99_cost_usd)).toBeGreaterThanOrEqual(Number(dist.median_cost_usd));
+    });
+
+    it('중앙값의 2배 이상이면서 상위 1%에 드는 세션만 이상치로 짚는다', () => {
+      const runs = [
+        ...Array.from({ length: 20 }, (_, i) => ({ id: `normal-${i}`, cost: '1.0000' })),
+        { id: 'spike', cost: '50.0000' },
+      ];
+      const dist = computeCostDistribution(runs);
+      expect(dist.outliers.length).toBeGreaterThan(0);
+      expect(dist.outliers[0].session_id).toBe('spike');
+      expect(dist.outliers[0].multiple_of_median).toBeGreaterThan(2);
+    });
+
+    it('비용이 0 이하인 실행은 분포 계산에서 제외한다', () => {
+      const dist = computeCostDistribution([
+        { id: 'r1', cost: '0.0000' },
+        { id: 'r2', cost: '1.0000' },
       ]);
-      expect(insight.high_waste_sessions_count).toBe(1);
-      expect(insight.total_wasted_tokens).toBe(60_000_000);
-      expect(insight.waste_percentage).toBe(Math.round((60_000_000 / 105_000_000) * 100));
-      expect(insight.recommendation).toContain('초장기 세션(1건)');
+      expect(dist.sample_size).toBe(1);
     });
   });
 
   describe('computeTokenWasteIntelligence', () => {
-    it('빈 목록이면 0 비용과 기본 벤치마크/가이드를 반환한다', () => {
-      const intel = computeTokenWasteIntelligence([]);
-      expect(intel.cache_efficiency.current_estimated_cost).toBe('0.0000');
-      expect(intel.cache_efficiency.potential_savings).toBe('0.0000');
-      expect(intel.cache_efficiency.savings_percentage).toBe(0);
-      expect(intel.waste_breakdown.level).toBe('NORMAL');
+    it('빈 목록이면 캐시 효율은 null/0, 정적 가이드·벤치마크는 채워져 있다', () => {
+      const intel = computeTokenWasteIntelligence([], sonnetPricing);
+      expect(intel.cache_efficiency.hit_rate_percentage).toBeNull();
+      expect(intel.cost_distribution.sample_size).toBe(0);
       expect(intel.optimization_guides.length).toBeGreaterThanOrEqual(3);
       expect(intel.model_cache_benchmarks.length).toBe(5);
     });
 
-    it('장기 팽창 세션이 존재할 때 캐시 절감 시뮬레이션 및 HIGH_WASTE를 진단한다', () => {
-      const intel = computeTokenWasteIntelligence([
-        { tokens_used: 100_000_000, cost: '25.0000', turns: 450, agent_name: 'claude-code' },
-        { tokens_used: 10_000_000, cost: '2.5000', turns: 50, agent_name: 'antigravity' },
-      ]);
-
-      expect(intel.waste_breakdown.level).toBe('HIGH_WASTE');
-      expect(intel.waste_breakdown.high_waste_sessions_count).toBe(1);
-      expect(intel.cache_efficiency.hit_rate_percentage).toBeLessThanOrEqual(50);
-      expect(parseFloat(intel.cache_efficiency.potential_savings)).toBeGreaterThan(0);
-      expect(parseFloat(intel.cache_efficiency.optimized_cost)).toBeLessThan(
-        parseFloat(intel.cache_efficiency.current_estimated_cost),
+    it('실측 캐시 내역이 있는 실행을 넣으면 적중률·절감액이 함께 계산된다', () => {
+      const intel = computeTokenWasteIntelligence(
+        [
+          {
+            id: 'r1',
+            cost: '18.0000',
+            input_tokens: 14_000,
+            cache_read_tokens: 986_000,
+            cache_write_tokens: 0,
+            model: 'claude-sonnet-5',
+          },
+        ],
+        sonnetPricing,
       );
-      expect(intel.cache_efficiency.savings_percentage).toBeGreaterThan(30);
-
-      // 가이드 검증
-      const pinningGuide = intel.optimization_guides.find((g) => g.id === 'prompt-cache-pinning');
-      expect(pinningGuide).toBeDefined();
-      expect(pinningGuide?.impact).toBe('HIGH');
+      expect(intel.cache_efficiency.hit_rate_percentage).toBe(99);
+      expect(Number(intel.cache_efficiency.savings_usd)).toBeGreaterThan(0);
+      expect(intel.cost_distribution.sample_size).toBe(1);
     });
 
     it('최신 2026 프론티어 모델 벤치마크 정보를 정확히 제공한다', () => {
-      const intel = computeTokenWasteIntelligence([]);
+      const intel = computeTokenWasteIntelligence([], sonnetPricing);
       const sonnet = intel.model_cache_benchmarks.find((b) => b.model === 'Claude Sonnet 5');
       const gemini = intel.model_cache_benchmarks.find((b) => b.model === 'Gemini 3.8 Flash');
 
