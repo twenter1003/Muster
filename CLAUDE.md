@@ -1,9 +1,19 @@
-## graphify
+## graphify (선택 도구)
 
-This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+`graphify-out/`에 이 저장소의 지식 그래프가 있다(노드 3,268개). **쓸 곳과 안 쓸 곳이 분명하다.**
 
-Rules:
-- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
-- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
-- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+쓸 만한 곳 — "이 코드베이스가 전체적으로 어떻게 생겼나"류의 넓은 질문:
+- `graphify query "<질문>"` · `graphify explain "<개념>"` · `graphify path "<A>" "<B>"`
+- `graphify-out/GRAPH_REPORT.md` — 아키텍처를 처음 훑을 때
+
+**쓰지 말 것** — 좁고 정확한 질문. "이 심볼을 누가 import하나", "이 화면이 라우트에 걸려 있나",
+"이 엔드포인트를 프론트가 부르나" 같은 질문에는 `grep`·`rg`·타입체커가 더 빠르고 정확하다.
+2026-09-20 감사에서 실제로 확인했다: 그래프 질의는 무관한 노드를 섞어 오고 결과가 잘린 반면,
+import를 훑는 10줄짜리 셸 루프가 죽은 코드 7,400줄을 2분 만에 확정했다.
+
+관리:
+- 코드를 고친 뒤 `graphify update .` (AST만 쓰므로 API 비용 없음)
+- 그래프는 마지막 빌드 시점의 스냅샷이다. 방금 고친 파일에 대해서는 신뢰하지 말고 파일을 직접 읽어라.
+
+> 예전에 이 파일은 `graphify-out/wiki/index.md`를 쓰라고 안내했는데 **그 파일은 만들어진 적이 없다**.
+> 없는 것을 가리키는 안내는 지웠다.
