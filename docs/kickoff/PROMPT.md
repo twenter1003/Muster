@@ -25,17 +25,18 @@
 
 ---
 
-## ⚠️ 현재 상태 — 코드는 머지됨, 마이그레이션·배포가 남았다
+## ⚠️ 현재 상태 — 코드·마이그레이션은 끝남, Cloud Run 배포만 남았다
 
 - ✅ [PR #71](https://github.com/twenter1003/Muster/pull/71) 머지 완료(`20cf209`).
 - ✅ [PR #72](https://github.com/twenter1003/Muster/pull/72) 머지 완료(`a1fb436`, 2026-09-20):
   낭비 판정→측정값 교체. 780개 통과.
-- ⚠️ **마이그레이션 `1788920000000-AddAgentRunTokenBreakdown`이 프로덕션 DB에 미적용이다.**
-  이게 없으면 새 코드가 토큰 4종 컬럼을 찾지 못해 실행 기록 저장이 실패한다. **배포보다 먼저 적용.**
+- ✅ **마이그레이션 적용 완료** (2026-09-20): `1788920000000-AddAgentRunTokenBreakdown`을
+  프로덕션 Supabase에 직접 적용했다(`gcloud secrets versions access`로 `muster-database-url`
+  읽어 `migration:run`). `migration:show` 기준 15개 전부 적용됨.
 - ⚠️ **Cloud Run 미배포** — 비용 7.6배 정정과 이번 캐시 지표 교체 모두 아직 사용자 화면에
-  반영되지 않았다.
+  반영되지 않았다. **이제 마이그레이션이 끝났으니 배포해도 안전하다.**
 
-배포 절차는 [docs/DEPLOY.md](../DEPLOY.md). 다음 과제에 착수하기 전에 이 둘을 먼저 처리할지
+배포 절차는 [docs/DEPLOY.md](../DEPLOY.md). 다음 과제에 착수하기 전에 배포부터 처리할지
 사용자와 정할 것.
 
 ---
