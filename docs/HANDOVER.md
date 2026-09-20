@@ -1,167 +1,206 @@
 # Muster 프로젝트 세션 인수인계서 (Handover Document)
 
-- **작성 일시**: 2026-09-19
-- **현재 브랜치**: `main` (최신 커밋 `d21f88b`, `origin/main`과 100% 동기화됨)
-- **작업자 / 모델**: Antigravity (Gemini 2.5 Pro)
-- **핵심 상태**:
-  - ✅ **전수 테스트**: **762 passed, 762 total (100% All Green)** (API 507개, Web 222개, Connect/Hooks 33개)
-  - ✅ **프로덕션 빌드**: `pnpm -r build` 0 error, 0 warning (API NestJS build 성공, Web Vite 번들링 365ms 완료)
-  - ✅ **프로덕션 DB 마이그레이션**: `AddAgentRunModel1788910000000` (Supabase 프로덕션 적용 완료)
-  - ✅ **Cloud Run 원격 배포**: 리비전 `muster-00041-fwc` 배포 완료 (`https://muster-54275961665.asia-northeast3.run.app`, 100% 트래픽 서빙, 헬스체크 200 OK)
-  - ✅ **지식 그래프**: `graphify update .` 최신화 동기화 완료 (3,240 노드, 7,865 엣지, 178 커뮤니티)
-  - ✅ **QA 증거**: Chrome CDP 기반 데스크톱 & 모바일 29종 스크린샷 캡처 완료 (`artifacts/` 및 세션 아티팩트 보관)
+- **작성 일시**: 2026-09-20
+- **작업자 / 모델**: Claude Code (Claude Opus 5)
+- **현재 브랜치**: `refactor/reorganize-god-files` (원격에 푸시됨)
+
+## ⚠️ 먼저 읽을 것 — 저장소 상태가 깔끔하지 않다
+
+**PR #70은 머지됐지만, 그 이후 커밋 6개가 아직 어디에도 머지되지 않았다.**
+
+PR #70이 리팩토링 2건(`53e9c71`, `0ada7e7`)만 담은 채 머지(`ecab4be`)됐고, 그 뒤에 푸시한
+작업들이 브랜치에만 남아 있다. `origin/main`에는 아래 6개가 **없다**:
+
+| 커밋 | 내용 |
+|---|---|
+| `bab0566` | 모바일 레이아웃 수정 + 로그인 없는 목 서버 신규 |
+| `5e76d8a` | 차트 축 라벨을 렌더 폭 기준으로 보정 |
+| `beea474` | iOS Safari 입력 포커스 시 화면 확대 수정 |
+| `6b434a7` | 모바일에서 A/B HUD가 목록 가리는 문제 + 초대 문구 |
+| `faa1fed` | 하드코딩된 "운영 중" 배지 제거 |
+| `a29ce7a` | **토큰 4종 분리 — 비용 7.6배 과다 계상 수정** |
+
+**차기 세션이 가장 먼저 할 일**: 이 브랜치로 새 PR을 열어 머지하거나(PR #70은 이미 MERGED라
+재사용 불가), `main`에 직접 반영할지 사용자와 정하고 처리한다. 로컬 `main`은 아직 `ad4815d`에
+머물러 있으므로 `git pull` 먼저.
+
+- **검증 상태**: 769개 통과 (API 511 + Web 236 + 훅 22), `pnpm -r build`·`pnpm -r lint` 통과
+- **미적용**: 마이그레이션 `1788920000000-AddAgentRunTokenBreakdown`은 **프로덕션에 적용되지 않았다**
+- **미배포**: Cloud Run은 여전히 이전 리비전. 이번 변경은 배포되지 않았다
 
 ---
 
-## 1. 금일 세션 완료 내역
+## 1. 이번 세션 완료 내역
 
-### 🚀 [PR #69 (Squash Merged)](https://github.com/twenter1003/Muster/pull/69) 토큰 관제 6대 핵심 품질 개선
+세션은 "기능 추가"가 아니라 **재정비 → 모바일 품질 → 비용 정확도**로 흘렀다.
 
-토큰 관제 시스템의 정합성, 시각적 분별력, 외부 LLM 장애 복원력 및 자동화 연동을 위한 **6대 핵심 품질 개선** 작업을 완수했습니다.
+### 1.1 God-file 분리 (순수 이동, 로직 변경 없음)
 
-#### 1.1 `TokenStockChart` 하단 볼륨 막대 구간 소모 비용($) 전환 및 툴팁 개선
-- **하단 바 스케일링 기준 변경**: 상단 라인(`tokens`)과 분리하여, 하단 볼륨 바를 해당 구간의 소모 비용(`d.cost`, $ USD)에 비례하도록 독립 스케일링(`maxCost` 기반, 최소 2px 높이 가드).
-- **메트릭 힌트 뱃지 추가**: 차트 상단 범례 우측에 `선: 토큰 추이 · 막대: 구간 비용 ($)` 명시.
-- **플로팅 툴팁 개선**: 툴팁 내부에서 `전체 토큰`과 `구간 비용`을 별도 행으로 독립 분리 표기.
+`graphify-out/GRAPH_REPORT.md`의 저응집도 신호로 대상을 고르고, 테스트 결과가 한 글자도
+바뀌지 않는 것으로 "순수 이동"을 증명했다.
 
-#### 1.2 프로젝트 라우트 전환 시 라이브 틱 잔여 데이터 격리 플러시
-- **`useSse` 커스텀 훅**: `projectId` 변경 시 `setEvents([])`를 호출하여 이전 프로젝트의 SSE 이벤트를 즉시 비우고 unmount 시 클린업.
-- **`ProjectDetailPage`**: `id` 변경(`useEffect`) 시 `liveTick`, `burnRate`, `activeLiveRun`, `agentHeartbeats`를 초기화하여 타 프로젝트 이동 시 잔여 틱 깜빡임 완벽 차단.
+- `budget.service.ts` **977 → 159줄**: 예산 CRUD/알림만 남기고 `UsageTimeseriesService`(시계열·번레이트),
+  `TokenWasteReportService`(낭비 리포트 JSON/CSV)로 분리
+- `ProjectOverviewPage.tsx` **1997 → 641줄**: 하위 컴포넌트 12개를 `components/`로 분리하고
+  공유 타입·포맷 헬퍼·`Card`/`Async`는 `ProjectOverviewShared.tsx`로
 
-#### 1.3 실측 트랜스크립트 모델명 바인딩 및 DB 스키마 마이그레이션
-- **DB 스키마 & 마이그레이션**: `agent_runs.model` varchar(100) nullable 컬럼 추가 (`1788910000000-AddAgentRunModel.ts`).
-- **도메인 이벤트 및 DTO**: `AgentRunStartedEvent`, `AgentRunHeartbeatEvent`, `AgentRunFinishedEvent`에 `model` 필드 반영.
-- **에이전트 훅 및 연동 CLI**:
-  - Claude Code (`report-agent-usage.mjs`): assistant 메시지 내 `model` 실측 추출.
-  - Antigravity (`report-agent-usage.mjs`): `Model Selection` 로그 파싱 및 표준 모델명 정규화.
-  - `muster-connect.mjs`: 임베디드 훅 스크립트 최신 Base64 동기화 및 33개 연동 테스트 통과.
-- **예산 서비스 집계**: `budget.service.ts`의 `modelQb`를 `GROUP BY COALESCE(r.model, a.name)`으로 집계하여 실측 모델별 점유율 정확히 계산.
+### 1.2 로그인 없는 목 서버 (신규) — `scripts/mock-server.mjs`
 
-#### 1.4 Gemini LLM 장애 복원력 (지수 백오프 + 지터 + 타임아웃)
-- **`apps/api/src/common/llm/retry.ts`**:
-  - 최대 3회 재시도, 지수 백오프 (기본 1s, 2s, 4s) + Jitter.
-  - 30초 타임아웃 AbortSignal 연동.
-  - 재시도 대상: 429(Rate Limit), 500, 502, 503, 504 및 네트워크 단절(fetch failed, ECONNRESET, ETIMEDOUT, timeout abort).
-  - 즉시 실패 대상: 400, 401, 403, 404 클라이언트 에러.
-- **클라이언트 연동**: `HttpGeminiClient` 및 `VertexGeminiClient`에 공통 적용.
+프로덕션이 GitHub OAuth 뒤에 있어 UI를 열어 볼 수가 없었다. 빌드된 SPA + `/api/v1/*` 전체를
+가짜 데이터로 응답한다. **이후의 모든 발견이 이 도구 덕분이다.**
 
-#### 1.5 라이브 틱 단조 증가 보정 & `burnRate` 안정화
-- **단조 증가 가드**: `ProjectDetailPage`에서 `Math.max`를 적용하여 네트워크 지연이나 SSE 재전송 시 토큰·비용 카운트 역전 방지.
-- **소모율 안정화**: `burnRate.ts`에서 음수 델타 0 클램핑 및 비정상 스파이크 방지.
-
-#### 1.6 GitHub push 수신 시 목표 진행률 자동 갱신 훅 & 10분 쿨다운
-- **이벤트 발행 (`WebhookIngestService`)**: push 웹훅 수신 시 `DomainEvent.CODE_PUSHED` 비동기 발행.
-- **이벤트 구독 (`ProjectGoalsService`)**: `@OnEvent(DomainEvent.CODE_PUSHED, { async: true })` 리스너를 통해 목표 진행률 자동 분석 트리거.
-- **10분 쿨다운 가드**: `lastAutoAnalysisMap` 인메모리 맵으로 프로젝트별 10분 쿨다운 적용 (LLM 비용 폭증 방지).
-- **모듈 경계 준수**: `ingest` 모듈이 `project-goals`를 직접 참조하지 않고 EventEmitter2 도메인 이벤트로 디커플링 유지 (`module-boundary.spec.ts` 통과).
-
----
-
-### 🌐 프로덕션 배포 완료 (Cloud Run)
-- **DB 마이그레이션**: Supabase 프로덕션 DB에 `AddAgentRunModel1788910000000` 마이그레이션 적용 완료.
-- **Cloud Run 서비스**: `muster` (`muster-twent` 프로젝트, `asia-northeast3` 리전).
-- **배포 리비전**: `muster-00041-fwc` (100% 트래픽 서빙).
-- **서비스 주소**: [https://muster-54275961665.asia-northeast3.run.app](https://muster-54275961665.asia-northeast3.run.app)
-- **실시간 헬스체크 검증**: `HTTP/2 200 OK` (`{"status":"ok","uptime_seconds":12}`).
-
----
-
-## 2. 코드베이스 구조 및 변경된 파일 요약
-
-```
-apps/api/
-  ├── src/common/
-  │   ├── events/domain-events.ts               # CODE_PUSHED 및 model 필드 추가
-  │   └── llm/
-  │       ├── retry.ts                          # [NEW] 지수 백오프 3회 재시도 복원력 엔진
-  │       ├── retry.spec.ts                     # [NEW] 재시도 엔진 단위 테스트 (7건)
-  │       ├── http-gemini-client.ts             # executeWithRetry 연동
-  │       ├── http-gemini-client.spec.ts        # 재시도/비재시도 검증
-  │       └── vertex-gemini-client.ts           # executeWithRetry 연동
-  ├── src/database/
-  │   ├── entities/agent-run.entity.ts          # model varchar(100) nullable 컬럼 추가
-  │   └── migrations/
-  │       └── 1788910000000-AddAgentRunModel.ts # [NEW] DB 스키마 마이그레이션
-  └── src/modules/
-      ├── agent-registry/
-      │   ├── agent-runs.service.ts             # model 영속화 및 SSE 이벤트 탑재
-      │   ├── agent-runs.service.spec.ts        # model 전달 검증
-      │   └── budget.service.ts                 # 실측 model별 점유율 및 비용 집계
-      ├── ingest/
-      │   ├── webhook-ingest.service.ts         # push 이벤트 시 CODE_PUSHED 도메인 이벤트 발행
-      │   ├── webhook-ingest.service.spec.ts    # 이벤트 발행 단위 테스트
-      │   └── module-boundary.spec.ts           # Ingest 모듈 경계 무결성 검증
-      └── project-goals/
-          ├── project-goals.service.ts          # CODE_PUSHED 비동기 리스너 및 10분 쿨다운 가드
-          └── project-goals.service.spec.ts     # 자동 분석 및 쿨다운 단위 테스트 (3건)
-
-apps/web/
-  ├── src/components/
-  │   ├── TokenStockChart.tsx                   # 금액($) 비례 하단 바, 메트릭 힌트, 툴팁 분리
-  │   ├── TokenStockChart.css                   # 힌트 뱃지 및 툴팁 스타일링
-  │   └── TokenStockChart.spec.ts               # 금액 바 스케일링 단위 테스트 (3건 추가)
-  ├── src/lib/
-  │   └── useSse.ts                             # projectId 변경 시 이벤트 버퍼 플러시
-  └── src/routes/
-      ├── ProjectDetailPage.tsx                # 프로젝트 전환 시 틱 격리 및 단조 증가 가드
-      └── ProjectDetailPage.spec.ts            # [NEW] 틱 격리 및 단조 증가 단위 테스트 (2건)
-
-scripts/
-  ├── claude-code-hooks/
-  │   ├── report-agent-usage.mjs                # assistant 턴에서 model 실측 추출
-  │   └── report-agent-usage.test.mjs           # 모델 추출 단위 테스트
-  ├── antigravity-hooks/
-  │   ├── report-agent-usage.mjs                # Model Selection 파싱 및 모델 식별
-  │   └── report-agent-usage.test.mjs           # 모델 식별 단위 테스트
-  ├── muster-connect.mjs                        # 최신 훅 Base64 임베딩 동기화
-  └── qa-server-and-capture.mjs                 # QA 모의 서버 및 29종 스크린샷 캡처
-
-docs/
-  ├── DESIGN_DRIFT.md                           # 17번 항목(토큰 관제 6대 개선) 공식 추가
-  ├── HANDOVER.md                               # 본 종합 인수인계 문서
-  └── kickoff/PROMPT.md                         # 차기 세션 인계 프롬프트 최신화
+```bash
+pnpm --filter @muster/web build && node scripts/mock-server.mjs   # → localhost:4173
 ```
 
+`.claude/launch.json`에 `mock`으로 등록되어 있다. 값 집합은 `domain.ts`의 실제 열거형을 따른다 —
+틀린 값을 넣으면 배지가 조용히 안 그려져 화면이 멀쩡한지 판단할 수 없다.
+
+### 1.3 모바일 반응형 (폭 320~1440px 전 구간 검증)
+
+- `ApiKeyModal`: 키 행·발급 바가 감싸지 않아 폐기 버튼이 세로 두 글자로 쪼개지고 다이얼로그가
+  가로 스크롤됐다 → `flex-wrap` + `min-width: 0`
+- 공용 `Modal`(모든 다이얼로그에 영향): 닫기 버튼 20px → 44×44, `panel`에 `min-width: 0`
+- `TokenStockChart` 축 라벨이 **5.1px**로 그려지고 있었다(측정값). 처음엔 `@media`로 잡았으나
+  320·360px에서 여전히 작고 **1200px 데스크톱에서 8.7px로 더 나빴다** — 1100px부터 2단이 되며
+  차트가 1009px → 521px로 좁아지기 때문. 뷰포트와 요소 폭이 같이 가지 않으므로 `ResizeObserver`로
+  실제 렌더 폭을 재서 배율을 상쇄한다(`axisFontSizeFor`) → 16개 폭 전부 10.0px
+- 마지막 축 라벨을 무조건 추가하느라 직전 라벨과 겹치던 버그(`pickAxisLabelIndices`)
+- 터치 표적 21px → 44px (터치 기기에서만, 데스크톱 모양 유지)
+
+### 1.4 iOS 실기기(iPhone 16e, iOS 26.1)에서만 드러난 것
+
+크롬 뷰포트 에뮬레이션으로는 재현되지 않는 것들이다.
+
+- **입력 포커스 시 Safari가 화면을 확대** → "배포 실패" 칩과 정렬 셀렉트가 화면 밖으로 잘렸다.
+  원인은 입력 글자 16px 미만. `@media (pointer: coarse)`로 잡았다 — 폭이 아니라 **입력 방식**이
+  신호이므로 데스크톱은 건드리지 않는다
+- **A/B HUD가 목록 첫 카드를 통째로 가림** → 접힘 기본값이 false라 첫 방문자는 언제나 가려진
+  목록을 봤다. 저장된 선택이 있으면 그대로, 없을 때만 좁은 화면에서 접는다
+- **초대 문구 주어 누락** ("가 이 프로젝트로 초대했습니다") → 앱은 `=== null`을 방어하지만
+  서버가 필드를 생략하면 `undefined`라 빠져나간다. `??`로 교체
+- **하드코딩된 "운영 중" 배지 제거**(사용자 결정) → 단계와 무관하게 늘 찍혀서, design 단계에
+  배포까지 실패한 프로젝트도 "운영 중"으로 보였다
+
+### 1.5 비용 정확도 근본 수정 — 이번 세션에서 가장 큰 것
+
+**증상**: 표시 비용이 실제의 **7.6배**. 이 기기의 Claude Code 세션 12개(4,254 메시지)를 집계해
+확인했다 — 입력 토큰의 **98.6%가 캐시 읽기**(정규 입력가의 10%)인데 전부 정규가로 곱하고 있었다.
+같은 데이터로 **$2,777 vs $364.94**.
+
+**원인**: 훅이 `input + cache_creation + cache_read`를 합쳐 하나로 보내고 서버가 그 합계를
+정규 입력가로 곱했다. `LLM_ECOSYSTEM_GUIDE` 5장은 이미 **네 필드를 모두 수집하라**고 적고 있었다 —
+설계서와 어긋난 게 아니라 우리 문서대로 하지 않고 있었다.
+
+**곁가지로 함께 틀어져 있던 것**:
+- 낭비 판정이 거꾸로다. 토큰이 큰 이유가 대개 캐시 읽기가 쌓여서인데, 그걸 낭비로 찍는다 —
+  **캐싱이 가장 잘 든 세션이 가장 낭비가 심하다고 분류된다**(실제 12개 중 5개가 HIGH_WASTE)
+- 캐싱 ROI가 상수에서 나온다(`총토큰 × 0.15` 고정, 적중률은 낭비율에서 역산)
+- 자기모순: "캐싱을 쓰라"고 권하는데 따를수록 표시 비용이 실제와 벌어진다
+
+**조치**: `AGENT_RUNS`에 토큰 4종 컬럼 추가(마이그레이션 `1788920000000`), 단가표에 캐시 읽기·쓰기
+단가 추가(가이드 2장에 실린 모델만), 훅이 네 값을 나눠 전송. 자세한 판단은 **DESIGN_DRIFT 18번**.
+
+부수적으로 `muster-connect`의 base64 임베딩 훅이 **실제로 원본과 어긋나 있었다**(손으로 동기화해
+온 탓). `scripts/sync-embedded-hooks.mjs`로 갱신·검증(`--check`)을 자동화했다.
+
 ---
 
-## 3. 차기 세션 작업 후보 및 추천 로드맵
+## 2. 알아 두면 시간을 아끼는 것들
 
-현재 메인 브랜치와 Cloud Run 프로덕션이 완벽히 안정화되었으며(All Green), 사용자 요구사항에 따라 다음 단계로 착수할 수 있는 핵심 과제 3가지를 정리합니다.
+### 2.1 라우팅되지 않는 화면이 많다
 
-### 🎯 후보 1 (강력 추천): 프로세스 외부 알림 채널 연동 (Webhook / Slack / Discord)
-- **배경 (DESIGN_DRIFT 10번 & 16번 후속)**:
-  - 현재 `BUDGET_THRESHOLD_EXCEEDED` 및 `BUDGET_SPIKE_CRITICAL` 알림은 대시보드 화면을 열어둔 사용자에게만 SSE로 전달됨.
-  - 사용자가 브라우저를 닫고 있거나 로컬에서 백그라운드로 장시간 에이전트를 돌릴 때, 비정상 토큰 폭주나 빌드/배포 실패를 즉시 인지할 수 없음.
-- **구현 범위**:
-  1. `Project` 엔티티에 `notification_webhook_url` (nullable varchar) 추가 및 암호화 보관.
-  2. Slack 수신 웹훅(Incoming Webhook) 및 Discord 포맷 호환 어댑터 구현.
-  3. 예산 급증(Budget Spike Critical) 또는 CI 배포 실패 발생 시 비동기 웹훅 알림 발송.
-  4. 웹 화면의 프로젝트 설정/상세 모달에 알림 웹훅 등록 UI 추가.
+`App.tsx`가 거는 라우트는 **5개뿐**이다: `/login`, `/invite/:token`, `/projects`,
+`/projects/:id`, `/import`.
 
-### 🎯 후보 2: 다중 프로젝트 통합 토큰 롤업(Rollup) 비교 분석 대시보드
-- **배경**:
-  - 현재는 각 프로젝트 상세 화면(`/projects/:id`)에서 프로젝트별 토큰 추이와 모델 점유율을 확인함.
-  - 여러 사이드 프로젝트(Muster, TWshop 등)를 동시에 운영하는 사용자가 **"내 계정 전체에서 이번 달 총 얼마를썼는가?"**, **"어느 프로젝트가 가장 토큰을 많이 소모하는가?"**를 한눈에 볼 수 있는 통합 집계 뷰 필요.
-- **구현 범위**:
-  1. `GET /api/v1/reports/token-rollup`: 전체 프로젝트 대상 일별/월별 누적 비용 및 모델별 합산 통계 엔드포인트.
-  2. 홈 대시보드 또는 리포트 화면(`/reports`)에 프로젝트별 비용 비교 가로 막대 차트 및 누적 파이 차트 탑재.
-  3. 전체 프로젝트 합산 CSV/JSON 내보내기 지원.
+`ProjectOverviewPage` · `DashboardPage` · `ReportsPage` · `SettingsPage` · `EnvCatalogPage` ·
+`AgentRegistryPage` · `DocStorePage` · `AuditLogPage` · `InboxPage` · `LogsHealthPage` ·
+`EnvConfigCreatePage`는 **파일만 남고 도달할 수 없다**(사유는 App.tsx:17-20).
 
-### 🎯 후보 3: GitHub Actions 자동 배포 파이프라인 정식 활성화
-- **배경 (docs/DEPLOY.md 8단계)**:
-  - 현재는 수동 스크립트(`./scripts/deploy-cloudrun.sh`)로 Cloud Run 배포를 수행함.
-  - GitHub Actions Workload Identity Federation(WIF) 설정을 저장소 Variables에 등록하여, `main` 브랜치 PR 머지 시 자동으로 Cloud Run에 롤링 배포되도록 CI/CD 완결.
-- **구현 범위**:
-  1. GCP Workload Identity Pool 및 공급자 생성 스크립트 실행.
-  2. 저장소 Variables 등록 (`GCP_WIF_PROVIDER`, `GCP_SERVICE_ACCOUNT`, `GCP_PROJECT`, `DEPLOY_URL`).
-  3. `.github/workflows/deploy.yml`의 `push: branches: [main]` 주석 해제 및 자동 배포 검증.
+이번 모바일 수정을 **도달 가능한 화면에만** 한정한 이유다. 서브에이전트가 "반드시 고쳐야 한다"고
+올린 항목 중 둘(`DocumentTable`, `DashboardPage` 표)이 이 죽은 영역에 있었다. 이 파일들을
+지울지 라우트를 되살릴지는 아직 정해지지 않았다.
+
+### 2.2 첫날 화면이 거의 빈다
+
+레포를 막 가져온 상태에서 데이터가 있는 카드는 7개 중 **1개(최근 커밋)** 뿐이다.
+배포·빌드는 GitHub Actions가 있어야 하고, **에러 로그는 본인 앱에 직접 POST 코드를 심어야
+한다**(`@Post(':id/logs')` + `ApiKeyGuard` — 수동 계측), 토큰 관련 카드 4개는 `muster-connect`
+설치 후 에이전트를 돌려야 채워진다.
+
+### 2.3 실기기 검증 방법
+
+```bash
+xcrun simctl boot "iPhone 16e" && xcrun simctl ui <UDID> appearance dark
+# 시뮬레이터 Safari에서 http://localhost:4173 열기 (목 서버가 떠 있어야 함)
+```
+
+다크 모드가 이 앱의 주 디자인이다. 라이트도 정상 동작한다(`tokens.css`가 `prefers-color-scheme`를
+존중). 모달 닫기 버튼의 검은 테두리는 `app.css:435`의 `:focus-visible` 포커스 링이며 **접근성상
+필요하므로 지우면 안 된다**.
+
+### 2.4 실제 토큰 사용량을 재는 법
+
+제품의 숫자가 맞는지 의심될 때 `~/.claude/projects/*/*.jsonl`을 직접 집계하면 된다.
+`message.usage`에 `input_tokens`, `output_tokens`, `cache_creation_input_tokens`,
+`cache_read_input_tokens`가 들어 있다. 이번 7.6배 발견이 이 방법으로 나왔다.
+
+---
+
+## 3. 차기 세션 작업 후보
+
+사용자 지시: **서비스 범위를 넓히는 신규 기능은 금지**. 다만 개선에 필요한 추가 개발은 허용.
+
+### 🎯 후보 1 (강력 추천): 낭비 판정·캐싱 ROI를 측정값으로 교체
+
+이제 진짜 캐시 수치가 들어온다. 상수 추정을 **측정된 반사실**로 바꿀 차례다.
+
+- `token-waste.ts`의 임계값 기반 판정(5천만/1천만 토큰 → 60%/25% 낭비)을 걷어낸다.
+  **캐시 읽기가 많은 세션을 낭비로 찍는 현재 동작은 사실과 반대다.**
+- 캐싱 절감액은 추정이 아니라 `cache_read_tokens × (정규 입력가 − 캐시 읽기가)`로 낸다
+- 낭비는 판정 대신 **분포**로 — 세션당 비용의 중앙값 대비 p99, 이상치는 해당 세션으로 점프
+
+**벤치마크 근거(이번 세션 조사)**: 조사한 제품 중 "낭비 토큰"이라는 숫자를 주장하는 곳은
+**하나도 없었다**. Helicone은 관측된 캐시 읽기 토큰으로 "73% 적중, $1,247 절감"이라는 반사실만
+보여주고, OpenRouter는 "프롬프트의 어디서 캐시가 깨졌는지"를 짚고, Braintrust는 세션당 비용의
+중앙값 대비 p99로 이상치를 지목한다. 공통점은 **판정을 발표하지 않고 산수를 보여준다**는 것.
+- Helicone: https://docs.helicone.ai/guides/cookbooks/cost-tracking
+- OpenRouter Activity: https://openrouter.ai/blog/announcements/activity-dashboard/
+- Braintrust: https://www.braintrust.dev/articles/how-to-track-llm-costs-2026
+
+### 🎯 후보 2: 상세 페이지 재편 (기능 추가 없이 재배치)
+
+카드 12개를 항상 펼친 채 쌓아 두는 현재 구조는 현행 규범과 어긋난다.
+
+- Grafana는 2026-04 Dynamic Dashboards GA에서 "과도한 세로 스크롤"을 고치려 탭·조건부 렌더링 도입
+  (https://grafana.com/whats-new/2026-04-08-dynamic-dashboards-is-now-generally-available/)
+- Sentry는 2025-02 이슈 상세를 모두 접히는 섹션 + 스티키 헤더로 전환(정보 위계·점진적 공개)
+- Vercel 프로젝트 상세는 탭 구조
+
+제안: **개요 / 에이전트(토큰·모델·캐싱·세션) / 배포(배포·빌드) / 설정(API 키)** 3~4묶음 +
+상단에 "지금 이상 있나"를 답하는 한 줄. **API 키 관리는 관제 흐름에서 설정으로 빼야 한다** —
+피어 중 자격증명을 모니터링 화면에 두는 곳은 없다.
+
+### 🎯 후보 3: 빈 상태 개선
+
+"아직 목표를 확정하지 않았다" 같은 회색 문장은 다음 행동이 없다. 제목 + 한 문장 + 기본 액션
+버튼이 표준(Carbon Design System). 2.2절의 "첫날 1/7"과 직결된다.
+
+### 후보 4 (정리): 도달 불가 화면 처리 방침
+
+11개 화면 파일이 라우트 없이 남아 있다. 지울지 되살릴지 정해야 `graphify` 신호도 정확해진다.
 
 ---
 
 ## 4. 인계 시 필수 준수 사항 (Hard Constraints)
 
-1. **지식 그래프 선행 조회**: 세션 시작 시 항상 `graphify query "<키워드>"`로 모듈 의존성을 먼저 확인할 것.
-2. **세션 내 완결 원칙**: 브랜치 생성 → 구현 → 단위/통합 테스트 → 빌드 → 스크린샷 QA → PR 생성/머지 → 프로덕션 배포(필요 시) → `main` 동기화까지 한 세션 안에서 완결할 것.
-3. **모듈 경계 무결성 준수**: `apps/api/src/modules/ingest` 모듈은 타 비즈니스 모듈(project-goals, agent-registry 등)을 직접 import하지 않으며, 반드시 `EventEmitter2` 도메인 이벤트를 통해 비동기 소통할 것 (`module-boundary.spec.ts` 상시 검증).
-4. **강제 중단(Abort) 언급 금지**: PR #68에서 완전히 제거되었으므로 해당 기능은 건드리지 말 것.
-5. **Excel 호환 및 다크 테마 일관성**: CSV는 UTF-8 BOM(`\uFEFF`) 및 RFC 4180을 준수하고, UI는 Emil Kowalski & 다크 글래스모피즘 톤앤매너를 유지할 것.
+1. **지식 그래프 선행 조회**: `graphify query "<키워드>"`로 모듈 의존성을 먼저 확인할 것.
+2. **세션 내 완결 원칙**: 브랜치 → 구현 → 테스트 → 빌드 → QA → PR/머지까지 한 세션에 완결.
+   **단 이번 세션은 이 원칙을 지키지 못했다** — 맨 위 "저장소 상태" 참조.
+3. **모듈 경계 무결성**: `ingest`는 타 비즈니스 모듈을 직접 import하지 않고 `EventEmitter2`로만
+   소통(`module-boundary.spec.ts` 상시 검증).
+4. **강제 중단(Abort) 언급 금지**: PR #68에서 제거됨.
+5. **근거 없는 숫자를 만들지 않는다**: 단가·할인율은 `docs/LLM_ECOSYSTEM_GUIDE.md`를 단일 원천으로
+   삼고, 출처가 없으면 비워 두거나 비싸게 잡는다. 이번 18번 정정의 핵심 원칙이다.
+6. **훅을 고치면 임베딩도 동기화**: `node scripts/sync-embedded-hooks.mjs` (검증은 `--check`).
+7. **대화·커밋·PR은 한국어로** 쓴다.
