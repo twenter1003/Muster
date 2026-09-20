@@ -44,13 +44,22 @@ describe('Phase 7 — 초대 링크 (e2e)', () => {
     return res.body as { id: string; token: string; expires_at: string };
   };
 
-  const members = async (): Promise<string[]> => {
-    const res = await http()
-      .get(`/api/v1/projects/${projectId}/members`)
-      .set(auth(ownerToken))
-      .expect(200);
-    return (res.body.items as { github_login: string }[]).map((m) => m.github_login);
+  /**
+   * 멤버 목록. 조회 엔드포인트(`GET /projects/:id/members`)는 호출자가 없어 지웠으므로
+   * DB를 직접 읽는다 — 여기서 확인하려는 것은 그 엔드포인트가 아니라 **수락이 실제로
+   * 멤버를 늘리는가**이고, 그 사실은 API 표면과 무관하게 참이어야 한다.
+   */
+  const members = async (): Promise<{ github_login: string; role: string }[]> => {
+    const rows = await ds.query<{ github_login: string; role: string }[]>(
+      `SELECT u.github_login, pm.role FROM project_members pm
+         JOIN users u ON u.id = pm.user_id
+        WHERE pm.project_id = $1`,
+      [projectId],
+    );
+    return rows;
   };
+  const memberLogins = async (): Promise<string[]> =>
+    (await members()).map((m) => m.github_login);
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
@@ -102,22 +111,12 @@ describe('Phase 7 — 초대 링크 (e2e)', () => {
       expect(Date.parse(invite.expires_at)).toBeGreaterThan(Date.now());
     });
 
-    it('목록에는 원문 토큰이 나오지 않는다 — DB에는 해시만 있다', async () => {
+    it('DB에는 원문 토큰이 아니라 해시만 남는다', async () => {
       const invite = await issueInvite();
-
-      const res = await http()
-        .get(`/api/v1/projects/${projectId}/invites`)
-        .set(auth(ownerToken))
-        .expect(200);
-
-      expect(JSON.stringify(res.body)).not.toContain(invite.token);
-      const found = (res.body.items as { id: string; active: boolean }[]).find(
-        (i) => i.id === invite.id,
-      );
-      expect(found?.active).toBe(true);
 
       const row = await ds.getRepository(ProjectInvite).findOneByOrFail({ id: invite.id });
       expect(row.token_hash).not.toContain(invite.token);
+      expect(row.revoked_at).toBeNull();
     });
 
     it('멤버지만 owner가 아니면 만들 수 없다 — 한 번 들어온 사람이 다음 사람을 부르면 안 된다', async () => {
@@ -187,13 +186,7 @@ describe('Phase 7 — 초대 링크 (e2e)', () => {
 
       expect(res.body).toEqual({ project_id: projectId, joined: true });
 
-      const list = await http()
-        .get(`/api/v1/projects/${projectId}/members`)
-        .set(auth(ownerToken))
-        .expect(200);
-      const me = (list.body.items as { github_login: string; role: string }[]).find(
-        (m) => m.github_login === stranger.github_login,
-      );
+      const me = (await members()).find((m) => m.github_login === stranger.github_login);
       expect(me?.role).toBe('member');
     });
 
@@ -220,7 +213,7 @@ describe('Phase 7 — 초대 링크 (e2e)', () => {
     });
 
     it('멤버 수가 실제로 는다', async () => {
-      const before = await members();
+      const before = await memberLogins();
       const invite = await issueInvite();
       await http()
         .post('/api/v1/invites/accept')
@@ -228,8 +221,8 @@ describe('Phase 7 — 초대 링크 (e2e)', () => {
         .send({ token: invite.token })
         .expect(200);
 
-      expect(await members()).toContain(stranger.github_login);
-      expect((await members()).length).toBeGreaterThanOrEqual(before.length);
+      expect(await memberLogins()).toContain(stranger.github_login);
+      expect((await memberLogins()).length).toBeGreaterThanOrEqual(before.length);
     });
   });
 
@@ -291,18 +284,12 @@ describe('Phase 7 — 초대 링크 (e2e)', () => {
       await http().delete(`/api/v1/invites/${invite.id}`).set(auth(ownerToken)).expect(204);
     });
 
-    it('폐기하면 목록에서 active가 false다', async () => {
+    it('폐기하면 revoked_at이 찍힌다', async () => {
       const invite = await issueInvite();
       await http().delete(`/api/v1/invites/${invite.id}`).set(auth(ownerToken)).expect(204);
 
-      const res = await http()
-        .get(`/api/v1/projects/${projectId}/invites`)
-        .set(auth(ownerToken))
-        .expect(200);
-      const found = (res.body.items as { id: string; active: boolean }[]).find(
-        (i) => i.id === invite.id,
-      );
-      expect(found?.active).toBe(false);
+      const row = await ds.getRepository(ProjectInvite).findOneByOrFail({ id: invite.id });
+      expect(row.revoked_at).not.toBeNull();
     });
   });
 });

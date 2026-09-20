@@ -3,7 +3,6 @@ import { join } from 'node:path';
 import {
   Body,
   Controller,
-  Delete,
   Get,
   Header,
   HttpCode,
@@ -22,22 +21,19 @@ import { CurrentUser } from '../../common/auth/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user';
 import { Public } from '../../common/auth/public.decorator';
 import { CursorPaginationQuery } from '../../common/pagination/pagination.dto';
-import { toPageRequest, withProjectName, type Page } from '../../common/pagination/paginate';
+import { toPageRequest, type Page } from '../../common/pagination/paginate';
 import { ProjectMemberGuard } from '../../common/auth/project-member.guard';
 import { AgentsService } from './agents.service';
-import { AgentRunsService, type SessionRunDetailView } from './agent-runs.service';
+import { AgentRunsService } from './agent-runs.service';
 import { BudgetService, type BudgetUsage } from './budget.service';
 import { UsageTimeseriesService, type UsageBreakdown } from './usage-timeseries.service';
 import { TokenWasteReportService, type WasteReportJsonPayload } from './token-waste-report.service';
-import type { BurnRateStatus } from './burn-rate';
-import type { TokenWasteIntelligence } from './token-waste';
 import { ApiKeyOrSessionGuard } from '../../common/auth/api-key-or-session.guard';
 import { ApiKeyGuard } from '../../common/auth/api-key.guard';
 import { CreateAgentDto } from './dto/create-agent.dto';
 import { CreateRunDto } from './dto/create-run.dto';
 import { HeartbeatRunDto } from './dto/heartbeat-run.dto';
 import { RecordRunByRepoDto } from './dto/record-run-by-repo.dto';
-import { UpdateAgentDto } from './dto/update-agent.dto';
 import { UpdateRunDto } from './dto/update-run.dto';
 
 import { PutBudgetDto } from './dto/put-budget.dto';
@@ -115,16 +111,13 @@ export class ProjectAgentsController {
     return toView(agent);
   }
 
-  /** 예산은 프로젝트 단위다 (Part 1 §3.3 — 에이전트 단위가 아니다). */
-  @Get(':id/budget')
-  @UseGuards(ProjectMemberGuard)
-  async getBudget(@Param('id') projectId: string): Promise<BudgetUsage> {
-    return this.budget.get(projectId);
-  }
-
   /**
-   * 프로젝트 목록·상세 화면의 "토큰 사용량" 카드 — 설계서에 없다. `budget`이 누적치만
-   * 주는 것과 달리 "오늘"·"최근 며칠"을 따로 봐야 하는 화면이 둘 생겨서 나눴다.
+   * 프로젝트 목록·상세 화면의 "토큰 사용량" 카드 — 설계서에 없다. 누적치만 주는 예산
+   * 조회와 달리 "오늘"·"최근 며칠"을 따로 봐야 하는 화면이 둘 생겨서 나눴다.
+   *
+   * 화면이 쓰는 토큰 지표는 전부 이 응답 하나로 나간다 — 소모 속도(burn rate)도 여기
+   * 들어 있다(UsageTimeseriesService.dailyUsage가 calculateBurnRate를 같이 부른다).
+   * 같은 값을 따로 주던 `GET :id/burn-rate`는 그래서 지웠다.
    */
   @Get(':id/token-usage')
   @UseGuards(ProjectMemberGuard)
@@ -135,29 +128,6 @@ export class ProjectAgentsController {
     @Query('tz') tz?: string,
   ): Promise<UsageBreakdown> {
     return this.usageTimeseries.dailyUsage(projectId, agentName, tz, granularity);
-  }
-
-  /**
-   * 2026 프롬프트 캐싱 최적화 시뮬레이션 및 토큰 낭비 인텔리전스 분석 리포트.
-   */
-  @Get(':id/token-waste-intelligence')
-  @UseGuards(ProjectMemberGuard)
-  async getTokenWasteIntelligence(@Param('id') projectId: string): Promise<TokenWasteIntelligence> {
-    return this.wasteReport.getTokenWasteIntelligence(projectId);
-  }
-
-  /**
-   * 실시간 에이전트 토큰 소모 속도(Burn Rate) 및 예산 급증(Budget Spike) 조기 경보 리포트.
-   */
-  @Get(':id/burn-rate')
-  @UseGuards(ProjectMemberGuard)
-  async getBurnRate(
-    @Param('id') projectId: string,
-    @Query('window_minutes') windowMinutes?: string,
-  ): Promise<BurnRateStatus> {
-    const parsedMinutes = windowMinutes ? parseInt(windowMinutes, 10) : 15;
-    const minutes = Number.isNaN(parsedMinutes) || parsedMinutes <= 0 ? 15 : parsedMinutes;
-    return this.usageTimeseries.calculateBurnRate(projectId, minutes);
   }
 
   /**
@@ -199,6 +169,10 @@ export class ProjectAgentsController {
   }
 
   /**
+   * 읽기 짝(`GET :id/budget`)은 호출자가 없어 지웠다. 이 PUT을 남긴 이유는 이것이
+   * project_budgets 행을 만드는 유일한 경로이기 때문이다 — 지우면 BudgetService의
+   * 임계 알림(budget_alert)이 한도를 영영 못 읽어 사실상 죽는다.
+   *
    * PUT이므로 **전체 교체**다. 생략한 한도는 "안 건드림"이 아니라 "한도 없음"이 된다.
    * 예산은 필드가 셋뿐이고 클라이언트가 전체를 알고 있으므로, 동사와 의미를 맞추는 쪽이
    * 부분 갱신 규칙을 따로 외우는 것보다 낫다.
@@ -216,79 +190,20 @@ export class ProjectAgentsController {
   }
 }
 
-/** 설계서 Part 4 §6 — 에이전트 단위 경로. */
+/**
+ * 설계서 Part 4 §6 — 에이전트 단위 경로.
+ *
+ * 남은 것은 실행 시작 기록 하나다. 조회·수정·삭제(`GET /agents`, `GET/PATCH/DELETE
+ * /agents/:id`, `GET /agents/:id/runs`)는 AgentRegistryPage가 PR #76에서 삭제되면서
+ * 호출자를 잃어 같이 지웠다. 에이전트를 만들고 목록을 보는 것은 프로젝트 하위 경로
+ * (`GET/POST /projects/:id/agents`)에 남아 있고, 훅과 muster-connect가 그쪽을 쓴다.
+ */
 @Controller('agents')
 export class AgentsController {
   constructor(
     private readonly agents: AgentsService,
     private readonly runs: AgentRunsService,
-    private readonly audit: AuditService,
   ) {}
-
-  /**
-   * 프로젝트를 가로지르는 에이전트 목록.
-   * 인자 없는 라우트를 `@Get(':id')`보다 먼저 둔다(Nest는 선언 순으로 매칭한다).
-   */
-  @Get()
-  async list(
-    @CurrentUser() user: AuthenticatedUser,
-    @Query() query: CursorPaginationQuery,
-  ): Promise<Page<AgentView & { project_name: string }>> {
-    const page = await this.agents.listForMember(user.id, toPageRequest(query));
-    return {
-      items: page.items.map((a) => withProjectName(toView(a), page.project_names)),
-      next_cursor: page.next_cursor,
-    };
-  }
-
-  @Get(':id')
-  async detail(
-    @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ): Promise<AgentView & { config_md: string }> {
-    const agent = await this.agents.detail(id, user.id);
-    return { ...toView(agent), config_md: agent.config_md };
-  }
-
-  @Patch(':id')
-  async update(
-    @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
-    @Body() dto: UpdateAgentDto,
-  ): Promise<AgentView & { config_md: string }> {
-    const agent = await this.agents.update(id, user.id, dto);
-    await this.audit.record({
-      user_id: user.id,
-      action: 'agent.update',
-      project_id: agent.project_id,
-    });
-    return { ...toView(agent), config_md: agent.config_md };
-  }
-
-  @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser): Promise<void> {
-    // 삭제 전에 project_id를 확보한다. detail은 접근 권한 확인도 겸하므로 추가 비용이 없다.
-    const agent = await this.agents.detail(id, user.id);
-    await this.agents.remove(id, user.id);
-    await this.audit.record({
-      user_id: user.id,
-      action: 'agent.delete',
-      project_id: agent.project_id,
-    });
-  }
-
-  @Get(':id/runs')
-  async listRuns(
-    @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
-    @Query() query: CursorPaginationQuery,
-  ): Promise<Page<RunView>> {
-    // 목록을 주기 전에 이 에이전트에 접근할 수 있는지부터 확인한다.
-    await this.agents.detail(id, user.id);
-    const page = await this.runs.listForAgent(id, toPageRequest(query));
-    return { items: page.items.map(toRunView), next_cursor: page.next_cursor };
-  }
 
   /**
    * 실행 시작 기록 — **에이전트 또는 사람**이 호출한다.
@@ -329,17 +244,6 @@ export class AgentsController {
 @Controller('agent-runs')
 export class AgentRunsController {
   constructor(private readonly runs: AgentRunsService) {}
-
-  @Get(':id')
-  @Public()
-  @UseGuards(ApiKeyOrSessionGuard)
-  async detail(@Param('id') id: string, @Req() req: Request): Promise<SessionRunDetailView> {
-    const identity =
-      req.apiKeyProjectId !== undefined
-        ? { apiKeyProjectId: req.apiKeyProjectId }
-        : { userId: req.user!.id };
-    return this.runs.detail(id, identity);
-  }
 
   @Patch(':id')
   @Public()

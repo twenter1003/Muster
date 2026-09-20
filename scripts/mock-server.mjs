@@ -322,226 +322,25 @@ function handleApi(req, res, url) {
     );
   }
 
-  // ── search / inbox / reports ──
+  // ── search ──
   if (s[0] === 'search') {
-    const term = q.get('q') || '';
-    return json(res, 200, {
-      items: PROJECTS.filter((p) => p.name.includes(term))
-        .slice(0, 5)
-        .map((p) => ({ kind: 'project', id: p.id, title: p.name, subtitle: p.repo_url })),
-    });
-  }
-  if (s[0] === 'inbox') {
-    return json(
-      res,
-      200,
-      page([
-        {
-          id: 'inbox-1',
-          category: 'budget',
-          title: '예산 임계치 초과',
-          body: 'muster-api-server가 월 비용 한도의 92%를 사용했습니다.',
-          project_id: 'proj-001',
-          project_name: 'muster-api-server',
-          created_at: iso(30 * MIN),
-        },
-        {
-          id: 'inbox-2',
-          category: 'deployment',
-          title: '배포 실패',
-          body: 'lakehouse-connector 배포가 Iceberg 카탈로그 연결 실패로 중단되었습니다.',
-          project_id: 'proj-005',
-          project_name: 'lakehouse-connector',
-          created_at: iso(4 * HOUR),
-        },
-        {
-          id: 'inbox-3',
-          category: 'policy',
-          title: 'Policy Gate 차단',
-          body: 'security-audit-scanner의 도커 구성이 trivy 검사에서 차단되었습니다.',
-          project_id: 'proj-006',
-          project_name: 'security-audit-scanner',
-          created_at: iso(DAY),
-        },
-      ]),
-    );
-  }
-  if (s[0] === 'reports' && s[1] === 'summary') {
-    return json(res, 200, {
-      projects: PROJECTS.length,
-      deploy_frequency: 2.4,
-      lead_time_hours: 6.2,
-      change_failure_rate: 0.14,
-      mttr_hours: 1.8,
-      total_tokens: '15200000',
-      total_cost: '45.6000',
-      health: PROJECTS.map((p) => ({
+    // 계약은 SearchService.SearchResult — `{ query, hits, truncated }`다.
+    // `query`를 빠뜨리면 화면이 "늦게 온 응답"으로 보고 버려서 드롭다운이 영영
+    // "찾는 중…"에 멈춘다(SearchBox의 `res.query !== trimmed` 검사). 실제로 그랬다.
+    const term = (q.get('q') || '').trim();
+    const hits = PROJECTS.filter((p) => p.name.includes(term))
+      .slice(0, 5)
+      .map((p) => ({
+        kind: 'project',
+        id: p.id,
+        title: p.name,
         project_id: p.id,
         project_name: p.name,
-        composite_score: String(p.health),
-      })),
-    });
-  }
-
-  // ── env-templates ──
-  if (s[0] === 'env-templates') {
-    if (s[1]) {
-      return json(res, 200, {
-        id: s[1],
-        name: 'Node 20 + Postgres 16',
-        stack_config: { language: 'node', framework: 'nestjs', database: 'postgres', port: '3000' },
-        created_at: iso(7 * DAY),
-      });
-    }
-    return json(
-      res,
-      200,
-      page([
-        {
-          id: 'tpl-1',
-          name: 'Node 20 + Postgres 16',
-          stack_config: { language: 'node', framework: 'nestjs', database: 'postgres' },
-          created_at: iso(7 * DAY),
-        },
-        {
-          id: 'tpl-2',
-          name: 'Python 3.12 + FastAPI',
-          stack_config: { language: 'python', framework: 'fastapi', database: 'postgres' },
-          created_at: iso(14 * DAY),
-        },
-      ]),
-    );
-  }
-
-  // ── env-configs (단건) ──
-  if (s[0] === 'env-configs' && s[1]) {
-    if (s[2] === 'transitions') {
-      return json(res, 200, {
-        items: [
-          {
-            id: 't1',
-            from_status: null,
-            to_status: 'generated',
-            actor: '시스템',
-            reason: null,
-            created_at: iso(3 * DAY),
-          },
-          {
-            id: 't2',
-            from_status: 'generated',
-            to_status: 'policy_blocked',
-            actor: '시스템',
-            reason: 'trivy: HIGH 취약점 2건이 베이스 이미지에서 발견되었습니다.',
-            created_at: iso(3 * DAY - HOUR),
-          },
-          {
-            id: 't3',
-            from_status: 'policy_blocked',
-            to_status: 'policy_passed',
-            actor: '시스템',
-            reason: null,
-            created_at: iso(2 * DAY),
-          },
-          {
-            id: 't4',
-            from_status: 'policy_passed',
-            to_status: 'succeeded',
-            actor: 'muster-dev',
-            reason: null,
-            created_at: iso(DAY),
-          },
-        ],
-      });
-    }
-    if (s[2] === 'policy-checks') {
-      return json(res, 200, {
-        items: [
-          {
-            id: 'pc-1',
-            tool: 'trivy',
-            verdict: 'pass',
-            risk_notes: null,
-            checked_at: iso(2 * DAY),
-          },
-          {
-            id: 'pc-2',
-            tool: 'conftest',
-            verdict: 'fail',
-            risk_notes: 'root 사용자로 실행되는 컨테이너가 있습니다 (deny_root_user).',
-            checked_at: iso(2 * DAY),
-          },
-        ],
-      });
-    }
-    if (s[2] === 'execute' || s[2] === 'approve' || s[2] === 'reject') {
-      return json(res, 200, { id: s[1], build_status: s[2] === 'reject' ? 'rejected' : 'running' });
-    }
+      }));
     return json(res, 200, {
-      id: s[1],
-      template_id: 'tpl-1',
-      build_status: 'succeeded',
-      stack_config: {
-        language: 'node',
-        framework: 'nestjs',
-        database: 'postgres',
-        port: '3000',
-        extra_services: ['redis'],
-      },
-      docker_config: {
-        dockerfile: 'FROM node:20-alpine\nWORKDIR /app\nCOPY . .\nRUN npm ci\nCMD ["npm","start"]',
-        compose:
-          'services:\n  api:\n    build: .\n    ports:\n      - "3000:3000"\n  db:\n    image: postgres:16\n  redis:\n    image: redis:7\n',
-      },
-      created_at: iso(3 * DAY),
-    });
-  }
-
-  // ── agents (단건) ──
-  if (s[0] === 'agents' && s[1]) {
-    if (s[2] === 'runs') return json(res, 200, page(runsFor(s[1])));
-    return json(res, 200, {
-      id: s[1],
-      name: 'claude-code',
-      config_md: '# 역할\n코드 리뷰와 리팩터링을 담당한다.',
-      created_at: iso(30 * DAY),
-      updated_at: iso(HOUR),
-    });
-  }
-
-  // ── agent-runs (단건) ──
-  if (s[0] === 'agent-runs' && s[1]) {
-    return json(res, 200, {
-      id: s[1],
-      agent_id: 'agent-1',
-      agent_name: 'claude-code',
-      model: 'claude-sonnet-5',
-      status: 'succeeded',
-      tokens_used: 184200,
-      cost: '0.6631',
-      started_at: iso(3 * HOUR),
-      ended_at: iso(2 * HOUR),
-      duration_seconds: 3600,
-      cache: {
-        hit_rate_percentage: 15,
-        input_tokens: 156800,
-        cache_read_tokens: 27400,
-        savings_usd: '0.0940',
-        has_breakdown: true,
-      },
-    });
-  }
-
-  // ── documents (단건) ──
-  if (s[0] === 'documents' && s[1]) {
-    return json(res, 200, {
-      id: s[1],
-      title: '제품 요구사항 정의서',
-      type: 'prd',
-      upload_status: 'completed',
-      commit_ref: '7f8a9b1c',
-      created_at: iso(5 * DAY),
-      download_url: 'https://example.com/mock-download',
-      download_expires_at: iso(-HOUR),
+      query: term,
+      hits,
+      truncated: { project: false, document: false, agent: false },
     });
   }
 
@@ -767,24 +566,6 @@ function handleApi(req, res, url) {
         });
       }
 
-      case 'burn-rate':
-        return json(res, 200, BURN_RATE);
-
-      case 'token-waste-intelligence':
-        return json(res, 200, WASTE_INTELLIGENCE);
-
-      case 'budget':
-        return json(res, 200, {
-          token_limit: '5000000',
-          cost_limit: '20.0000',
-          alert_threshold_pct: '80',
-          used_tokens: '4120000',
-          used_cost: '14.8320',
-          token_usage_pct: 82.4,
-          cost_usage_pct: 74.16,
-          updated_at: iso(2 * DAY),
-        });
-
       case 'api-keys':
         return json(
           res,
@@ -792,30 +573,6 @@ function handleApi(req, res, url) {
           page([
             { id: 'key-1', label: 'macbook-pro', key_suffix: 'a7f2', created_at: iso(20 * DAY) },
             { id: 'key-2', label: 'local-agent', key_suffix: '9c31', created_at: iso(3 * DAY) },
-          ]),
-        );
-
-      case 'audit-logs':
-        return json(
-          res,
-          200,
-          page([
-            { id: 'a1', action: 'budget.update', created_at: iso(2 * DAY) },
-            { id: 'a2', action: 'env_config.approve', created_at: iso(3 * DAY) },
-            { id: 'a3', action: 'api_key.issue', created_at: iso(20 * DAY) },
-            { id: 'a4', action: 'project.update', created_at: iso(30 * DAY) },
-          ]),
-        );
-
-      case 'stage-history':
-        return json(
-          res,
-          200,
-          page([
-            { id: 'sh-1', stage: p.current_stage, entered_at: iso(5 * DAY) },
-            { id: 'sh-2', stage: 'development', entered_at: iso(20 * DAY) },
-            { id: 'sh-3', stage: 'design', entered_at: iso(40 * DAY) },
-            { id: 'sh-4', stage: 'planning', entered_at: iso(60 * DAY) },
           ]),
         );
 
@@ -863,62 +620,6 @@ function handleApi(req, res, url) {
               updated_at: iso((i + 1) * HOUR),
             })),
           ),
-        );
-
-      case 'env-configs':
-        return json(
-          res,
-          200,
-          page([
-            {
-              id: 'env-1',
-              template_id: 'tpl-1',
-              build_status: 'succeeded',
-              stack_config: {
-                language: 'node',
-                framework: 'nestjs',
-                database: 'postgres',
-                port: '3000',
-                extra_services: ['redis'],
-              },
-              created_at: iso(3 * DAY),
-            },
-            {
-              id: 'env-2',
-              template_id: null,
-              build_status: 'failed',
-              stack_config: { language: 'python', framework: 'fastapi', database: 'postgres' },
-              created_at: iso(9 * DAY),
-            },
-          ]),
-        );
-
-      case 'env-workflow':
-        return json(res, 200, {
-          already_installed: false,
-          pull_request_url: 'https://github.com/muster-dev/muster-api-server/pull/12',
-        });
-
-      case 'members':
-        return json(
-          res,
-          200,
-          page([
-            {
-              id: 'm-1',
-              user_id: 'user-mock-1',
-              github_login: 'muster-dev',
-              role: 'owner',
-              joined_at: iso(60 * DAY),
-            },
-            {
-              id: 'm-2',
-              user_id: 'user-2',
-              github_login: 'teammate-kim',
-              role: 'member',
-              joined_at: iso(10 * DAY),
-            },
-          ]),
         );
 
       case 'invites':

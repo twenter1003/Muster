@@ -76,25 +76,6 @@ export class InvitesService {
     return { id: saved.id, token, expires_at: saved.expires_at.toISOString() };
   }
 
-  async listForProject(projectId: string): Promise<InviteView[]> {
-    const rows = await this.invites.find({
-      where: { project_id: projectId },
-      relations: { creator: true },
-      order: { created_at: 'DESC' },
-    });
-
-    const now = Date.now();
-    return rows.map((r) => ({
-      id: r.id,
-      created_by: r.creator?.github_login ?? null,
-      expires_at: r.expires_at.toISOString(),
-      revoked_at: r.revoked_at?.toISOString() ?? null,
-      accepted_count: r.accepted_count,
-      created_at: r.created_at.toISOString(),
-      active: r.revoked_at === null && r.expires_at.getTime() > now,
-    }));
-  }
-
   /**
    * 폐기. 이미 폐기됐거나 만료된 링크를 다시 불러도 실패로 보지 않는다 —
    * 목적(그 링크로 더는 들어올 수 없음)이 이미 이뤄진 상태다(API 키 폐기와 같은 판단).

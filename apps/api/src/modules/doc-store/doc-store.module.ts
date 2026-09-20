@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { DocumentsController, ProjectDocumentsController } from './documents.controller';
+import { ProjectDocumentsController } from './documents.controller';
 import { DocumentsService } from './documents.service';
 import { OBJECT_STORAGE, type ObjectStorage } from './object-storage';
 import { GcsObjectStorage } from './gcs-object-storage';
@@ -42,7 +42,7 @@ class UnconfiguredObjectStorage implements ObjectStorage {
  * ProjectMemberGuard는 CommonModule(@Global)이 제공한다.
  */
 @Module({
-  controllers: [ProjectDocumentsController, DocumentsController],
+  controllers: [ProjectDocumentsController],
   providers: [
     DocumentsService,
     {

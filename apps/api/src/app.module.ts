@@ -9,12 +9,9 @@ import { AuthModule } from './modules/auth/auth.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { ProjectCoreModule } from './modules/project-core/project-core.module';
 import { DocStoreModule } from './modules/doc-store/doc-store.module';
-import { EnvCatalogModule } from './modules/env-catalog/env-catalog.module';
 import { AgentRegistryModule } from './modules/agent-registry/agent-registry.module';
 import { IngestModule } from './modules/ingest/ingest.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
-import { ReportsModule } from './modules/reports/reports.module';
-import { InboxModule } from './modules/inbox/inbox.module';
 import { SearchModule } from './modules/search/search.module';
 import { ProjectGoalsModule } from './modules/project-goals/project-goals.module';
 
@@ -31,14 +28,9 @@ import { ProjectGoalsModule } from './modules/project-goals/project-goals.module
     AuditModule,
     ProjectCoreModule,
     DocStoreModule,
-    EnvCatalogModule,
     AgentRegistryModule,
     IngestModule,
     RealtimeModule,
-    // 설계서 Part 2 §2의 7개 모듈 목록에 없는 신설 모듈 (reports.module.ts 주석 참조).
-    ReportsModule,
-    // 마찬가지로 설계서의 모듈 목록에 없는 신설 모듈 (inbox.module.ts 주석 참조).
-    InboxModule,
     SearchModule,
     ProjectGoalsModule,
   ],

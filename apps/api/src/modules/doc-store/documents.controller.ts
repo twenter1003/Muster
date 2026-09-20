@@ -1,27 +1,9 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Param,
-  Patch,
-  Post,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
-import { CurrentUser } from '../../common/auth/current-user.decorator';
-import type { AuthenticatedUser } from '../../common/auth/authenticated-user';
-import { toPageRequest, withProjectName, type Page } from '../../common/pagination/paginate';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { toPageRequest, type Page } from '../../common/pagination/paginate';
 import { ProjectMemberGuard } from '../../common/auth/project-member.guard';
 import { DocumentsService } from './documents.service';
-import { CreateDocumentDto } from './dto/create-document.dto';
-import { UpdateDocumentDto } from './dto/update-document.dto';
 import { ListDocumentsQuery } from './dto/list-documents.query';
-import { ListAllDocumentsQuery } from './dto/list-all-documents.query';
 import type { Document } from '../../database/entities';
-import { AuditService } from '../audit/audit.service';
 
 /**
  * 응답에 실리는 문서 표현.
@@ -48,13 +30,18 @@ const toView = (d: Document): DocumentView => ({
   created_at: d.created_at.toISOString(),
 });
 
-/** 설계서 Part 4 §4 — DocStore. 프로젝트 하위 경로. */
+/**
+ * 설계서 Part 4 §4 — DocStore.
+ *
+ * 남은 것은 프로젝트 문서 목록 조회 하나다. 업로드(`POST /projects/:id/documents`)와
+ * 문서 단위 경로(`GET /documents`, `GET/PATCH/DELETE /documents/:id`,
+ * `POST /documents/:id/complete`)는 업로드 UI와 DocStore 화면이 PR #76에서 삭제되면서
+ * 호출자를 잃어 같이 지웠다. 문서 레코드와 GCS 객체는 그대로 있고, 프로젝트 상세 화면이
+ * 목록만 읽는다.
+ */
 @Controller('projects')
 export class ProjectDocumentsController {
-  constructor(
-    private readonly documents: DocumentsService,
-    private readonly audit: AuditService,
-  ) {}
+  constructor(private readonly documents: DocumentsService) {}
 
   @Get(':id/documents')
   @UseGuards(ProjectMemberGuard)
@@ -67,97 +54,5 @@ export class ProjectDocumentsController {
       upload_status: query.upload_status,
     });
     return { items: page.items.map(toView), next_cursor: page.next_cursor };
-  }
-
-  /** 메타데이터 생성 + 업로드용 signed URL 발급. 파일은 클라이언트가 GCS로 직접 올린다. */
-  @Post(':id/documents')
-  @UseGuards(ProjectMemberGuard)
-  @HttpCode(HttpStatus.CREATED)
-  async create(
-    @Param('id') projectId: string,
-    @CurrentUser() user: AuthenticatedUser,
-    @Body() dto: CreateDocumentDto,
-  ): Promise<DocumentView & { upload_url: string; upload_expires_at: string }> {
-    const result = await this.documents.create(projectId, dto);
-    await this.audit.record({ user_id: user.id, action: 'document.create', project_id: projectId });
-    return {
-      ...toView(result.document),
-      upload_url: result.upload_url,
-      upload_expires_at: result.upload_expires_at.toISOString(),
-    };
-  }
-}
-
-/** 설계서 Part 4 §4 — 문서 단위 경로. 접근 제어는 서비스가 문서 → 프로젝트로 거슬러 확인한다. */
-@Controller('documents')
-export class DocumentsController {
-  constructor(
-    private readonly documents: DocumentsService,
-    private readonly audit: AuditService,
-  ) {}
-
-  /**
-   * 프로젝트를 가로지르는 문서 목록. 사이드바의 DocStore 화면이 쓴다.
-   *
-   * 라우트 순서: Nest는 선언 순으로 매칭하므로 `@Get()`과 `@Get(':id')`는 충돌하지 않지만,
-   * 인자 없는 쪽을 먼저 두어야 읽는 사람이 `:id`에 가려지지 않았음을 바로 안다.
-   */
-  @Get()
-  async list(
-    @CurrentUser() user: AuthenticatedUser,
-    @Query() query: ListAllDocumentsQuery,
-  ): Promise<Page<DocumentView & { project_name: string }>> {
-    const page = await this.documents.listForMember(user.id, toPageRequest(query), {
-      type: query.type,
-    });
-    return {
-      items: page.items.map((d) => withProjectName(toView(d), page.project_names)),
-      next_cursor: page.next_cursor,
-    };
-  }
-
-  @Post(':id/complete')
-  @HttpCode(HttpStatus.OK)
-  async complete(
-    @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ): Promise<DocumentView> {
-    return toView(await this.documents.complete(id, user.id));
-  }
-
-  @Get(':id')
-  async detail(
-    @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ): Promise<DocumentView & { download_url: string | null; download_expires_at: string | null }> {
-    const result = await this.documents.detail(id, user.id);
-    return {
-      ...toView(result.document),
-      download_url: result.download_url,
-      download_expires_at: result.download_expires_at?.toISOString() ?? null,
-    };
-  }
-
-  @Patch(':id')
-  async update(
-    @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
-    @Body() dto: UpdateDocumentDto,
-  ): Promise<DocumentView> {
-    const document = await this.documents.update(id, user.id, dto);
-    await this.audit.record({
-      user_id: user.id,
-      action: 'document.update',
-      project_id: document.project_id,
-    });
-    return toView(document);
-  }
-
-  @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser): Promise<void> {
-    // 감사 기록은 서비스 안에서 남긴다 — 여기서 project_id를 알려면 상세 조회가 한 번 더
-    // 필요하고, 그건 지울 문서의 signed URL을 쓸데없이 발급하는 일이다.
-    await this.documents.remove(id, user.id);
   }
 }

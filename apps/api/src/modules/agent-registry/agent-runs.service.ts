@@ -6,11 +6,9 @@ import { Agent, AgentRun, GitIntegration, ProjectMember } from '../../database/e
 import { DomainEvent } from '../../common/events/domain-events';
 import { ApiException } from '../../common/errors/api.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
-import { buildPage, type Page, type PageRequest } from '../../common/pagination/paginate';
 import { normalizeGitRepoUrl } from '../project-core/repo-url';
 import { BudgetService } from './budget.service';
 import { ModelPricingService } from './model-pricing.service';
-import { computeSessionCacheView, type SessionCacheView } from './token-waste';
 import type { CreateRunDto } from './dto/create-run.dto';
 import type { HeartbeatRunDto } from './dto/heartbeat-run.dto';
 import type { TokenBreakdownDto } from './dto/token-breakdown.dto';
@@ -19,22 +17,6 @@ import type { UpdateRunDto } from './dto/update-run.dto';
 
 /** 실행 종료를 요청한 신원 — 사람(세션) 또는 에이전트(API 키) 중 하나. */
 export type RunIdentity = { userId: string } | { apiKeyProjectId: string };
-
-/** 세션 단건 상세 및 낭비 진단 뷰 */
-export interface SessionRunDetailView {
-  id: string;
-  agent_id: string;
-  agent_name: string;
-  project_id: string;
-  model?: string;
-  status: string;
-  tokens_used: number;
-  cost: string;
-  started_at: string;
-  ended_at: string | null;
-  duration_seconds: number;
-  cache: SessionCacheView;
-}
 
 /** 설계서 Part 4 §6 — 실행 이력. 토큰/비용 집계의 원천. */
 @Injectable()
@@ -388,64 +370,6 @@ export class AgentRunsService {
     }
 
     return saved;
-  }
-
-  /**
-   * 세션 단건 상세 및 낭비 진단 데이터 조회.
-   */
-  async detail(runId: string, identity: RunIdentity): Promise<SessionRunDetailView> {
-    const run =
-      'apiKeyProjectId' in identity
-        ? await this.findAccessibleByKeyOrFail(runId, identity.apiKeyProjectId)
-        : await this.findAccessibleOrFail(runId, identity.userId);
-
-    const agent = await this.agents.findOneBy({ id: run.agent_id });
-    const projectId = agent?.project_id ?? (await this.projectIdOfRun(run));
-
-    const startMs = run.started_at.getTime();
-    const endMs = (run.ended_at ?? new Date()).getTime();
-    const duration_seconds = Math.max(0, Math.floor((endMs - startMs) / 1000));
-
-    return {
-      id: run.id,
-      agent_id: run.agent_id,
-      agent_name: agent?.name ?? 'agent',
-      project_id: projectId,
-      model: run.model ?? undefined,
-      status: run.status,
-      tokens_used: run.tokens_used,
-      cost: run.cost,
-      started_at: run.started_at.toISOString(),
-      ended_at: run.ended_at ? run.ended_at.toISOString() : null,
-      duration_seconds,
-      cache: computeSessionCacheView(
-        {
-          id: run.id,
-          input_tokens: run.input_tokens,
-          cache_read_tokens: run.cache_read_tokens,
-          cache_write_tokens: run.cache_write_tokens,
-          model: run.model,
-          agent_name: agent?.name,
-        },
-        (model, agentName) => this.modelPricing.resolvePricingRates(model, agentName),
-      ),
-    };
-  }
-
-  async listForAgent(agentId: string, page: PageRequest): Promise<Page<AgentRun>> {
-    const qb = this.runs
-      .createQueryBuilder('r')
-      .where('r.agent_id = :agentId', { agentId })
-      .orderBy('r.started_at', 'DESC')
-      .addOrderBy('r.id', 'DESC')
-      .take(page.limit + 1);
-
-    if (page.after) {
-      qb.andWhere('(r.started_at, r.id) < (:ts, :id)', { ts: page.after.ts, id: page.after.id });
-    }
-
-    const rows = await qb.getMany();
-    return buildPage(rows, page.limit, (r) => ({ ts: r.started_at.toISOString(), id: r.id }));
   }
 
   private async projectIdOfRun(run: AgentRun): Promise<string> {

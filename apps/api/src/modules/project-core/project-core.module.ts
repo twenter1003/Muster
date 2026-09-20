@@ -4,7 +4,6 @@ import { GithubController } from './github.controller';
 import { ProjectsService } from './projects.service';
 import { GitIntegrationService } from './git-integration.service';
 import { ApiKeysService } from './api-keys.service';
-import { MembersService } from './members.service';
 import { InvitesService } from './invites.service';
 import { ProjectImportService } from './project-import.service';
 import { GITHUB_REPO_CLIENT, HttpGitHubRepoClient } from './github-repo.client';
@@ -22,7 +21,6 @@ import { GITHUB_REPO_CLIENT, HttpGitHubRepoClient } from './github-repo.client';
     ProjectsService,
     GitIntegrationService,
     ApiKeysService,
-    MembersService,
     InvitesService,
     ProjectImportService,
     { provide: GITHUB_REPO_CLIENT, useClass: HttpGitHubRepoClient },
