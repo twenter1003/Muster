@@ -29,7 +29,8 @@ GitHub 레포를 연동하면 커밋·배포·로그·에러·LLM 토큰/비용�
 
 ## graphify (선택 도구)
 
-`graphify-out/`에 코드 지식 그래프가 있다(노드 3,268개).
+`graphify-out/`에 코드 지식 그래프가 있다(마지막 빌드 기준 노드 2,581개 — `graphify update .`을
+돌릴 때마다 바뀌는 값이라 대략의 규모로만 읽을 것).
 
 **넓은 질문에 쓴다** — "이 코드베이스가 전체적으로 어떻게 생겼나":
 `graphify query "<질문>"` · `graphify explain "<개념>"` · `graphify path "<A>" "<B>"` ·
