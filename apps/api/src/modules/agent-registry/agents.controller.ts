@@ -394,29 +394,32 @@ export class AgentRunsController {
  * 1줄 원격 연동 스크립트 서빙 (GET /api/v1/connect.mjs).
  * 클라이언트에 Muster 프로젝트 폴더가 없어도 `curl -fsSL ... | node -`로
  * 즉시 전역 연동 스크립트를 다운로드하여 실행할 수 있도록 한다.
+ *
+ * 후보 경로는 실제로 cwd가 갈리는 두 실행 모드만 남긴다 — 예전에는 8개를 순서대로
+ * 추측하다 실패하면 `apps/web/public/connect.mjs`(캐시 토큰 분리 이전의 죽은 사본,
+ * 삭제함)로 조용히 폴백했다. 추측하다 옛 사본으로 새는 구조 자체가 신규 유저 전원에게
+ * 낡은 훅이 나갈 수 있는 위험이었다.
+ * - 프로덕션: `WORKDIR /app` + `COPY scripts ./scripts`(apps/api/Dockerfile) → cwd가 `/app`.
+ * - 로컬 개발/테스트(jest, `pnpm --filter @muster/api ...`): pnpm이 cwd를 `apps/api`로
+ *   맞추므로 저장소 루트는 두 단계 위.
+ * 둘 다 없으면 배포·실행 구조가 깨진 것이니 추측을 늘리지 않고 바로 드러낸다.
  */
 @Controller('connect.mjs')
 export class ConnectScriptController {
+  private static readonly CANDIDATE_PATHS = [
+    join(process.cwd(), 'scripts', 'muster-connect.mjs'),
+    join(process.cwd(), '..', '..', 'scripts', 'muster-connect.mjs'),
+  ];
+
   @Get()
   @Public()
   @Header('Content-Type', 'text/javascript; charset=utf-8')
   @Header('Cache-Control', 'public, max-age=300')
   getScript(): string {
-    const candidatePaths = [
-      join(process.cwd(), 'scripts', 'muster-connect.mjs'),
-      join(process.cwd(), '..', '..', 'scripts', 'muster-connect.mjs'),
-      join(process.cwd(), 'apps', 'web', 'public', 'connect.mjs'),
-      join(__dirname, '..', '..', '..', '..', '..', 'scripts', 'muster-connect.mjs'),
-      join(__dirname, '..', '..', '..', '..', 'scripts', 'muster-connect.mjs'),
-      join(__dirname, '..', '..', 'scripts', 'muster-connect.mjs'),
-      join(__dirname, '..', 'web', 'connect.mjs'),
-      join(process.cwd(), 'web', 'connect.mjs'),
-    ];
-    for (const p of candidatePaths) {
-      if (existsSync(p)) {
-        return readFileSync(p, 'utf8');
-      }
+    const path = ConnectScriptController.CANDIDATE_PATHS.find((p) => existsSync(p));
+    if (!path) {
+      return '// muster-connect script unavailable\n';
     }
-    return '// muster-connect script unavailable\n';
+    return readFileSync(path, 'utf8');
   }
 }

@@ -54,6 +54,15 @@ export class AgentRun {
   @Column({ type: 'varchar', length: 100, nullable: true })
   model?: string | null;
 
+  /**
+   * 이 실행을 보고한 훅 스크립트의 버전(scripts/*-hooks/report-agent-usage.mjs의
+   * HOOK_VERSION). 훅 코드를 고쳐도 이미 설치된 머신은 갱신되지 않으므로, 프로젝트의
+   * 최근 실행이 최신 버전보다 낮으면 "이 머신 훅이 오래됨" 배너를 띄우는 데 쓴다.
+   * 이 컬럼이 생기기 전 실행은 null(모름) — 훅이 낡았는지 단정하지 않는다.
+   */
+  @Column({ type: 'integer', nullable: true })
+  hook_version?: number | null;
+
   @Column({ type: 'timestamptz' })
   started_at!: Date;
 

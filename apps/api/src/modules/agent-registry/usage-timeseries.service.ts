@@ -10,6 +10,7 @@ import {
 } from './token-waste';
 import { computeBurnRate, type BurnRateStatus } from './burn-rate';
 import { ModelPricingService } from './model-pricing.service';
+import { LATEST_HOOK_VERSION } from './hook-version';
 
 export interface SessionRunView {
   id: string;
@@ -23,6 +24,8 @@ export interface SessionRunView {
   ended_at: string | null;
   duration_seconds: number;
   cache: SessionCacheView;
+  /** 이 실행을 보고한 훅 버전. null이면 이 컬럼이 생기기 전 실행(모름)이다. */
+  hook_version: number | null;
 }
 
 export type TokenGranularity = 'hour' | 'day' | 'month';
@@ -64,6 +67,8 @@ export interface UsageBreakdown {
   waste_intelligence?: TokenWasteIntelligence;
   burn_rate?: BurnRateStatus;
   recent_runs?: SessionRunView[];
+  /** 서버가 아는 최신 훅 버전 — recent_runs[].hook_version과 비교해 "훅이 오래됨" 배너를 띄운다. */
+  latest_hook_version?: number;
 }
 
 const DAILY_WINDOW_DAYS = 7;
@@ -370,6 +375,7 @@ export class UsageTimeseriesService {
         started_at: r.started_at.toISOString(),
         ended_at: r.ended_at ? r.ended_at.toISOString() : null,
         duration_seconds,
+        hook_version: r.hook_version ?? null,
         cache: computeSessionCacheView(
           {
             id: r.id,
@@ -411,6 +417,7 @@ export class UsageTimeseriesService {
       ),
       burn_rate,
       recent_runs,
+      latest_hook_version: LATEST_HOOK_VERSION,
     };
   }
 

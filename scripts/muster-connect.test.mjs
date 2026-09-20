@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -8,9 +9,13 @@ import {
   registerClaudeHooks,
   registerAntigravityHooks,
   saveMusterConfig,
+  scanClaudeSessions,
+  scanAntigravitySessions,
   EMBEDDED_CLAUDE_HOOK,
   EMBEDDED_ANTIGRAVITY_HOOK,
 } from './muster-connect.mjs';
+
+const require = createRequire(import.meta.url);
 
 test('muster-connect: embedded hooks', async (t) => {
   await t.test('내장 훅 스크립트가 비어있지 않고 유효한 코드이다', () => {
@@ -125,6 +130,112 @@ test('muster-connect: saveMusterConfig', async (t) => {
       assert.match(gitignore, /\.muster\//);
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+test('muster-connect: scanClaudeSessions', async (t) => {
+  await t.test('실시간 훅과 같은 파서를 써서 토큰 4종·모델별로 세션을 백필한다', () => {
+    const projectsRoot = mkdtempSync(join(tmpdir(), 'claude-projects-'));
+    const projectDir = join(projectsRoot, '-Users-x-MyProj');
+    mkdirSync(projectDir, { recursive: true });
+    try {
+      const lines = [
+        JSON.stringify({
+          type: 'assistant',
+          timestamp: '2026-09-01T00:00:00.000Z',
+          message: {
+            model: 'claude-sonnet-5',
+            usage: {
+              input_tokens: 100,
+              output_tokens: 50,
+              cache_read_input_tokens: 10,
+              cache_creation_input_tokens: 5,
+            },
+          },
+        }),
+        // 세션 중 모델을 바꿔 쓴 경우 — by_model이 갈라져 별도 백필 항목이 돼야 한다.
+        JSON.stringify({
+          type: 'assistant',
+          timestamp: '2026-09-01T00:05:00.000Z',
+          message: {
+            model: 'claude-opus-5',
+            usage: { input_tokens: 20, output_tokens: 10 },
+          },
+        }),
+      ];
+      writeFileSync(join(projectDir, 'session1.jsonl'), lines.join('\n') + '\n', 'utf8');
+
+      const sessions = scanClaudeSessions('MyProj', projectsRoot);
+      assert.equal(sessions.length, 2, '모델 2개 → 백필 항목도 2개로 나뉜다');
+
+      const sonnet = sessions.find((s) => s.model === 'claude-sonnet-5');
+      assert.ok(sonnet, 'sonnet 버킷을 찾는다');
+      assert.equal(sonnet.inputTokens, 100);
+      assert.equal(sonnet.outputTokens, 50);
+      assert.equal(sonnet.cacheReadTokens, 10);
+      assert.equal(sonnet.cacheWriteTokens, 5);
+      assert.equal(sonnet.tokensUsed, 165);
+      assert.equal(sonnet.startedAt, '2026-09-01T00:00:00.000Z');
+
+      const opus = sessions.find((s) => s.model === 'claude-opus-5');
+      assert.ok(opus, 'opus 버킷을 찾는다');
+      assert.equal(opus.inputTokens, 20);
+      assert.equal(opus.outputTokens, 10);
+      assert.equal(opus.cacheReadTokens, 0);
+    } finally {
+      rmSync(projectsRoot, { recursive: true, force: true });
+    }
+  });
+
+  await t.test('토큰 사용이 없는 세션은 건너뛴다', () => {
+    const projectsRoot = mkdtempSync(join(tmpdir(), 'claude-projects-'));
+    const projectDir = join(projectsRoot, '-Users-x-Empty');
+    mkdirSync(projectDir, { recursive: true });
+    try {
+      writeFileSync(join(projectDir, 'empty.jsonl'), JSON.stringify({ type: 'user' }) + '\n', 'utf8');
+      const sessions = scanClaudeSessions('Empty', projectsRoot);
+      assert.equal(sessions.length, 0);
+    } finally {
+      rmSync(projectsRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+test('muster-connect: scanAntigravitySessions', async (t) => {
+  await t.test('실시간 훅과 같은 Protobuf 파서(sumUsageFromStepsDb)로 입력/출력 토큰을 뽑는다', () => {
+    const { DatabaseSync } = require('node:sqlite');
+    const convDir = mkdtempSync(join(tmpdir(), 'agy-conversations-'));
+    const convId = 'conv-123';
+    const dbPath = join(convDir, `${convId}.db`);
+    try {
+      const db = new DatabaseSync(dbPath);
+      db.exec('CREATE TABLE steps (idx INTEGER PRIMARY KEY, metadata BLOB)');
+      // tag9(길이구분) 안에 field2=input(varint), field3=output(varint)를 담은 최소 protobuf.
+      // input=100(0x64), output=50(0x32) — 둘 다 1바이트 varint라 인코딩이 단순하다.
+      const inner = Buffer.from([0x10, 0x64, 0x18, 0x32]);
+      const metadata = Buffer.concat([Buffer.from([0x4a, inner.length]), inner]);
+      db.prepare('INSERT INTO steps (idx, metadata) VALUES (?, ?)').run(1, metadata);
+      db.close();
+
+      const sessions = scanAntigravitySessions('AnyProject', convDir, join(convDir, 'no-summaries.db'));
+      assert.equal(sessions.length, 1);
+      assert.equal(sessions[0].conversationId, convId);
+      assert.equal(sessions[0].inputTokens, 100);
+      assert.equal(sessions[0].outputTokens, 50);
+      assert.equal(sessions[0].tokensUsed, 150);
+    } finally {
+      rmSync(convDir, { recursive: true, force: true });
+    }
+  });
+
+  await t.test('대화가 없으면 빈 배열을 돌려준다', () => {
+    const convDir = mkdtempSync(join(tmpdir(), 'agy-conversations-'));
+    try {
+      const sessions = scanAntigravitySessions('AnyProject', convDir, join(convDir, 'no-summaries.db'));
+      assert.equal(sessions.length, 0);
+    } finally {
+      rmSync(convDir, { recursive: true, force: true });
     }
   });
 });

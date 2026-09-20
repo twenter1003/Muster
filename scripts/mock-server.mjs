@@ -744,6 +744,7 @@ function handleApi(req, res, url) {
           model_breakdown: MODEL_BREAKDOWN,
           waste_intelligence: WASTE_INTELLIGENCE,
           burn_rate: BURN_RATE,
+          latest_hook_version: 1,
           recent_runs: runsFor('agent-1').map((r) => {
             const denom = (r.input_tokens ?? 0) + (r.cache_read_tokens ?? 0) + (r.cache_write_tokens ?? 0);
             const hasBreakdown = r.input_tokens != null;
@@ -752,6 +753,7 @@ function handleApi(req, res, url) {
               agent_name: 'claude-code',
               model: 'claude-sonnet-5',
               duration_seconds: 3600,
+              hook_version: 1,
               cache: {
                 hit_rate_percentage:
                   hasBreakdown && denom > 0 ? Math.round((r.cache_read_tokens / denom) * 100) : null,

@@ -17,6 +17,16 @@ import { readFileSync, existsSync, mkdirSync, writeFileSync, rmSync } from 'node
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
+/**
+ * 이 훅 스크립트의 버전. 리포팅 방식(보내는 필드 모양)이 바뀔 때만 올린다.
+ * `~/.muster/hooks/...`에 설치된 사본은 재설치 전까지 갱신되지 않으므로, 서버가
+ * 이 값을 받아 최신(apps/api/src/modules/agent-registry/hook-version.ts의
+ * LATEST_HOOK_VERSION)보다 낮은지 판별해 "이 머신 훅이 오래됨" 배너를 띄운다.
+ * 수정 후에는 `node scripts/sync-embedded-hooks.mjs`로 muster-connect.mjs의
+ * 임베딩 사본도 같이 올려야 한다(CI가 잊으면 막는다).
+ */
+export const HOOK_VERSION = 1;
+
 /** 현재 작업 디렉터리의 git remote origin URL을 추출한다 (실패 시 null). */
 export function getGitRemoteUrl(cwd) {
   try {
@@ -254,6 +264,7 @@ async function handleSessionStart(hook, env) {
         status: 'running',
         tokens_used: 0,
         cost: '0',
+        hook_version: HOOK_VERSION,
       });
       mkdirSync(join(homedir(), '.muster', 'runs'), { recursive: true });
       writeFileSync(statePath, JSON.stringify({ run_id: run.id, cwd: hook.cwd }), 'utf8');
@@ -263,7 +274,9 @@ async function handleSessionStart(hook, env) {
     return;
   }
 
-  const run = await apiCall(config, 'POST', `/agents/${config.agentId}/runs`, undefined);
+  const run = await apiCall(config, 'POST', `/agents/${config.agentId}/runs`, {
+    hook_version: HOOK_VERSION,
+  });
 
   mkdirSync(join(homedir(), '.muster', 'runs'), { recursive: true });
   writeFileSync(statePath, JSON.stringify({ run_id: run.id, cwd: hook.cwd }), 'utf8');
@@ -284,6 +297,7 @@ export async function sendHeartbeat(config, runId, usage) {
     tokens_used: usage.tokens_used,
     ...breakdownOf(usage),
     ...(usage.model ? { model: usage.model } : {}),
+    hook_version: HOOK_VERSION,
   });
 }
 
@@ -327,6 +341,7 @@ async function handleSessionEnd(hook, env) {
       ...breakdownOf(usage),
       ...(usage.model ? { model: usage.model } : {}),
       ...(cost !== undefined ? { cost } : {}),
+      hook_version: HOOK_VERSION,
     });
     rmSync(statePath, { force: true });
     return;
@@ -345,6 +360,7 @@ async function handleSessionEnd(hook, env) {
     ...breakdownOf(primary),
     ...(primary.model ? { model: primary.model } : {}),
     ...(primaryCost !== undefined ? { cost: primaryCost } : {}),
+    hook_version: HOOK_VERSION,
   });
 
   for (const bucket of rest) {
@@ -357,6 +373,7 @@ async function handleSessionEnd(hook, env) {
       ...(bucketCost !== undefined ? { cost: bucketCost } : {}),
       ...(bucket.started_at ? { started_at: bucket.started_at } : {}),
       ...(bucket.ended_at ? { ended_at: bucket.ended_at } : {}),
+      hook_version: HOOK_VERSION,
     };
     try {
       if (config.isGlobal) {
