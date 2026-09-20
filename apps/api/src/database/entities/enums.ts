@@ -21,10 +21,6 @@ export type ProjectStage = (typeof PROJECT_STAGES)[number];
 export const MEMBER_ROLES = ['owner', 'member'] as const;
 export type MemberRole = (typeof MEMBER_ROLES)[number];
 
-/** DOCUMENTS.type — Part 4 §4의 타입 필터 `?type=prd|srs|tech_spec|other` */
-export const DOCUMENT_TYPES = ['prd', 'srs', 'tech_spec', 'other'] as const;
-export type DocumentType = (typeof DOCUMENT_TYPES)[number];
-
 /**
  * PROJECT_ENV_CONFIGS.build_status — Part 4 §5.2의 상태 전이.
  * 문서의 6개에 `rejected`(reject 엔드포인트의 귀결)와 `succeeded`(실행 성공 종료)를 더한 8개.
@@ -33,6 +29,10 @@ export type DocumentType = (typeof DOCUMENT_TYPES)[number];
  * policy_passed → approved | rejected
  * approved → running
  * running → succeeded | failed
+ *
+ * **그 테이블은 이제 없다**(PR #89에서 드롭). 이 값 집합만 남긴 이유는 마이그레이션
+ * 둘이 CHECK 제약 문자열을 여기서 만들기 때문이다 — 1788880000000(테이블 생성)과
+ * 1788950000000(드롭)의 `down()`. 지우면 과거 마이그레이션이 컴파일되지 않는다.
  */
 export const BUILD_STATUSES = [
   'generated',
@@ -44,15 +44,6 @@ export const BUILD_STATUSES = [
   'succeeded',
   'failed',
 ] as const;
-export type BuildStatus = (typeof BUILD_STATUSES)[number];
-
-/** POLICY_CHECK_RESULTS.tool — Part 2 §6.1 */
-export const POLICY_TOOLS = ['trivy', 'conftest'] as const;
-export type PolicyTool = (typeof POLICY_TOOLS)[number];
-
-/** POLICY_CHECK_RESULTS.verdict — Part 4 §5.2가 `verdict=pass`를 명시 */
-export const POLICY_VERDICTS = ['pass', 'fail'] as const;
-export type PolicyVerdict = (typeof POLICY_VERDICTS)[number];
 
 /** AGENT_RUNS.status — ended_at이 null인 동안 running, 종료 시 나머지 셋 중 하나. */
 export const AGENT_RUN_STATUSES = ['running', 'succeeded', 'failed', 'cancelled'] as const;
@@ -76,10 +67,6 @@ export type DeploymentKind = (typeof DEPLOYMENT_KINDS)[number];
  */
 export const DEPLOYMENT_STATUSES = ['success', 'failure'] as const;
 export type DeploymentStatus = (typeof DEPLOYMENT_STATUSES)[number];
-
-/** DOCUMENTS.upload_status — signed URL 발급 시 pending, 완료 확인 후 completed. */
-export const UPLOAD_STATUSES = ['pending', 'completed'] as const;
-export type UploadStatus = (typeof UPLOAD_STATUSES)[number];
 
 /**
  * AUDIT_LOGS.action — `<리소스>.<동작>` 규약. 여기가 값 집합의 단일 원천이다.

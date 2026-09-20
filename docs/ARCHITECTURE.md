@@ -35,11 +35,8 @@
 `agent-registry` · `audit` · `auth` · `ingest` · `project-core` · `project-goals` ·
 `realtime` · `search`
 
-엔티티 22개, 마이그레이션 17개. **엔티티와 테이블은 모듈보다 많다** — 2026-09-20에
-`env-catalog`·`inbox`·`reports` 모듈을 지우면서 코드만 지우고 테이블은 남겼기 때문이다
-(되돌리기 비용이 마이그레이션까지 가면 급격히 커진다). `env_templates`·
-`project_env_configs`·`env_config_transitions`·`policy_check_results`·`documents`는 지금 읽는 코드가
-없는 테이블이다.
+엔티티 16개, 테이블 16개, 마이그레이션 18개. **셋이 일치한다** — 읽는 코드 없이 남아
+있던 테이블 6개를 2026-09-20에 드롭했다(아래).
 
 `audit`은 **쓰기 전용 모듈**이다. API 표면이 없고, 다섯 모듈이 `AuditService.record()`로
 기록만 남긴다.
@@ -113,8 +110,8 @@ GCS 연동 전체가 따라 죽었다. 문서 기능을 접기로 하고 통째�
 | 검색의 `document` 종류 | `SearchKind`가 `project`·`agent` 둘로 줄었다. 검색 입력 안내문도 "프로젝트·에이전트 검색"으로 고쳤다 |
 | `GCS_BUCKET`·`GCS_SIGNER_SERVICE_ACCOUNT` 환경변수 | `scripts/setup-gcs.sh`, 배포 스크립트·워크플로의 GCS 주입, DEPLOY.md 9단계 |
 
-**`documents` 테이블과 `Document` 엔티티는 남겼다** — 기존 레코드는 그대로 있고 읽는 코드만
-없다. GCS 버킷(`muster-docs-taewoo`)은 비어 있어서(객체 0개) 함께 삭제했다.
+**`documents` 테이블과 `Document` 엔티티도 그 뒤 드롭했다**(아래). GCS 버킷(`muster-docs-taewoo`)은
+비어 있어서(객체 0개) 함께 삭제했다.
 `GCP_PROJECT_ID`는 남는다 — Vertex AI(Gemini 폴백)와 Secret Manager가 쓴다.
 
 ## 2026-09-20에 지운 것 — 죽은 SSE 이벤트
@@ -136,6 +133,31 @@ GCS 연동 전체가 따라 죽었다. 문서 기능을 접기로 하고 통째�
 남은 SSE 타입 5종은 전부 `ProjectDetailPage`가 분기해서 쓴다. **여기에 타입을 더하려면
 받아서 무엇을 할지부터 정할 것** — 구독만 늘리면 조용히 죽은 코드가 된다(DESIGN_DRIFT 10번이
 바로 그렇게 됐다).
+
+## 2026-09-20에 지운 것 — 읽는 코드 없던 테이블 6개
+
+세 번의 정리에서 **코드만 지우고 테이블은 남겼다**. 되돌리기 비용이 마이그레이션까지 가면
+급격히 커지기 때문이었고, 그 판단은 그때로서 옳았다. 되살릴 계획이 없다는 것이 분명해져
+마이그레이션 18번(`1788950000000-DropDeadTables`)으로 정리했다.
+
+| 테이블 | 언제 코드가 죽었나 |
+|---|---|
+| `env_templates` · `project_env_configs` · `policy_check_results` · `env_config_transitions` | EnvCatalog 모듈 삭제 (PR #79) |
+| `documents` | DocStore 모듈·GCS 연동 삭제 (PR #83) |
+| `project_budgets` | 예산 알림 체인·`PUT /projects/:id/budget` 삭제 (PR #87) |
+
+**드롭 순서는 FK를 따라간다** — 자식부터 지우지 않으면 참조 무결성 위반으로 실패한다.
+`env_config_transitions`·`policy_check_results` → `project_env_configs` → `env_templates`.
+
+`down()`은 스키마만 되살린다 — **데이터는 돌아오지 않는다.** 로컬에서 up → down → up을
+돌려 6개 테이블이 복원되는 것을 확인했다(그 6개에 걸린 제약 26개 = PK 6 + FK 8 + UNIQUE 1 +
+CHECK 11, psql로 실측). 스키마 전체의 CHECK 제약은 드롭 뒤 33개 → **22개**가 되고, 그 숫자를
+`schema.e2e-spec.ts`가 고정한다.
+
+같이 정리된 것: 엔티티 6개, `User.env_templates`·`Project.budget` 관계, 고아 enum
+(`DOCUMENT_TYPES`·`UPLOAD_STATUSES`·`POLICY_TOOLS`·`POLICY_VERDICTS`)과 웹 `domain.ts`의
+같은 사본들. `BUILD_STATUSES`는 남겼다 — 마이그레이션 둘이 CHECK 제약 문자열을 거기서
+만들기 때문에, 지우면 과거 마이그레이션이 컴파일되지 않는다.
 
 ## 알아 둘 구조적 제약
 

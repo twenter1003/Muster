@@ -7,7 +7,6 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { Session } from './session.entity';
-import { EnvTemplate } from './env-template.entity';
 import { ProjectMember } from './project-member.entity';
 import { AuditLog } from './audit-log.entity';
 
@@ -36,9 +35,6 @@ export class User {
 
   @OneToMany(() => Session, (session) => session.user)
   sessions!: Session[];
-
-  @OneToMany(() => EnvTemplate, (template) => template.owner)
-  env_templates!: EnvTemplate[];
 
   @OneToMany(() => ProjectMember, (member) => member.user)
   memberships!: ProjectMember[];
