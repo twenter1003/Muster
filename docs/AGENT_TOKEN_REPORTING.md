@@ -147,6 +147,21 @@ npx muster-connect \
    - 훅 스크립트는 네트워크 오류, 인증 실패, DB 락 등 어떤 예외가 발생하더라도 항상 `process.exit(0)`으로 정상 종료하며 오류는 stderr에만 기록합니다. 외부 관제 스크립트의 문제로 인해 사용자의 코딩 에이전트 세션이 중단되지 않습니다.
 3. **비용(Cost) 정책**:
    - 단가는 모델 및 구독 플랜마다 상이하므로 기본값은 비워두며(`null`), 사용자가 `MUSTER_COST_PER_MTOK_INPUT`과 `MUSTER_COST_PER_MTOK_OUTPUT` 환경변수를 모두 제공했을 때만 수학적으로 정확하게 산출합니다.
+4. **단일 소스(Single Source of Truth)**:
+   - 과거 세션 백필(`scanClaudeSessions`/`scanAntigravitySessions`)은 실시간 훅과 **같은
+     파서**(`sumUsageFromTranscript`, `sumUsageFromStepsDb`)를 재사용합니다. 예전에는
+     백필 쪽에 토큰 합계만 내는 별도 파서가 있어서, 프로젝트를 새로 가져오면 과거 세션의
+     모델명·캐시 내역이 빠졌습니다(DESIGN_DRIFT 21번).
+   - `npx muster-connect`/`curl | node -`가 받는 스크립트(`GET /api/v1/connect.mjs`)는
+     `scripts/muster-connect.mjs` **한 곳**만 서빙합니다. 예전에 있던 죽은 사본
+     (`apps/web/public/connect.mjs`)은 삭제했습니다.
+5. **훅 버전 감지**:
+   - 훅이 `hook_version`(스크립트 상수 `HOOK_VERSION`)을 매 요청마다 같이 보고합니다.
+     서버가 최신 버전(`LATEST_HOOK_VERSION`, `apps/api/.../hook-version.ts`)보다 낮은 걸
+     감지하면 프로젝트 상세 화면에 "이 머신 훅이 오래됨" 배너를 띄웁니다 — 훅 코드를
+     고쳐도 이미 설치된 머신은 재설치 전까지 갱신되지 않기 때문입니다. 훅을 고쳤다면
+     `HOOK_VERSION`을 올리고(리포팅 방식이 바뀔 때만), `node scripts/sync-embedded-hooks.mjs`로
+     임베딩 사본도 갱신해야 합니다(CI가 `--check`로 깜빡한 걸 막습니다).
 
 ---
 

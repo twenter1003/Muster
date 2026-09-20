@@ -517,6 +517,36 @@ DropProjectProgressSnapshots` 마이그레이션으로 테이블을 드롭했다
 
 ---
 
+## 21. 토큰 리포팅 로직 4중 중복 정리 + 훅 버전 배너 (정정 + 문서 누락) — PR #75
+
+**무엇이 틀어졌나**: 토큰 사용량을 세는 로직(transcript 파싱)이 서로 독립적으로 4곳에
+있었다 — 실시간 훅(`report-agent-usage.mjs`, 정확함), `muster-connect.mjs`의 base64
+임베딩 사본(수동 동기화 스크립트로만 맞춰짐), 과거 세션 백필 파서(`scanClaudeSessions`
+등, 토큰 4종 분리·모델명 없이 합계만 내던 옛 버전), 그리고 `apps/web/public/connect.mjs`
+(캐시 토큰 분리 이전 버전이 통째로 박제된 완전히 죽은 네 번째 사본, `GET
+/api/v1/connect.mjs` 서빙의 폴백 경로 8개 중 하나로 남아 있었다). 그 결과 프로젝트를
+새로 가져올 때 백필되는 과거 세션은 모델명이 항상 "모름", 캐시 적중률 집계에서 조용히
+제외됐다 — 실시간 경로가 이미 정확한데 백필 경로만 안 따라간 것.
+
+**채택**: 죽은 사본(`apps/web/public/connect.mjs`, `scripts/backfill-claude-tokens.mjs`)
+삭제, 백필 파서가 실시간 훅과 같은 함수(`sumUsageFromTranscript`, `sumUsageFromStepsDb`)를
+재사용하도록 교체, CI에 임베딩 동기화 확인(`sync-embedded-hooks.mjs --check`) 추가.
+
+**문서 누락 — 훅 버전 리포팅**: 훅 코드를 고쳐도 이미 설치된 머신은 재설치 전까지
+갱신되지 않는다는 구조적 결함이 실제 사고(이 컴퓨터 훅이 218줄 뒤처져 model·토큰 필드를
+아예 안 보내던 것)로 드러났다. 훅이 `hook_version`을 같이 보고하고(`AGENT_RUNS.hook_version`,
+마이그레이션 17번), 서버가 최신 버전보다 낮은 걸 감지하면 프로젝트 상세 화면에 "이 머신
+훅이 오래됨" 배너를 띄운다. 자동 갱신(훅이 스스로 최신 코드를 받아 덮어쓰는 방식)은
+매 실행 네트워크 호출과 자가 수정 위험이 개인용 서비스 규모에 안 맞아 기각했다 — 배너로
+"모르고 방치"만 막는다.
+
+**보안 사고**: `scripts/backfill-claude-tokens.mjs`(삭제됨)에 프로덕션 Supabase DB
+비밀번호가 평문으로 커밋돼 있었다(GitHub 퍼블릭 저장소). 사용자가 Supabase 콘솔에서
+즉시 로테이션했고, 새 비밀번호로 `migration:show` 연결을 확인한 뒤 마이그레이션·배포를
+진행했다.
+
+---
+
 ## 경미한 추가 (보고용)
 
 | 컬럼 | 이유 |
@@ -525,3 +555,4 @@ DropProjectProgressSnapshots` 마이그레이션으로 테이블을 드롭했다
 | `AGENTS.created_at` | 커서 페이지네이션 정렬 기준 |
 | `AGENT_RUNS.model` | 실측 모델명(Claude 3.5 Sonnet, Gemini 3.8 Flash 등) 영속화 |
 | `AGENT_RUNS.input/output/cache_read/cache_write_tokens` | 캐시 단가를 반영한 정확한 비용 산출 (18번) |
+| `AGENT_RUNS.hook_version` | 훅이 낡았는지 판별해 배너를 띄우기 위함 (21번) |

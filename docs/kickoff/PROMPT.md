@@ -8,21 +8,21 @@
 
 에이전트는 사용자에게 첫 응답을 하기 전, **반드시 아래 4단계를 순서대로 수행**해야 한다. (이 문서를 맹신하여 코드 조회를 건너뛰지 말 것)
 
-1. **저장소 동기화**: `git checkout main && git pull origin main` (최신: `5c45b00`,
-   [PR #74](https://github.com/twenter1003/Muster/pull/74) 머지 반영 —
-   `PROJECT_PROGRESS_SNAPSHOTS` 스키마 삭제).
+1. **저장소 동기화**: `git checkout main && git pull origin main` (최신: `064f1c8`,
+   [PR #75](https://github.com/twenter1003/Muster/pull/75) 머지·배포 반영 —
+   훅 리포팅 로직 중복 정리 + 훅 버전 배너).
 2. **지식 그래프 조회 (`graphify`) [필수]**:
    ```bash
    graphify query "<차기 과제 관련 키워드>"
    ```
    특정 관계 확인은 `graphify explain "<심볼/파일명>"`, `graphify path "<A>" "<B>"`.
-3. **테스트 무결성 검증**: `pnpm -r test` (기준선 **766개** = API 511 + Web 231 + 훅 24).
-   e2e는 별도 스크립트다(`pnpm --filter @muster/api test:e2e`, 로컬 Postgres 필요).
-   훅 테스트는 워크스페이스 밖이라 따로 돌린다:
+3. **테스트 무결성 검증**: `pnpm -r test` (기준선 **766개** = API 511 + Web 231 + 훅 24,
+   프론트 `hookVersion` 테스트 5개 포함). e2e는 별도 스크립트다(`pnpm --filter @muster/api
+   test:e2e`, 로컬 Postgres 필요). 훅 테스트는 워크스페이스 밖이라 따로 돌린다:
    ```bash
-   node --test scripts/claude-code-hooks/report-agent-usage.test.mjs scripts/antigravity-hooks/report-agent-usage.test.mjs
+   node --test scripts/claude-code-hooks/report-agent-usage.test.mjs scripts/antigravity-hooks/report-agent-usage.test.mjs scripts/muster-connect.test.mjs
    ```
-4. **문서 확인**: [docs/HANDOVER.md](../HANDOVER.md) (이번 세션 전말) · [docs/DESIGN_DRIFT.md](../DESIGN_DRIFT.md) **18·19·20번**(비용 정정과 그 후속, 목표 진행률 AI 판정 되돌림) · [docs/DEPLOY.md](../DEPLOY.md)
+4. **문서 확인**: [docs/HANDOVER.md](../HANDOVER.md) (이번 세션 전말) · [docs/DESIGN_DRIFT.md](../DESIGN_DRIFT.md) **21번**(토큰 리포팅 로직 4중 중복 정리, 훅 버전 배너, DB 비밀번호 로테이션) · [docs/DEPLOY.md](../DEPLOY.md)
 5. **4인 원팀(PM, 백엔드, 프론트엔드, QA) 설계안 제시 및 승인**: 임의로 코딩을 시작하지 않는다.
 
 ---
@@ -41,16 +41,16 @@
   `project_progress_snapshots` 테이블 삭제. 마이그레이션
   `1788930000000-DropProjectProgressSnapshots`를 프로덕션 Supabase에 적용
   (`migration:show` 16개 전부 `[X]`). 상세는 [docs/HANDOVER.md](../HANDOVER.md) 참조.
-- 🔎 **새로 발견됨 (2026-09-20, 코드 변경 없음)**: "모델별 토큰·비용 점유율"이 여전히
-  "모름"으로 뜬 원인을 프로덕션 DB 직접 조회로 추적한 결과, API 한계가 아니라 **이 컴퓨터에
-  전역 설치된 훅(`~/.muster/hooks/...`)이 218줄 낡아서 애초에 model·토큰 필드를 안 보내고
-  있었던 것**이었다. `installGlobalHookScripts()`로 이 컴퓨터만 갱신 완료(리포 코드 무변경).
-  이 과정에서 사용자가 구조적 결함을 지적함: "훅 코드를 고칠 때마다 이미 설치된 머신은
-  전부 수동 재설치해야 하나?" → **맞다, 현재 버전 체크/자동 갱신 로직이 전혀 없다.**
-  자세한 내용·해결 방향은 [docs/HANDOVER.md](../HANDOVER.md) 최상단 섹션 참조.
+- ✅ [PR #75](https://github.com/twenter1003/Muster/pull/75) 머지·마이그레이션·배포 완료
+  (`064f1c8`, `muster-00045-5df`, 2026-09-20): 훅 코드 버전 체크/자동 갱신 로직 부재를
+  "배너" 하나로만 땜질하지 말라는 사용자 지적에 따라, 토큰 리포팅 로직이 4곳에 중복돼
+  있던 걸 정리했다 — 죽은 사본 2개 삭제(그중 하나에 프로덕션 DB 비밀번호가 평문으로
+  있어 로테이션함), 백필 파서를 실시간 훅과 통일, CI에 임베딩 동기화 확인 추가, 그 위에
+  `hook_version` 리포팅 + "이 머신 훅이 오래됨" 배너. 상세는
+  [docs/HANDOVER.md](../HANDOVER.md), [docs/DESIGN_DRIFT.md](../DESIGN_DRIFT.md) 21번 참조.
 
-차기 세션 최우선 과제는 아래 "🎯 다음 과제명"이 **상세 페이지 재편이 아니라 훅 버전
-확인/갱신**으로 바뀌었다.
+차기 세션 최우선 과제는 아래 "🎯 다음 과제명" 참조 — 다른 컴퓨터 훅 확인, 또는 상세
+페이지 재편.
 
 ---
 
@@ -83,6 +83,11 @@ pnpm --filter @muster/web build && node scripts/mock-server.mjs   # → localhos
 
 ## 최근 완료된 것 (최신순)
 
+- **훅 리포팅 로직 4중 중복 정리 + 훅 버전 배너** (2026-09-20, [PR #75](https://github.com/twenter1003/Muster/pull/75)):
+  죽은 사본 2개 삭제(`apps/web/public/connect.mjs`, `scripts/backfill-claude-tokens.mjs` —
+  후자에 있던 프로덕션 DB 비밀번호 로테이션함), 백필 파서를 실시간 훅과 같은 파서로 통일,
+  CI에 `sync-embedded-hooks.mjs --check` 추가, `hook_version` 리포팅 + "이 머신 훅이
+  오래됨" 배너. DESIGN_DRIFT 21번.
 - **`PROJECT_PROGRESS_SNAPSHOTS` 스키마 삭제** (2026-09-20, [PR #74](https://github.com/twenter1003/Muster/pull/74)):
   PR #73의 `analyzeProgress` 제거로 죽은 코드가 된 `ProjectProgressSnapshot` 엔티티·테이블
   정리. `down()`에서 원본 CREATE TABLE을 복원하는 마이그레이션 작성, 프로덕션 적용 완료.
@@ -126,22 +131,18 @@ PR #73이 `analyzeProgress`를 제거하며 죽은 코드로 남긴 `ProjectProg
 테이블을 정리했다. [PR #74](https://github.com/twenter1003/Muster/pull/74) 머지·마이그레이션
 프로덕션 적용 완료. 상세는 [docs/HANDOVER.md](../HANDOVER.md) 참조.
 
-### 🎯 다음 과제명: 훅 버전 확인/갱신 (신규 발견 — 신뢰성 개선, 신규 기능 아님)
+### ✅ 완료: 훅 리포팅 로직 4중 중복 정리 + 훅 버전 배너 (2026-09-20)
 
-이번 세션에서 "모델별 토큰·비용 점유율"이 "모름"으로 뜨는 원인을 추적하다가, **훅 코드에
-버전 체크·자동 갱신 로직이 전혀 없다**는 구조적 결함을 발견했다(사용자 지적: "실시간으로
-해야하는데 설치가 낡았다 그럼 뭐 매번 설치해야하는거야?"). 이미 설치된 머신은 훅 코드를
-고쳐도 영영 옛 버전으로 남는다 — 오늘 겪은 "모름 100%" 사고가 구조적으로 반복될 수 있다.
+[PR #75](https://github.com/twenter1003/Muster/pull/75) 머지·마이그레이션·배포 완료.
+상세는 [docs/HANDOVER.md](../HANDOVER.md), [docs/DESIGN_DRIFT.md](../DESIGN_DRIFT.md)
+21번 참조.
 
-**제안(검토 완료, 구현 대기)**: 훅이 서버로 보내는 payload에 `hook_version`을 추가 →
-서버가 최신 버전보다 낮으면 감지 → 프로젝트 상세 화면에 "이 머신 훅이 오래됨,
-`npx muster-connect` 재실행" 배너 표시. 스크립트 자가 다운로드·실행 방식(리스크·복잡도 큼)은
-기각했다. 상세 근거는 [docs/HANDOVER.md](../HANDOVER.md) 최상단 섹션 참조.
+### 🎯 다음 과제명: 다른 컴퓨터 훅 확인 (있다면)
 
-착수 전 확인할 것: `hook_version` 상수를 어디 둘지(리포 버전 `package.json`과 동기화? 별도
-상수?), 서버 쪽 "최신 버전"을 어떻게 아는지(배포 시점 값을 env로 주입? DB에 저장?), 배너를
-어느 화면(프로젝트 상세/전역)에 어떤 조건(에이전트별/머신별)으로 띄울지 — 4인 팀 설계안으로
-정리 후 착수.
+이 컴퓨터의 훅은 이미 갱신됐고, 이제 훅이 낡으면 프로젝트 상세 화면에 배너로 뜬다.
+사용자에게 다른 컴퓨터가 있는지 확인하고, 있다면 그 컴퓨터에서도 배너가 뜨는지(=낡았는지)
+확인 후 필요하면 `npx muster-connect` 재실행을 안내한다. 코드 변경이 없을 수도 있는
+확인 과제다.
 
 #### 그다음 후보: 상세 페이지 재편 (기능 추가 없이 재배치)
 
