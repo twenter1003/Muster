@@ -122,7 +122,7 @@ Muster의 모든 버그 수정은 다음 원칙을 엄격히 준수한다:
    - `./scripts/deploy-cloudrun.sh` 로 실서버 배포.
 6. **실서버 검증 및 인계 문서 갱신**:
    - 실제 배포된 Cloud Run URL에서 정상 동작(200 OK) 확인.
-   - `docs/kickoff/PROMPT.md` 및 본 문서(`docs/BUG_REPORTS.md`) 갱신 후 push.
+   - `docs/STATE.md` 및 본 문서(`docs/BUG_REPORTS.md`) 갱신 후 push.
 
 ---
 

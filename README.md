@@ -77,88 +77,20 @@ Ingest를 별도 서비스로 분리할 때 이 파일이 그대로 메시지 �
 설계서를 기계적으로 따르지 않는다 — 구현 세부에서 더 나은 선택이 있으면 그쪽을 택하되,
 갈라진 지점은 전부 [docs/DESIGN_DRIFT.md](docs/DESIGN_DRIFT.md)에 기록한다.
 
-## 관련 기술 문서
+## 문서
 
-- [docs/LLM_ECOSYSTEM_GUIDE.md](docs/LLM_ECOSYSTEM_GUIDE.md) — 2026 최신 LLM 모델(Gemini 3.x, Claude Sonnet 5 등) 라인업, 단가표, 캐싱 가이드
-- [docs/AGENT_TOKEN_REPORTING.md](docs/AGENT_TOKEN_REPORTING.md) — 1줄 연동 CLI(`npx muster-connect`) 및 에이전트 세션 토큰 실측 수집법
-- [docs/DESKTOP_SETUP.md](docs/DESKTOP_SETUP.md) — OAuth 자격증명·GCS·배포 리소스 등 사람이 직접 해야 하는 데스크톱 설정
-- [docs/DEPLOY.md](docs/DEPLOY.md) — Cloud Run + Supabase $0 무과금 배포 절차 및 주의사항
+무엇을 찾으면 어디로 가는지는 [CLAUDE.md](CLAUDE.md)에 표로 있다. 자주 쓰는 것:
 
-## 로컬 실행
+- [docs/STATE.md](docs/STATE.md) — 지금 배포된 것, 통과하는 테스트 수, 다음 과제 **(세션마다 갱신되는 유일한 문서)**
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — 살아 있는 화면·엔드포인트·모듈
+- [docs/RUN.md](docs/RUN.md) — 로컬 실행·테스트·마이그레이션·목 서버
+- [docs/DEPLOY.md](docs/DEPLOY.md) — Cloud Run + Supabase 배포, GCS 설정, 롤백
+- [docs/AGENT_TOKEN_REPORTING.md](docs/AGENT_TOKEN_REPORTING.md) — 토큰 수집(`npx muster-connect`, 훅, 백필)
+- [docs/LLM_ECOSYSTEM_GUIDE.md](docs/LLM_ECOSYSTEM_GUIDE.md) — 모델 라인업과 단가 **(숫자의 단일 원천)**
+- [docs/BUG_REPORTS.md](docs/BUG_REPORTS.md) — 장애 대응 런북
 
-```bash
-pnpm install
-docker compose up -d --build     # api(:8080) + postgres(:5432)
-curl http://localhost:8080/api/v1/health
-```
-
-`apps/api/src`는 볼륨 마운트되어 있어 컨테이너 재빌드 없이 핫리로드된다.
-
-컨테이너 없이 돌리려면:
-
-```bash
-pnpm dev:api    # :8080
-pnpm dev:web    # :5173 (/api → :8080 프록시)
-```
-
-## 테스트
-
-```bash
-pnpm --filter @muster/api test:cov    # 단위 테스트 + 커버리지
-pnpm --filter @muster/api test:e2e    # e2e (DB 필요 — 아래 마이그레이션 선행)
-pnpm lint
-```
-
-## 에이전트 토큰 사용량 리포팅
-
-`AGENT_RUNS`는 자진신고 테이블이다 — 외부 에이전트가 `X-API-Key`로 직접 채워야 프로젝트
-상세의 "토큰 사용량" 카드에 값이 쌓인다. Claude Code를 첫 리포터로 붙이는 훅 스크립트가
-`scripts/claude-code-hooks/report-agent-usage.mjs`에 있다. 설치·동작 방식은
-`docs/AGENT_TOKEN_REPORTING.md` 참조.
-
-## GCS 설정 (Phase 4 전제)
-
-문서 원본은 GCS에 저장되고 클라이언트가 signed URL로 직접 업로드한다. 로그인만 사람이 하고
-나머지는 스크립트가 처리한다:
-
-```bash
-gcloud auth login                                          # 대화형 — 사람이 직접
-./scripts/setup-gcs.sh <project-id> <bucket-name>          # 나머지 전부
-```
-
-스크립트가 하는 일: 버킷 생성(공개 접근 차단, uniform IAM) → 서비스 계정 생성 →
-버킷 스코프 권한 부여 → 키 없는 signed URL 서명 권한 → CORS. 여러 번 돌려도 안전하다.
-
-**리전 기본값은 `us-central1`** — GCS Always Free 대상(Standard 5GB-월)이 US 3개 리전
-(us-central1 / us-west1 / us-east1)뿐이기 때문이다. 미국에 둬도 서버 비용은 늘지 않는다:
-파일 바이트는 브라우저와 GCS가 signed URL로 직접 주고받고 Cloud Run은 URL만 발급한다.
-한국에서의 왕복 지연(약 150~200ms)만 붙으며, 문서 크기에서는 체감되지 않는다.
-큰 바이너리 비중이 커지면 서울로 새 버킷을 만들어 복사한다 —
-**버킷 리전은 생성 후 변경할 수 없다.** 세 번째 인자로 리전을 바꿀 수 있다.
-
-**JSON 키 파일을 만들지 않는다** — 키 파일 자체가 평문 자격증명이라 Part 2 §6.2와 충돌한다.
-대신 서비스 계정이 자기 자신에 대해 `serviceAccountTokenCreator`를 갖게 해서 키 없이 서명한다.
-
-**CORS는 선택이 아니다** — 브라우저가 signed URL로 GCS에 직접 PUT 하므로, 없으면 업로드가
-무조건 실패한다.
-
-## 마이그레이션
-
-```bash
-docker compose up -d db
-cd apps/api
-pnpm migration:run          # 적용
-pnpm migration:show         # 적용 현황
-pnpm migration:revert       # 마지막 1개 되돌리기
-pnpm migration:generate src/database/migrations/<이름>   # 엔티티 변경분으로 생성
-```
-
-개발용 컨테이너(`docker compose`)는 **기동 전에 마이그레이션을 자동으로 돌린다.**
-실패하면 서버도 뜨지 않는다 — 반쯤 맞는 스키마 위에서 도는 것보다 낫다.
-프로덕션은 그렇게 하지 않는다: 배포와 스키마 변경을 한 명령에 묶으면 롤백이 어려워진다.
-
-`synchronize`는 어떤 환경에서도 켜지 않는다 — 스키마 변경은 전부 마이그레이션 파일로 남아야
-리뷰와 롤백이 가능하다. 생성된 SQL은 항상 사람이 검토한다 (TypeORM 선택 시 감수하기로 한 부분).
+실행·테스트·마이그레이션 절차를 여기 다시 적지 않는다. 두 곳에 적으면 어긋난다 —
+[docs/RUN.md](docs/RUN.md)가 그 답을 갖는 유일한 곳이다.
 
 ---
 
