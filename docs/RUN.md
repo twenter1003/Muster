@@ -77,11 +77,35 @@ pnpm --filter @muster/web build && node scripts/mock-server.mjs   # → localhos
 프론트엔드를 고쳤으면 **스크린샷으로 확인한 뒤** 끝낸다. 타입체크·테스트는 "컴파일된다"
 까지만 말한다.
 
-## ⚠️ `scripts/smoke-ui.mjs`는 현재 깨져 있다
+## `scripts/smoke-ui.mjs` — 실제 화면 훑기
 
-Playwright로 실제 화면을 눌러 보는 검사인데, 훑는 경로 10개 중 **8개가 PR #76에서 지운
-화면**이다(`/inbox`, `/docstore`, `/envcatalog`, `/reports`, `/audit`, `/settings/*`).
-고치려면 살아 있는 5개 경로([ARCHITECTURE.md](ARCHITECTURE.md))만 남기면 된다 — 아직 안 했다.
+```bash
+# 목 서버로 (토큰 불필요)
+pnpm --filter @muster/web build && node scripts/mock-server.mjs &
+SMOKE_BASE=http://127.0.0.1:4173 node scripts/smoke-ui.mjs mock
+
+# 진짜 API로 (Postgres + apps/api:8080 + apps/web:5173)
+node scripts/smoke-ui.mjs <세션토큰>
+```
+
+10단계를 훑는다 — 화면 3개(각각 **그 화면에만 있는 표식**까지 확인한다), 목록→상세 이동,
+토큰 차트·목표, API 키 모달, 체크리스트 서랍, 상단 검색 드롭다운, 레포 가져오기,
+없는 경로의 NotReadyPage. 스크린샷은 `SMOKE_SHOTS`(기본 `/tmp/muster-smoke`)에 쌓인다.
+
+**Playwright가 아니라 Stagehand를 쓴다.** 2026-09-20까지 이 스크립트는 `playwright`를
+import했는데 그 패키지가 어느 package.json에도 없었다 — 깨끗한 체크아웃에서는
+`ERR_MODULE_NOT_FOUND`로 죽었고, **한 번도 실제로 돌아간 적이 없었다.**
+`@browserbasehq/stagehand`는 루트 의존성이고 브라우저 바이너리를 따로 받지 않는다.
+AI 기능(`act`·`observe`·`extract`)은 **쓰지 않으므로** LLM 키도 Browserbase 키도 필요 없다.
+
+Stagehand의 표면은 Playwright보다 좁다. 고칠 때 걸리는 것들:
+
+- `page.url()`이 **Promise를 준다**. 동기라고 믿으면 정규식이 `"[object Promise]"`를 검사한다.
+- `getByRole`·`getByTestId`·`waitForURL`·`keyboard`가 없다. CSS·`text=`·`xpath=`는 되고
+  `:has-text()`는 안 된다 — 텍스트로 버튼을 집을 때는 xpath를 쓴다.
+- `waitForSelector`는 CSS만 받는다. `text=`는 `locator(...).count()`로 돌면서 기다린다.
+- `page.on`은 **`console` 하나만** 받는다(`response`·`pageerror`는 거부한다). 그래서 4xx/5xx는
+  `addInitScript`로 `fetch`와 `EventSource`를 감싸 페이지 안에서 직접 모은다.
 
 이 검사가 있었던 이유는 남겨 둘 만하다. 실제로 이런 것들을 잡았다:
 
@@ -95,7 +119,9 @@ Playwright로 실제 화면을 눌러 보는 검사인데, 훑는 경로 10개 �
 GitHub이 `204` 대신 `200`을 주는 것, 빈 레포의 `409`. 진짜 GitHub·GCP가 있어야 드러나는
 것들이다.
 
-두 가지 함정이 있다: **`networkidle`을 쓰지 않는다**(프로젝트 화면이 SSE를 열어 둬서 네트워크가
-영영 조용해지지 않는다 — `domcontentloaded`로 받는다). **세션은 우회해서 만든다**
-(`apps/api/scripts/dev-session.ts`가 사용자·세션을 직접 만든다. `NODE_ENV=production`이면
-거부한다 — 인증을 우회하는 도구다).
+**화면을 지우거나 더하면 `SCREENS`를 같이 고친다.** 지워진 경로도 SPA가 200을 주고
+NotReadyPage를 그리므로, 안 고치면 스모크는 통과하는 척만 한다 — 실제로 2026-09-20까지
+훑던 13개 중 11개가 그런 상태였다.
+
+세션은 우회해서 만든다(`apps/api/scripts/dev-session.ts`가 사용자·세션을 직접 만든다.
+`NODE_ENV=production`이면 거부한다 — 인증을 우회하는 도구다).
