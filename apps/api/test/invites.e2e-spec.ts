@@ -58,8 +58,7 @@ describe('Phase 7 — 초대 링크 (e2e)', () => {
     );
     return rows;
   };
-  const memberLogins = async (): Promise<string[]> =>
-    (await members()).map((m) => m.github_login);
+  const memberLogins = async (): Promise<string[]> => (await members()).map((m) => m.github_login);
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
