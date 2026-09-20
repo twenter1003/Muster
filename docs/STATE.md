@@ -12,6 +12,8 @@
 - **갱신**: 2026-09-20
 - **배포**: Cloud Run 리비전 `muster-00049-4g2` (트래픽 100%, 헬스체크 200)
 - **DB**: Supabase, 마이그레이션 18개 전부 적용됨. 테이블 16개(+`migrations`).
+- **Data API(PostgREST)는 꺼져 있다** (2026-09-20). 이 앱은 쓰지 않는다 — TypeORM이 커넥션
+  문자열로 직접 붙는다. 끈 이유와 다시 켤 때의 절차는 [DEPLOY.md](DEPLOY.md).
 - **코드와 배포는 같다** — PR #89까지 배포됐다.
 - **GCS는 더 이상 쓰지 않는다.** 버킷 `muster-docs-taewoo`는 비어 있었고(객체 0개) 삭제했다.
   `GCP_PROJECT_ID`는 남는다 — Vertex AI(Gemini 폴백)와 Secret Manager가 쓴다.
@@ -79,25 +81,10 @@ node --test scripts/claude-code-hooks/report-agent-usage.test.mjs \
 
 ## 다음 과제
 
-엔드포인트 정리는 끝났다(PR #79). 지금 살아 있는 표면은
-[ARCHITECTURE.md](ARCHITECTURE.md)가 원천이다. 남은 것으로 확인된 것들:
+**지금 열린 과제는 없다.** 죽은 코드 정리(PR #79·#83·#87·#89)와 Supabase Data API
+차단까지 끝났다. 지금 살아 있는 표면은 [ARCHITECTURE.md](ARCHITECTURE.md)가 원천이다.
 
-- **⚠️ RLS가 꺼져 있고 `public` 스키마가 PostgREST에 노출돼 있다.** Supabase 보안
-  어드바이저가 ERROR로 올린다 — 16개 테이블 전부이며 `users`·`sessions`·
-  `project_api_keys`·`audit_logs`가 포함된다. anon 키를 가진 사람은 모든 행을 읽고
-  고칠 수 있다.
-
-  **이 앱은 Data API를 쓰지 않는다** — 저장소에 Supabase 클라이언트 키가 없고 TypeORM이
-  커넥션 문자열로만 붙는다. 그래서 선택지가 둘이다:
-  1. **Data API를 끄거나 노출 스키마를 비운다** — 쓰지 않는 표면을 없애는 쪽이라 이 앱에는
-     이게 맞아 보인다.
-  2. RLS를 켠다 — 앱은 `postgres` 역할로 붙어 RLS를 우회하므로 깨지지 않지만, 정책이 없으면
-     anon 접근이 전부 막힌다(그게 목적이면 그것으로 충분하다).
-
-  `deployment_events`만 RLS가 켜져 있는데 정책이 없다. 의도한 것인지 확인할 것.
-
-  어느 쪽이든 **판단이 필요해 이번 세션에서는 건드리지 않았다.**
-  [Supabase 문서](https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public)
+새 과제가 생기면 여기에 적는다.
 
 ## 작업 관례
 

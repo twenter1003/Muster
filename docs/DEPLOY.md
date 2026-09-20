@@ -11,6 +11,51 @@
 | Supabase | Postgres | 500 MB · 5 GB 송신 | 시드 기준 수 MB |
 | Secret Manager | 시크릿 4개 | 활성 버전 6개 | 4개 |
 
+## Data API(PostgREST)는 꺼 두었다
+
+Supabase는 `public` 스키마를 PostgREST로 자동 노출한다. 2026-09-20에 **껐다.**
+
+껐던 이유: 보안 어드바이저가 ERROR로 올렸다. 16개 테이블 전부에서 RLS가 꺼진 채 스키마가
+노출돼 있었고, `anon` 역할에 **테이블 권한 119개**가 실제로 부여돼 있었다 —
+`users`·`sessions`·`project_api_keys`·`audit_logs`가 포함된다. anon 키를 아는 사람이 세션
+토큰과 API 키를 읽을 수 있는 상태였다.
+
+RLS 정책을 새로 설계하는 대신 표면 자체를 없앴다. **이 앱은 Supabase의 API 계층을 하나도
+쓰지 않는다** — 인증은 자체 GitHub OAuth, 실시간은 인프로세스 `EventEmitter2` 기반 SSE,
+DB는 TypeORM이 커넥션 문자열로 직접 붙는다.
+
+끄는 곳: 대시보드 → Integrations → Data API → **Enable Data API** 끄기.
+
+**껐는지 확인할 때 `curl`의 401을 근거로 삼지 말 것** — 켜져 있어도 키 없이 부르면 같은
+401이 온다. 확실한 증거는 PostgREST 로그다. 꺼져 있으면 이 오류가 찍힌다:
+
+```
+Failed to load the schema cache using db-schemas=pg_pgrst_no_exposed_schemas
+```
+
+Supabase가 노출 스키마를 존재하지 않는 이름으로 바꾸기 때문이고, 그래서 유효한 키가 있어도
+어떤 테이블도 서빙되지 않는다.
+
+**로그 잡음 처리**: 위 오류가 계속 쌓이므로, 공식 해법대로 빈 스키마를 만들어 그것을
+노출시켜 두었다. 스키마가 비어 있어 서빙할 것이 없다.
+
+```sql
+create schema if not exists pgrst_no_exposed_schemas;
+alter role authenticator set pgrst.db_schemas = 'pgrst_no_exposed_schemas';
+notify pgrst;
+```
+
+**다시 켠다면 순서가 중요하다.** `anon`의 권한 119개는 회수하지 않고 그대로 두었다 —
+닿을 경로가 없어 지금은 무해하지만, 켜는 순간 되살아난다. 켜기 전에 RLS를 켜거나 권한을
+회수할 것. 그리고 위 설정을 먼저 되돌린다:
+
+```sql
+alter role authenticator reset pgrst.db_schemas;
+notify pgrst;
+```
+
+([Supabase 문서](https://supabase.com/docs/guides/troubleshooting/schema-pg_pgrst_no_exposed_schemas-does-not-exist))
+
 **Cloud SQL은 쓰지 않는다.** 무료 티어가 없고, GCP의 지출 상한이 적용되지 않는 종류의
 리소스라 실수하면 멈추지 않고 과금된다.
 
