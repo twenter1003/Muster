@@ -95,7 +95,11 @@ node scripts/smoke-ui.mjs <세션토큰>
 **Playwright가 아니라 Stagehand를 쓴다.** 2026-09-20까지 이 스크립트는 `playwright`를
 import했는데 그 패키지가 어느 package.json에도 없었다 — 깨끗한 체크아웃에서는
 `ERR_MODULE_NOT_FOUND`로 죽었고, **한 번도 실제로 돌아간 적이 없었다.**
-`@browserbasehq/stagehand`는 루트 의존성이고 브라우저 바이너리를 따로 받지 않는다.
+`@browserbasehq/stagehand`는 루트 **devDependency**이고 브라우저 바이너리를 따로 받지 않는다.
+**`dependencies`에 두면 안 된다** — `apps/api/Dockerfile`의 `pnpm --filter @muster/api --prod
+deploy`가 루트 prod 의존성까지 끌어와서, 프로덕션 이미지에 stagehand가 실리고 `zod`가
+3.25.76 대신 stagehand가 요구하는 4.4.3으로 잡힌다(실측: 이미지 699MB → 727MB). 부팅은
+됐지만 배포 산출물이 조용히 달라지는 종류의 일이다.
 AI 기능(`act`·`observe`·`extract`)은 **쓰지 않으므로** LLM 키도 Browserbase 키도 필요 없다.
 
 Stagehand의 표면은 Playwright보다 좁다. 고칠 때 걸리는 것들:

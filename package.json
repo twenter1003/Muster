@@ -20,10 +20,8 @@
     "down": "docker compose down"
   },
   "devDependencies": {
-    "prettier": "^3.9.6"
-  },
-  "dependencies": {
     "@browserbasehq/stagehand": "^4.1.0",
+    "prettier": "^3.9.6",
     "zod": "~4.4.3"
   }
 }
