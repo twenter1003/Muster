@@ -79,13 +79,6 @@ interface LogView {
   created_at: string;
 }
 
-interface DocumentView {
-  id: string;
-  title: string;
-  type: string;
-  created_at: string;
-}
-
 interface SessionRunView {
   id: string;
   agent_id?: string;
@@ -244,8 +237,7 @@ function DeleteProjectDialog({
           </p>
         ) : (
           <p className="meta">
-            레포 연동(웹훅)과 이 프로젝트의 문서·에이전트·로그·감사 기록이 함께 사라진다. 되돌릴 수
-            없다.
+            레포 연동(웹훅)과 이 프로젝트의 에이전트·로그·감사 기록이 함께 사라진다. 되돌릴 수 없다.
           </p>
         )}
         <p className="meta">
@@ -572,7 +564,6 @@ export function ProjectDetailPage() {
   const usage = useApi<UsageBreakdown>(
     id ? buildTokenUsageUrl(id, agentFilter, tz, chartGranularity) : null,
   );
-  const documents = useApi<Page<DocumentView>>(id ? `/projects/${id}/documents?limit=5` : null);
 
   const { events: sseEvents, state: sseState } = useSse(id ?? null);
   const [activeAgents, setActiveAgents] = useState<string[]>([]);
@@ -737,7 +728,6 @@ export function ProjectDetailPage() {
       deployments.reload(),
       logs.reload(),
       usage.reload(),
-      documents.reload(),
     ]).finally(() => {
       setSyncing(false);
       setJustSynced(true);
@@ -1366,24 +1356,6 @@ export function ProjectDetailPage() {
                   </span>
                   <span className="detail__row-text">{l.message}</span>
                   <span className="meta">{formatDateTime(l.created_at)}</span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        <div className="panel">
-          <p className="panel__head">문서</p>
-          <div className="panel__body">
-            {documents.loading ? (
-              <p className="meta">불러오는 중…</p>
-            ) : (documents.data?.items.length ?? 0) === 0 ? (
-              <p className="meta">등록된 문서가 없다.</p>
-            ) : (
-              documents.data!.items.map((doc) => (
-                <div key={doc.id} className="detail__row">
-                  <span className="detail__row-text">{doc.title}</span>
-                  <span className="meta">{formatDateTime(doc.created_at)}</span>
                 </div>
               ))
             )}

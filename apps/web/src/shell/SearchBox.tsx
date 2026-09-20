@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import './SearchBox.css';
 
-export type SearchKind = 'project' | 'document' | 'agent';
+export type SearchKind = 'project' | 'agent';
 
 export interface SearchHit {
   kind: SearchKind;
@@ -22,7 +22,6 @@ interface SearchResult {
 
 const KIND_LABEL: Record<SearchKind, string> = {
   project: '프로젝트',
-  document: '문서',
   agent: '에이전트',
 };
 
@@ -32,17 +31,16 @@ const DEBOUNCE_MS = 200;
 /**
  * 결과를 눌렀을 때 갈 곳.
  *
- * 문서·에이전트에는 자기 화면이 없다. 그래서 그것이 속한 프로젝트의 해당 탭으로 보낸다 —
+ * 에이전트에는 자기 화면이 없다. 그래서 그것이 속한 프로젝트 화면으로 보낸다 —
  * 없는 경로를 지어내면 막다른 길이 되고, 아무 데도 안 보내면 결과가 장식이 된다.
  */
 export function hrefFor(hit: SearchHit): string {
   switch (hit.kind) {
     case 'project':
       return `/projects/${hit.id}`;
-    case 'document':
-      return `/projects/${hit.project_id}?tab=docs`;
     case 'agent':
-      return `/projects/${hit.project_id}?tab=agents`;
+      // 상세 화면에 탭이 없다. 에이전트는 그 프로젝트 화면 안에 그려지므로 거기로 보낸다.
+      return `/projects/${hit.project_id}`;
   }
 }
 
@@ -156,8 +154,8 @@ export function SearchBox() {
         aria-expanded={showing}
         aria-controls={listId}
         aria-autocomplete="list"
-        placeholder="프로젝트·문서·에이전트 검색"
-        aria-label="프로젝트·문서·에이전트 검색"
+        placeholder="프로젝트·에이전트 검색"
+        aria-label="프로젝트·에이전트 검색"
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);

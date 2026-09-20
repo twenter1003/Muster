@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '../../database/inject-repository.decorator';
-import { Agent, Document, Project, ProjectMember } from '../../database/entities';
+import { Agent, Project, ProjectMember } from '../../database/entities';
 
 /**
  * 한 종류에서 돌려줄 최대 건수.
@@ -12,7 +12,7 @@ import { Agent, Document, Project, ProjectMember } from '../../database/entities
  */
 const PER_KIND_LIMIT = 5;
 
-export type SearchKind = 'project' | 'document' | 'agent';
+export type SearchKind = 'project' | 'agent';
 
 export interface SearchHit {
   kind: SearchKind;
@@ -31,15 +31,14 @@ export interface SearchResult {
 }
 
 /**
- * 상단바 검색 — 프로젝트·문서·에이전트를 이름으로 찾는다.
+ * 상단바 검색 — 프로젝트·에이전트를 이름으로 찾는다.
  *
  * **왜 전문 검색(tsvector)이 아니라 부분 문자열(ILIKE)인가.**
- * 대상이 전부 짧은 이름과 제목이다(프로젝트 이름, 문서 제목, 에이전트 이름). 사람이 여기서
- * 기대하는 것은 "kiosk를 치면 kiosk-pos가 나온다"는 부분 일치이고, 그건 형태소 단위로 자르는
- * 전문 검색이 오히려 못 하는 일이다 — `kiosk-pos`는 한 토큰이라 `kiosk`로는 걸리지 않는다.
- * 게다가 이 제품의 문서 제목은 대부분 한국어인데, Postgres 기본 설정에는 한국어 형태소
- * 분석기가 없어 `simple` 설정으로는 띄어쓰기 단위로만 쪼개진다. 본문 검색이 필요해지면
- * 그때 tsvector를 도입해야 하고, 그건 이 화면이 아니라 DocStore의 일이다.
+ * 대상이 전부 짧은 이름이다(프로젝트 이름, 에이전트 이름). 사람이 여기서 기대하는 것은
+ * "kiosk를 치면 kiosk-pos가 나온다"는 부분 일치이고, 그건 형태소 단위로 자르는 전문 검색이
+ * 오히려 못 하는 일이다 — `kiosk-pos`는 한 토큰이라 `kiosk`로는 걸리지 않는다. 게다가 이름이
+ * 한국어인 경우, Postgres 기본 설정에는 한국어 형태소 분석기가 없어 `simple` 설정으로는
+ * 띄어쓰기 단위로만 쪼개진다. 본문 검색이 필요해지면 그때 tsvector를 도입한다.
  *
  * 규모에 대하여: ILIKE '%…%'는 인덱스를 타지 못한다. 지금 대상은 한 사용자가 속한 프로젝트의
  * 이름·제목이라 수백 행 수준이고, 범위 질의가 그 앞에서 이미 잘라 준다. 행이 자릿수로
@@ -50,7 +49,6 @@ export class SearchService {
   constructor(
     @InjectRepository(ProjectMember) private readonly members: Repository<ProjectMember>,
     @InjectRepository(Project) private readonly projects: Repository<Project>,
-    @InjectRepository(Document) private readonly documents: Repository<Document>,
     @InjectRepository(Agent) private readonly agents: Repository<Agent>,
   ) {}
 
@@ -65,7 +63,7 @@ export class SearchService {
     const empty: SearchResult = {
       query,
       hits: [],
-      truncated: { project: false, document: false, agent: false },
+      truncated: { project: false, agent: false },
     };
 
     // IN ()은 문법 오류다. 멤버인 프로젝트가 없으면 질의하지 않는다.
@@ -73,7 +71,7 @@ export class SearchService {
 
     const pattern = `%${escapeLike(query)}%`;
 
-    const [projects, documents, agents] = await Promise.all([
+    const [projects, agents] = await Promise.all([
       this.projects
         .createQueryBuilder('p')
         .select(['p.id AS id', 'p.name AS title'])
@@ -82,15 +80,6 @@ export class SearchService {
         .orderBy('p.updated_at', 'DESC')
         .limit(PER_KIND_LIMIT + 1)
         .getRawMany<{ id: string; title: string }>(),
-
-      this.documents
-        .createQueryBuilder('d')
-        .select(['d.id AS id', 'd.title AS title', 'd.project_id AS project_id'])
-        .where('d.project_id IN (:...ids)', { ids })
-        .andWhere('d.title ILIKE :pattern ESCAPE :esc', { pattern, esc: ESCAPE_CHAR })
-        .orderBy('d.created_at', 'DESC')
-        .limit(PER_KIND_LIMIT + 1)
-        .getRawMany<{ id: string; title: string; project_id: string }>(),
 
       this.agents
         .createQueryBuilder('a')
@@ -108,20 +97,13 @@ export class SearchService {
       query,
       hits: [
         // 프로젝트를 먼저 세운다. "kiosk"를 쳤을 때 찾는 것은 대개 그 프로젝트이지
-        // 그 안의 문서가 아니다.
+        // 그 안의 에이전트가 아니다.
         ...projects.slice(0, PER_KIND_LIMIT).map((p) => ({
           kind: 'project' as const,
           id: p.id,
           title: p.title,
           project_id: p.id,
           project_name: p.title,
-        })),
-        ...documents.slice(0, PER_KIND_LIMIT).map((d) => ({
-          kind: 'document' as const,
-          id: d.id,
-          title: d.title,
-          project_id: d.project_id,
-          project_name: name(d.project_id),
         })),
         ...agents.slice(0, PER_KIND_LIMIT).map((a) => ({
           kind: 'agent' as const,
@@ -134,7 +116,6 @@ export class SearchService {
       // 상한보다 하나 더 받아서 "더 있는가"를 안다. COUNT를 따로 세면 질의가 배로 는다.
       truncated: {
         project: projects.length > PER_KIND_LIMIT,
-        document: documents.length > PER_KIND_LIMIT,
         agent: agents.length > PER_KIND_LIMIT,
       },
     };

@@ -5,7 +5,7 @@ import type { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { DATA_SOURCE } from '../src/database/database.module';
 import { SessionService } from '../src/modules/auth/session.service';
-import { Agent, Document, Session, User } from '../src/database/entities';
+import { Agent, Session, User } from '../src/database/entities';
 
 /**
  * 상단바 검색.
@@ -42,19 +42,6 @@ describe('Phase 7 — Search (e2e)', () => {
   const createProject = async (token: string, name: string): Promise<string> => {
     const res = await http().post('/api/v1/projects').set(auth(token)).send({ name }).expect(201);
     return res.body.id as string;
-  };
-
-  const addDocument = async (projectId: string, title: string): Promise<void> => {
-    const repo = ds.getRepository(Document);
-    await repo.save(
-      repo.create({
-        project_id: projectId,
-        title,
-        type: 'prd',
-        file_url: null,
-        commit_ref: null,
-      }),
-    );
   };
 
   const addAgent = async (projectId: string, name: string): Promise<void> => {
@@ -97,13 +84,12 @@ describe('Phase 7 — Search (e2e)', () => {
     carolToken = (await sessions.issue(carol.id)).token;
 
     aliceProject = await createProject(aliceToken, `kiosk-${stamp}`);
-    await addDocument(aliceProject, `키오스크 요구사항 ${stamp}`);
+    await addAgent(aliceProject, `키오스크 요원 ${stamp}`);
     await addAgent(aliceProject, `kiosk-agent-${stamp}`);
-    // LIKE 특수문자가 들어간 제목. 이스케이프가 없으면 '%' 검색에 이것만이 아니라 전부 걸린다.
-    await addDocument(aliceProject, `할인 50%off ${stamp}`);
+    // LIKE 특수문자가 들어간 이름. 이스케이프가 없으면 '%' 검색에 이것만이 아니라 전부 걸린다.
+    await addAgent(aliceProject, `할인 50%off ${stamp}`);
 
     const bobProject = await createProject(bobToken, secret);
-    await addDocument(bobProject, `${secret} 문서`);
     await addAgent(bobProject, `${secret}-agent`);
   }, 30_000);
 
@@ -153,11 +139,10 @@ describe('Phase 7 — Search (e2e)', () => {
       expect(project?.project_name).toBe(`kiosk-${stamp}`);
     });
 
-    it('문서 제목과 에이전트 이름도 찾는다', async () => {
+    it('에이전트 이름도 찾는다 — 프로젝트 이름만 보는 것이 아니다', async () => {
       const body = await search(aliceToken, stamp);
       const kinds = new Set(body.hits.map((h) => h.kind));
 
-      expect(kinds.has('document')).toBe(true);
       expect(kinds.has('agent')).toBe(true);
       // 딸린 프로젝트 이름이 함께 와야 화면이 "어느 프로젝트의 것인지"를 말할 수 있다.
       for (const hit of body.hits) expect(hit.project_name.length).toBeGreaterThan(0);
@@ -173,9 +158,9 @@ describe('Phase 7 — Search (e2e)', () => {
       expect(body.hits.some((h) => h.kind === 'project')).toBe(true);
     });
 
-    it('한국어 제목도 부분 일치로 찾는다', async () => {
+    it('한국어 이름도 부분 일치로 찾는다', async () => {
       const body = await search(aliceToken, '키오스크');
-      expect(body.hits.some((h) => h.kind === 'document')).toBe(true);
+      expect(body.hits.some((h) => h.kind === 'agent')).toBe(true);
     });
   });
 

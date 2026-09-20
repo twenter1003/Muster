@@ -10,8 +10,7 @@ import {
 import { SaveGoalsDto } from './dto/save-goals.dto';
 
 /**
- * 목표/요구사항 문서. `doc-store`의 `ProjectDocumentsController`처럼
- * `projects.controller.ts`를 더 불리지 않고 별도 컨트롤러로 둔다.
+ * 목표/요구사항 문서. `projects.controller.ts`를 더 불리지 않고 별도 컨트롤러로 둔다.
  */
 @Controller('projects')
 export class ProjectGoalsController {

@@ -22,7 +22,7 @@ Muster/
 │   │   ├── test/               # e2e 테스트
 │   │   └── src/
 │   │       ├── main.ts         # 부트스트랩 (globalPrefix=api/v1, ValidationPipe)
-│   │       ├── app.module.ts   # 12개 모듈 + ConfigModule + EventEmitterModule 조립
+│   │       ├── app.module.ts   # 8개 모듈 + ConfigModule + EventEmitterModule 조립
 │   │       ├── config/
 │   │       │   └── env.schema.ts   # Zod 환경변수 검증 (실패 시 부팅 차단)
 │   │       ├── database/           # 데이터 접근 레이어
@@ -36,14 +36,15 @@ Muster/
 │   │       │   ├── auth/           # 전역 인증 가드 뼈대
 │   │       │   ├── events/         # 모듈 간 이벤트 계약 (Part 2 8장)
 │   │       │   └── health/         # Cloud Run 기동 확인
-│   │       └── modules/            # Part 2 2장의 7개 모듈 경계
-│   │           ├── auth/           # Part1 3.6 / Part4 2장  → Phase 3
-│   │           ├── project-core/   # Part1 3.5 / Part4 3장  → Phase 3
-│   │           ├── doc-store/      # Part1 3.1 / Part4 4장  → Phase 4
-│   │           ├── agent-registry/ # Part1 3.3 / Part4 6장  → Phase 4
-│   │           ├── env-catalog/    # Part1 3.2 / Part4 5장  → Phase 5
-│   │           ├── ingest/         # Part1 3.4 / Part4 7.1  → Phase 6
-│   │           └── realtime/       # Part1 3.4 / Part4 7.3  → Phase 6
+│   │       └── modules/            # 살아 있는 모듈 8개 (docs/ARCHITECTURE.md가 원천)
+│   │           ├── auth/           # Part1 3.6 / Part4 2장
+│   │           ├── project-core/   # Part1 3.5 / Part4 3장
+│   │           ├── project-goals/  # 설계서에 없다 (목표·체크리스트)
+│   │           ├── agent-registry/ # Part1 3.3 / Part4 6장
+│   │           ├── audit/          # 쓰기 전용 — API 표면이 없다
+│   │           ├── ingest/         # Part1 3.4 / Part4 7.1
+│   │           ├── realtime/       # Part1 3.4 / Part4 7.3
+│   │           └── search/         # 설계서에 없다 (상단바 검색)
 │   └── web/                    # React + Vite (최소 프론트, /api 프록시)
 ```
 

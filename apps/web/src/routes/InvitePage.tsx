@@ -164,7 +164,7 @@ export function InvitePage() {
               <span className="badge">member</span>로 합류합니다.
             </p>
             <p className="meta">
-              멤버는 이 프로젝트의 문서·개발환경·에이전트·로그를 볼 수 있습니다. 다른 프로젝트는
+              멤버는 이 프로젝트의 커밋·배포·로그·에이전트 사용량을 볼 수 있습니다. 다른 프로젝트는
               보이지 않습니다.
             </p>
             <div className="invite__actions">

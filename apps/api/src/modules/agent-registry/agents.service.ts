@@ -54,7 +54,7 @@ export class AgentsService {
   }
 
   /**
-   * 에이전트 단위 접근 제어. DocumentsService와 같은 이유로 404를 준다 —
+   * 에이전트 단위 접근 제어. 403이 아니라 404를 준다 —
    * 403은 "그 에이전트는 존재한다"를 알려준다.
    */
   async findAccessibleOrFail(agentId: string, userId: string): Promise<Agent> {

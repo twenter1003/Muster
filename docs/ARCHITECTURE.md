@@ -30,15 +30,15 @@
 셸(`AppShell`)은 상단바 + 본문 2단이다. 사이드바는 없다 — `nav.ts`는 이제 상단바 경로
 표기(breadcrumb)의 라벨 원천으로만 쓰인다.
 
-## 백엔드 모듈 — 9개
+## 백엔드 모듈 — 8개
 
-`agent-registry` · `audit` · `auth` · `doc-store` · `ingest` · `project-core` ·
-`project-goals` · `realtime` · `search`
+`agent-registry` · `audit` · `auth` · `ingest` · `project-core` · `project-goals` ·
+`realtime` · `search`
 
 엔티티 22개, 마이그레이션 17개. **엔티티와 테이블은 모듈보다 많다** — 2026-09-20에
 `env-catalog`·`inbox`·`reports` 모듈을 지우면서 코드만 지우고 테이블은 남겼기 때문이다
 (되돌리기 비용이 마이그레이션까지 가면 급격히 커진다). `env_templates`·
-`project_env_configs`·`env_config_transitions`·`policy_check_results`는 지금 읽는 코드가
+`project_env_configs`·`env_config_transitions`·`policy_check_results`·`documents`는 지금 읽는 코드가
 없는 테이블이다.
 
 `audit`은 **쓰기 전용 모듈**이다. API 표면이 없고, 다섯 모듈이 `AuditService.record()`로
@@ -54,14 +54,13 @@
 | `GET /github/repos` · `POST /projects/import` | `ImportReposPage` |
 | `GET /projects` · `GET/PATCH/DELETE /projects/:id` | `ProjectListPage`, `ProjectDetailPage` |
 | `GET /projects/:id/commits` · `/logs` · `/deployment-events` · `/health-snapshots` | `ProjectDetailPage` |
-| `GET /projects/:id/documents` (목록만) | `ProjectDetailPage` |
 | `GET/POST /projects/:id/git-integration` · `DELETE` | `lib/api.ts`, `ProjectDetailPage` |
 | `GET/PATCH /projects/:id/goals` · `POST /goals/draft` | `ProjectDetailPage` |
 | `GET/POST /projects/:id/api-keys` · `DELETE /api-keys/:id` | `ApiKeyModal` |
 | `GET /projects/:id/token-usage` | `lib/agentFilter.ts` — 소모 속도(burn rate)도 이 응답에 실려 온다 |
 | `GET /projects/:id/waste-report.csv` · `.json` | `lib/exportUtils.ts` |
 | `SSE /projects/:id/stream` | `lib/useSse.ts` |
-| `GET /search` | `shell/SearchBox.tsx` **하나뿐이다**. 목록·가져오기·체크리스트 화면의 검색 입력은 서버에 안 가고 받아 둔 목록을 그 자리에서 거른다 |
+| `GET /search` | `shell/SearchBox.tsx` **하나뿐이다**. 프로젝트·에이전트 이름만 찾는다. 목록·가져오기·체크리스트 화면의 검색 입력은 서버에 안 가고 받아 둔 목록을 그 자리에서 거른다 |
 | `POST /invites/lookup` · `POST /invites/accept` | `InvitePage` |
 
 **스크립트·훅·외부가 부른다** (화면이 없어도 살아 있는 것)
@@ -102,6 +101,22 @@ PR #76이 화면 11개를 지우면서 소비자를 잃은 것들이다. 되살�
 | `GET /projects/:id/budget` | `BudgetService.get`은 private으로 남았다 (`put`이 쓴다) |
 | `GET /projects/:id/burn-rate` | 없음 — `calculateBurnRate`는 `token-usage`가 계속 쓴다 |
 | `GET /projects/:id/token-waste-intelligence` | `TokenWasteReportService.getTokenWasteIntelligence`. 순수함수 `computeTokenWasteIntelligence`는 `waste-report.json`이 쓴다 |
+
+## 2026-09-20에 지운 것 — 문서 기능
+
+PR #79가 업로드 경로를 지우면서 `DocumentsService.create`가 고아로 남았는데, 그것을 지우자
+GCS 연동 전체가 따라 죽었다. 문서 기능을 접기로 하고 통째로 걷어냈다.
+
+| 지운 것 | 비고 |
+|---|---|
+| `doc-store` 모듈 전체 | 컨트롤러·서비스·`ObjectStorage`·`GcsObjectStorage`·DTO |
+| `GET /projects/:id/documents` | 프로젝트 상세 화면의 "문서" 패널도 같이 지웠다 |
+| 검색의 `document` 종류 | `SearchKind`가 `project`·`agent` 둘로 줄었다. 검색 입력 안내문도 "프로젝트·에이전트 검색"으로 고쳤다 |
+| `GCS_BUCKET`·`GCS_SIGNER_SERVICE_ACCOUNT` 환경변수 | `scripts/setup-gcs.sh`, 배포 스크립트·워크플로의 GCS 주입, DEPLOY.md 9단계 |
+
+**`documents` 테이블과 `Document` 엔티티는 남겼다** — 기존 레코드는 그대로 있고 읽는 코드만
+없다. GCS 버킷(`muster-docs-taewoo`)은 비어 있어서(객체 0개) 함께 삭제했다.
+`GCP_PROJECT_ID`는 남는다 — Vertex AI(Gemini 폴백)와 Secret Manager가 쓴다.
 
 ## 알아 둘 구조적 제약
 
