@@ -82,6 +82,21 @@ jobs:
         working-directory: apps/api
         run: npx jest --config ./test/jest-e2e.json --ci --runInBand
 
+  scripts:
+    name: Scripts (임베딩 훅 동기화 확인)
+    runs-on: ubuntu-latest
+
+    # 훅을 고치고 muster-connect.mjs 안의 base64 임베딩 사본을 갱신하는 걸 깜빡하면,
+    # `npx muster-connect`/`curl | node -`로 새로 연동하는 사용자에게 낡은 훅이 나간다
+    # (오늘 실제로 겪은 사고 — docs/HANDOVER.md 참조). 사람이 기억하는 대신 여기서 막는다.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 임베딩 훅 동기화 확인
+        run: node scripts/sync-embedded-hooks.mjs --check
+
   web:
     name: Web (타입 · 린트 · 테스트 · 빌드)
     runs-on: ubuntu-latest

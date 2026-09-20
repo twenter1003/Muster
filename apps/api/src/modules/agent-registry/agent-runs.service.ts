@@ -109,6 +109,7 @@ export class AgentRunsService {
         output_tokens: dto?.output_tokens,
         cache_read_tokens: dto?.cache_read_tokens,
         cache_write_tokens: dto?.cache_write_tokens,
+        hook_version: dto?.hook_version ?? null,
         cost,
         started_at: startedAt,
         ended_at: endedAt,
@@ -211,6 +212,7 @@ export class AgentRunsService {
       output_tokens: dto.output_tokens,
       cache_read_tokens: dto.cache_read_tokens,
       cache_write_tokens: dto.cache_write_tokens,
+      hook_version: dto.hook_version,
     });
   }
 
@@ -276,6 +278,7 @@ export class AgentRunsService {
     if (dto.status !== undefined) run.status = dto.status;
     if (dto.tokens_used !== undefined) run.tokens_used = dto.tokens_used;
     if (dto.model !== undefined) run.model = dto.model;
+    if (dto.hook_version !== undefined) run.hook_version = dto.hook_version;
     this.applyTokenBreakdown(run, dto);
 
     const hasBreakdown =
@@ -362,6 +365,9 @@ export class AgentRunsService {
     run.cost = newCost;
     if (dto.model !== undefined) {
       run.model = dto.model;
+    }
+    if (dto.hook_version !== undefined) {
+      run.hook_version = dto.hook_version;
     }
 
     const saved = await this.runs.save(run);

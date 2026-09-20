@@ -19,6 +19,12 @@ import { join } from 'node:path';
 
 const require = createRequire(import.meta.url);
 
+/**
+ * 이 훅 스크립트의 버전. 리포팅 방식(보내는 필드 모양)이 바뀔 때만 올린다.
+ * claude-code-hooks/report-agent-usage.mjs의 HOOK_VERSION 주석 참조 — 두 훅을 같이 관리한다.
+ */
+export const HOOK_VERSION = 1;
+
 /** 현재 작업 디렉터리의 git remote origin URL을 추출한다 (실패 시 null). */
 export function getGitRemoteUrl(cwd) {
   try {
@@ -201,10 +207,13 @@ export function sumUsageFromTranscript(transcriptPath) {
   };
 }
 
-/** SQLite DB에서 Protobuf Tag 9 실측 토큰 추출 */
-export function sumUsageFromDb(conversationId) {
-  if (!conversationId) return null;
-  const dbPath = join(homedir(), '.gemini/antigravity/conversations', `${conversationId}.db`);
+/**
+ * steps 테이블 metadata 컬럼에서 Protobuf Tag 9 실측 입력/출력 토큰을 뽑는다.
+ * DB 경로를 직접 받는다 — muster-connect.mjs의 과거 세션 백필(scanAntigravitySessions)도
+ * 이 파서를 그대로 쓴다. 예전에는 백필 쪽에 같은 파싱 루프가 따로 있어서 둘이 갈릴 수
+ * 있었다(예: 이 함수만 고치고 백필 쪽은 안 고치는 식).
+ */
+export function sumUsageFromStepsDb(dbPath) {
   if (!existsSync(dbPath)) return null;
 
   try {
@@ -231,11 +240,24 @@ export function sumUsageFromDb(conversationId) {
     }
     db.close();
 
-    const totalTokens = totalInput + totalOutput;
-    return { tokens_used: totalTokens, turns, started_at: null, ended_at: null };
+    return {
+      tokens_used: totalInput + totalOutput,
+      input_tokens: totalInput,
+      output_tokens: totalOutput,
+      turns,
+      started_at: null,
+      ended_at: null,
+    };
   } catch {
     return null;
   }
+}
+
+/** SQLite DB에서 Protobuf Tag 9 실측 토큰 추출 (대화 ID 기준 — 전역 경로 고정) */
+export function sumUsageFromDb(conversationId) {
+  if (!conversationId) return null;
+  const dbPath = join(homedir(), '.gemini/antigravity/conversations', `${conversationId}.db`);
+  return sumUsageFromStepsDb(dbPath);
 }
 
 export function extractAntigravityUsage(conversationId, transcriptPath) {
@@ -271,6 +293,7 @@ export async function sendHeartbeat(config, runId, tokensUsed, model) {
   return apiCall(config, 'PATCH', `/agent-runs/${runId}/heartbeat`, {
     tokens_used: tokensUsed,
     ...(model ? { model } : {}),
+    hook_version: HOOK_VERSION,
   });
 }
 
@@ -318,6 +341,7 @@ export async function handleStop(hook, env = process.env) {
           cost: '0',
           started_at: usage.started_at,
           model: usage.model,
+          hook_version: HOOK_VERSION,
         });
       } catch (err) {
         process.stderr.write(`[Muster] Git 자동 라우팅 리포팅 건너뜀: ${err.message}\n`);
@@ -330,6 +354,7 @@ export async function handleStop(hook, env = process.env) {
         cost: '0',
         started_at: usage.started_at,
         model: usage.model,
+        hook_version: HOOK_VERSION,
       });
     }
     writeFileSync(

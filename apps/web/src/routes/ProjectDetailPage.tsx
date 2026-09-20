@@ -32,6 +32,7 @@ import { TokenStockChart } from '../components/TokenStockChart';
 import { ModelUsageBreakdown, type ModelUsageItem } from '../components/ModelUsageBreakdown';
 import { TokenWasteIntelligenceCard } from '../components/TokenWasteIntelligenceCard';
 import { formatElapsedTime } from '../lib/projectListUtils';
+import { findOutdatedHookRun } from '../lib/hookVersion';
 import {
   computeLiveBurnRate,
   formatBurnRate,
@@ -96,6 +97,8 @@ interface SessionRunView {
   ended_at: string | null;
   duration_seconds?: number;
   cache?: SessionCacheView;
+  /** 이 실행을 보고한 훅 버전. null이면 이 컬럼이 생기기 전 실행(모름)이다. */
+  hook_version?: number | null;
 }
 
 interface UsageBreakdown {
@@ -124,6 +127,8 @@ interface UsageBreakdown {
   waste_intelligence?: TokenWasteIntelligence;
   burn_rate?: BurnRateStatus;
   recent_runs?: SessionRunView[];
+  /** 서버가 아는 최신 훅 버전. */
+  latest_hook_version?: number;
 }
 
 interface GoalsView {
@@ -698,6 +703,12 @@ export function ProjectDetailPage() {
   );
 
   const [spikeAlertDismissed, setSpikeAlertDismissed] = useState(false);
+  const [hookOutdatedDismissed, setHookOutdatedDismissed] = useState(false);
+
+  const outdatedHookRun = useMemo(
+    () => findOutdatedHookRun(usage.data?.recent_runs, usage.data?.latest_hook_version),
+    [usage.data?.latest_hook_version, usage.data?.recent_runs],
+  );
 
   // 실시간 60fps Burn Rate 계산 (API 응답 + SSE 하트비트 결합)
   const liveBurnRate = useMemo(
@@ -1035,6 +1046,40 @@ export function ProjectDetailPage() {
                     )}
                   </span>
                 </p>
+
+                {outdatedHookRun && !hookOutdatedDismissed && (
+                  <div
+                    className="budget-spike-alert budget-spike-alert--warning"
+                    data-testid="hook-outdated-alert"
+                    role="alert"
+                  >
+                    <div className="budget-spike-alert__content">
+                      <span className="budget-spike-alert__icon">🔧</span>
+                      <div className="budget-spike-alert__body">
+                        <div className="budget-spike-alert__header">
+                          <strong>이 머신의 훅이 오래됨</strong>
+                        </div>
+                        <p className="budget-spike-alert__desc">
+                          <strong className="budget-spike-alert__agent">
+                            [{getAgentLabel(outdatedHookRun.agent_name)}]{' '}
+                          </strong>
+                          최근 실행이 낡은 버전의 훅으로 보고됐습니다. 이 프로젝트를 가져온
+                          컴퓨터에서 <code>npx muster-connect</code>를 다시 실행해 주세요.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="budget-spike-alert__actions">
+                      <button
+                        type="button"
+                        className="budget-spike-alert__dismiss"
+                        onClick={() => setHookOutdatedDismissed(true)}
+                        aria-label="알림 닫기"
+                      >
+                        닫기
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {liveBurnRate &&
                   liveBurnRate.is_spike &&

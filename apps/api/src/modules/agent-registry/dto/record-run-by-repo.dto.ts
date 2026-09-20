@@ -50,4 +50,10 @@ export class RecordRunByRepoDto extends TokenBreakdownDto {
   @IsOptional()
   @IsDateString({}, { message: 'ended_at은 올바른 ISO 날짜 문자열이어야 합니다.' })
   ended_at?: string;
+
+  /** 훅 코드 버전. 서버가 최신 버전보다 낮은 걸 감지하면 "훅이 오래됨" 배너를 띄운다. */
+  @IsOptional()
+  @IsInt({ message: 'hook_version은 정수여야 합니다.' })
+  @Min(0)
+  hook_version?: number;
 }
