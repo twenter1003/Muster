@@ -495,6 +495,28 @@ report-agent-usage.mjs`, 설치는 `docs/AGENT_TOKEN_REPORTING.md`):
 
 ---
 
+## 20. 목표 진행률 "AI 자동 판정" 제거 + `PROJECT_PROGRESS_SNAPSHOTS` 스키마 삭제 (되돌림) — 12번을 걷어냄
+
+12번에서 채택한 "커밋↔체크리스트를 Gemini로 매칭해 자동으로 체크박스를 켜는" 기능
+(`analyzeProgress`)을 PR #73에서 완전히 제거했다. 수동으로 체크박스를 누르는 대안
+(`toggleGoalChecklist`)이 이미 완전한 형태로 존재해서 UI 동작은 100% 동일한데, Gemini 응답을
+기다리는 지연·비용·오판정 위험만 얹혀 있었다 — 자기 값을 못 하는 기능이었다. 진행률 퍼센트
+자체는 이 기능과 무관하게 이미 체크리스트 항목 수로 결정론적으로 계산되고 있었다
+(`getGoalsProgressStats`) — AI가 하던 일은 퍼센트 계산이 아니라 "체크박스 대신 켜주기"뿐.
+
+목표를 직접 입력하거나 레포 문서에서 초안을 만드는 경로(`draftGoals`, 12번 참조)는 이 기능과
+무관해 그대로 유지했다.
+
+**후속 스키마 정리 (PR #74)**: `analyzeProgress` 제거로 `ProjectProgressSnapshot` 엔티티가
+죽은 코드가 됐다(create/save/findOne 호출부 전무, grep으로 확인). `1788930000000-
+DropProjectProgressSnapshots` 마이그레이션으로 테이블을 드롭했다. `down()`은 12번 원본
+마이그레이션(`1788900000000-AddProjectGoals`)의 CREATE TABLE·FK·인덱스·CHECK 제약을 그대로
+복원한다. 테이블 드롭 전에 Cloud Run이 여전히 `analyzeProgress`가 살아있는 구버전을 서빙
+중이면 드롭 직후 그 구버전이 없는 테이블에 쓰기를 시도해 장애가 나므로, PR #73 배포를 먼저
+끝내고 나서 마이그레이션을 프로덕션에 적용했다.
+
+---
+
 ## 경미한 추가 (보고용)
 
 | 컬럼 | 이유 |

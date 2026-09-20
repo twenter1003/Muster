@@ -2,7 +2,7 @@
 
 - **작성 일시**: 2026-09-20
 - **작업자 / 모델**: Claude Code (Claude Sonnet 5)
-- **현재 브랜치**: `main` (`0e724a9` + `PROJECT_PROGRESS_SNAPSHOTS` 스키마 드롭, 배포·마이그레이션 완료)
+- **현재 브랜치**: `main` (`5c45b00`, [PR #74](https://github.com/twenter1003/Muster/pull/74) 머지 완료 — `PROJECT_PROGRESS_SNAPSHOTS` 스키마 드롭, 배포·마이그레이션 전부 완료)
 
 > 이 세션과 별도 세션이 거의 동시에 같은 커밋(`0e724a9`)을 각각 Cloud Run에 배포했다 —
 > 별도 세션은 리비전 `muster-00043-rf8`, 이 세션은 `muster-00044-kwv`. 후자가 더 나중에
@@ -56,6 +56,9 @@ PR #73 배포 후 사용자가 다시 확인: "모델별 토큰·비용 점유�
 
 ## 저장소 상태 — PR #73 배포 완료 + PROJECT_PROGRESS_SNAPSHOTS 스키마 정리
 
+- ✅ **[PR #74](https://github.com/twenter1003/Muster/pull/74) 머지 완료** (`5c45b00`, 2026-09-20):
+  아래 스키마 정리 내역 전체가 이 PR에 담겨 있다. main과 동시에 다른 세션이 HANDOVER.md에
+  훅 조사 내역을 커밋해 리베이스로 병합했다(코드 충돌 없음, 문서만 겹침).
 - ✅ **PR #73 배포**: `main`에만 있고 Cloud Run엔 없던 상태(`eea0d92` 서빙 중)를 해소했다.
   `./scripts/deploy-cloudrun.sh`로 `0e724a9`을 배포, 리비전 `muster-00044-kwv`가 트래픽 100%
   서빙 중. 헬스체크(`/api/v1/health` → 200) 확인. 이 배포로 `analyzeProgress`(목표 진행률

@@ -8,8 +8,9 @@
 
 에이전트는 사용자에게 첫 응답을 하기 전, **반드시 아래 4단계를 순서대로 수행**해야 한다. (이 문서를 맹신하여 코드 조회를 건너뛰지 말 것)
 
-1. **저장소 동기화**: `git checkout main && git pull origin main` (최신: `678de62`,
-   [PR #73](https://github.com/twenter1003/Muster/pull/73) 머지 반영).
+1. **저장소 동기화**: `git checkout main && git pull origin main` (최신: `5c45b00`,
+   [PR #74](https://github.com/twenter1003/Muster/pull/74) 머지 반영 —
+   `PROJECT_PROGRESS_SNAPSHOTS` 스키마 삭제).
 2. **지식 그래프 조회 (`graphify`) [필수]**:
    ```bash
    graphify query "<차기 과제 관련 키워드>"
@@ -21,7 +22,7 @@
    ```bash
    node --test scripts/claude-code-hooks/report-agent-usage.test.mjs scripts/antigravity-hooks/report-agent-usage.test.mjs
    ```
-4. **문서 확인**: [docs/HANDOVER.md](../HANDOVER.md) (이번 세션 전말) · [docs/DESIGN_DRIFT.md](../DESIGN_DRIFT.md) **18·19번**(비용 정정과 그 후속) · [docs/DEPLOY.md](../DEPLOY.md)
+4. **문서 확인**: [docs/HANDOVER.md](../HANDOVER.md) (이번 세션 전말) · [docs/DESIGN_DRIFT.md](../DESIGN_DRIFT.md) **18·19·20번**(비용 정정과 그 후속, 목표 진행률 AI 판정 되돌림) · [docs/DEPLOY.md](../DEPLOY.md)
 5. **4인 원팀(PM, 백엔드, 프론트엔드, QA) 설계안 제시 및 승인**: 임의로 코딩을 시작하지 않는다.
 
 ---
@@ -32,11 +33,14 @@
 - ✅ [PR #72](https://github.com/twenter1003/Muster/pull/72) 머지·마이그레이션·배포 완료
   (`a1fb436`, `muster-00042-v72`): 낭비 판정→측정값 교체.
 - ✅ [PR #73](https://github.com/twenter1003/Muster/pull/73) 머지·배포 완료(`0e724a9`,
-  `muster-00043-rf8`, 2026-09-20): 배포된 화면을 직접 확인해 찾은 3건(A/B HUD 모바일 짤림,
+  `muster-00044-kwv`, 2026-09-20): 배포된 화면을 직접 확인해 찾은 3건(A/B HUD 모바일 짤림,
   모델명 조작, 목표 AI 자동판정 제거) 수정. 766개(단위) + e2e 243개 통과. 스키마 변경이
   없어 마이그레이션은 필요 없었다.
-- 📌 **후속 과제 진행 중**: `ProjectProgressSnapshot` 죽은 테이블 스키마 정리가 별도
-  세션에 위임되어 진행 중이다(spawn_task). 다음 세션은 그 결과부터 확인할 것.
+- ✅ [PR #74](https://github.com/twenter1003/Muster/pull/74) 머지·마이그레이션 완료
+  (`5c45b00`, 2026-09-20): PR #73으로 죽은 코드가 된 `ProjectProgressSnapshot` 엔티티와
+  `project_progress_snapshots` 테이블 삭제. 마이그레이션
+  `1788930000000-DropProjectProgressSnapshots`를 프로덕션 Supabase에 적용
+  (`migration:show` 16개 전부 `[X]`). 상세는 [docs/HANDOVER.md](../HANDOVER.md) 참조.
 - 🔎 **새로 발견됨 (2026-09-20, 코드 변경 없음)**: "모델별 토큰·비용 점유율"이 여전히
   "모름"으로 뜬 원인을 프로덕션 DB 직접 조회로 추적한 결과, API 한계가 아니라 **이 컴퓨터에
   전역 설치된 훅(`~/.muster/hooks/...`)이 218줄 낡아서 애초에 model·토큰 필드를 안 보내고
@@ -79,6 +83,12 @@ pnpm --filter @muster/web build && node scripts/mock-server.mjs   # → localhos
 
 ## 최근 완료된 것 (최신순)
 
+- **`PROJECT_PROGRESS_SNAPSHOTS` 스키마 삭제** (2026-09-20, [PR #74](https://github.com/twenter1003/Muster/pull/74)):
+  PR #73의 `analyzeProgress` 제거로 죽은 코드가 된 `ProjectProgressSnapshot` 엔티티·테이블
+  정리. `down()`에서 원본 CREATE TABLE을 복원하는 마이그레이션 작성, 프로덕션 적용 완료.
+  DESIGN_DRIFT 20번.
+- **목표 진행률 "AI 분석" 제거 등 배포 화면 3건 수정** (2026-09-20, [PR #73](https://github.com/twenter1003/Muster/pull/73)):
+  A/B 벤치마크 HUD 제거, 모델명 조작 수정, `analyzeProgress` 걷어냄.
 - **낭비 판정→측정값 교체** (2026-09-20, [PR #72](https://github.com/twenter1003/Muster/pull/72)): `token-waste.ts`
   임계값 판정 제거 → 실측 캐시 적중률·절감액·비용 분포(중앙값/p99)로 교체. 780개 통과.
 - **토큰 4종 분리 · 비용 7.6배 과다 계상 정정** (`a29ce7a`, DESIGN_DRIFT 18번)
@@ -109,6 +119,12 @@ pnpm --filter @muster/web build && node scripts/mock-server.mjs   # → localhos
 
 [PR #73](https://github.com/twenter1003/Muster/pull/73) 머지·배포 완료. 상세는
 [docs/HANDOVER.md](../HANDOVER.md) 참조.
+
+### ✅ 완료: `PROJECT_PROGRESS_SNAPSHOTS` 스키마 삭제 (PR #73 후속 과제, 2026-09-20)
+
+PR #73이 `analyzeProgress`를 제거하며 죽은 코드로 남긴 `ProjectProgressSnapshot` 엔티티·
+테이블을 정리했다. [PR #74](https://github.com/twenter1003/Muster/pull/74) 머지·마이그레이션
+프로덕션 적용 완료. 상세는 [docs/HANDOVER.md](../HANDOVER.md) 참조.
 
 ### 🎯 다음 과제명: 훅 버전 확인/갱신 (신규 발견 — 신뢰성 개선, 신규 기능 아님)
 
