@@ -31,7 +31,8 @@ describe('DB 스키마 ↔ ERD 일치 검증', () => {
    * WEBHOOK_DELIVERIES(웹훅 멱등성) · PROJECT_API_KEYS · DEPLOYMENT_EVENTS ·
    * ENV_CONFIG_TRANSITIONS(build_status 단일 컬럼으로는 지나온 길을 복원할 수 없다) ·
    * PROJECT_INVITES(멤버를 늘릴 방법이 없어 초대받은 사람이 빈 앱을 봤다) ·
-   * PROJECT_GOALS · PROJECT_PROGRESS_SNAPSHOTS(목표/요구사항 기반 진행률, Gemini 연동).
+   * PROJECT_GOALS(목표/요구사항 문서). PROJECT_PROGRESS_SNAPSHOTS는 AI 자동 진행률
+   * 판정 기능과 함께 제거됐다(analyzeProgress 삭제로 죽은 코드가 된 뒤 스키마도 정리).
    */
   const EXPECTED_TABLES = [
     'users',
@@ -56,14 +57,13 @@ describe('DB 스키마 ↔ ERD 일치 검증', () => {
     'env_config_transitions',
     'project_invites',
     'project_goals',
-    'project_progress_snapshots',
   ];
 
-  it('엔티티 23개가 모두 등록되어 있다', () => {
-    expect(ALL_ENTITIES).toHaveLength(23);
+  it('엔티티 22개가 모두 등록되어 있다', () => {
+    expect(ALL_ENTITIES).toHaveLength(22);
   });
 
-  it('테이블 23개가 정확히 존재한다 (migrations 테이블 제외)', async () => {
+  it('테이블 22개가 정확히 존재한다 (migrations 테이블 제외)', async () => {
     const rows = await q<{ table_name: string }>(
       `SELECT table_name FROM information_schema.tables
        WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name <> 'migrations'
@@ -172,12 +172,12 @@ describe('DB 스키마 ↔ ERD 일치 검증', () => {
    * (AddCheckConstraints 마이그레이션이 SQL로 직접 추가한 것들). 생성된 SQL을 검토 없이
    * 머지하면 승인 게이트를 지탱하는 제약이 조용히 사라지므로, 개수를 테스트로 고정한다.
    */
-  it('CHECK 제약 34개가 그대로 살아 있다', async () => {
+  it('CHECK 제약 33개가 그대로 살아 있다', async () => {
     const rows = await q<{ n: string }>(
       `SELECT count(*)::text AS n FROM pg_constraint
        WHERE contype = 'c' AND conname LIKE 'chk_%'`,
     );
-    expect(Number(rows[0].n)).toBe(34);
+    expect(Number(rows[0].n)).toBe(33);
   });
 
   it('USERS.github_token_ref는 nullable이다 (토큰 원문이 아닌 참조만 보관)', async () => {
