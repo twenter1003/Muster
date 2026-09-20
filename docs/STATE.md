@@ -70,11 +70,6 @@ node --test scripts/claude-code-hooks/report-agent-usage.test.mjs \
 엔드포인트 정리는 끝났다(PR #79). 지금 살아 있는 표면은
 [ARCHITECTURE.md](ARCHITECTURE.md)가 원천이다. 남은 것으로 확인된 것들:
 
-- **`scripts/smoke-ui.mjs`를 실제로 돌려 본 적이 없다.** `playwright`가 어느
-  package.json에도 없어서, 깨끗한 체크아웃에서는 `ERR_MODULE_NOT_FOUND`로 죽는다.
-  PR #79에서 스크립트 내용은 살아 있는 화면 5개에 맞게 고쳤고 선택자는 목 서버를 띄워
-  브라우저로 하나씩 확인했지만, **스크립트 자체의 실행은 검증하지 못했다.**
-  의존성으로 넣을지(브라우저 바이너리까지 받는다) 아니면 이 파일을 지울지 정할 것.
 - **웹이 `budget_alert`·`stage_change` SSE를 구독만 하고 아무것도 안 한다.**
   `lib/useSse.ts`는 7종을 듣는데 `ProjectDetailPage`의 핸들러는 `agent_run_*` 셋과
   `log`·`health_update`에만 분기한다. 나머지 둘은 배열에 쌓이기만 한다. 화면을 붙일지
