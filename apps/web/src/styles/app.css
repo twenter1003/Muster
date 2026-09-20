@@ -44,12 +44,13 @@ a {
   text-decoration: none;
 }
 
-/* ───────────────────────── 셸 (설계서 02 · 1a 고정 사이드바) ───────────────────────── */
+/* ───────────────────────── 셸 (상단바 + 본문) ───────────────────────── */
 
 /*
  * 사이드바 없는 2단 셸 — 상단바 + 본문. 경량 재설계로 목적지가 셋(목록·상세·가져오기)
- * 뿐이라 고정 사이드바를 둘 이유가 없다(AppShell.tsx 주석 참조). Sidebar.tsx가 쓰던
- * .shell__sidebar·.nav-* 규칙은 화면이 다시 늘어날 때를 위해 아래 그대로 남겨 둔다.
+ * 뿐이라 고정 사이드바를 둘 이유가 없다(AppShell.tsx 주석 참조). Sidebar.tsx와 그
+ * .shell__sidebar·.nav-* 규칙은 "화면이 다시 늘어나면 되살린다"며 남겨 뒀었는데,
+ * 아무것도 렌더하지 않는 코드가 살아 있는 것처럼 보이기만 했다 — 같이 지웠다.
  */
 .shell {
   display: grid;
@@ -63,14 +64,6 @@ a {
   width: 100%;
   max-width: 100vw;
   overflow-x: hidden;
-}
-
-.shell__sidebar {
-  grid-area: sidebar;
-  background: var(--color-surface);
-  border-right: 1px solid var(--color-rule);
-  padding: var(--space-3) 0;
-  overflow-y: auto;
 }
 
 .shell__topbar {
@@ -91,10 +84,6 @@ a {
   overflow-x: hidden;
 }
 
-.shell__bottom-tabs {
-  display: none;
-}
-
 .brand {
   display: block;
   padding: 0 var(--space-3) var(--space-3);
@@ -108,45 +97,6 @@ a {
   flex: none;
   text-decoration: none;
   color: var(--color-ink);
-}
-
-.nav-group__label {
-  padding: var(--space-3) var(--space-3) var(--space-1);
-  font-size: var(--font-size-meta);
-  color: var(--color-ink-mid);
-}
-
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: var(--row-height-one-line);
-  padding: 0 var(--space-3);
-  color: var(--color-ink-mid);
-}
-
-.nav-item[aria-current='page'] {
-  color: var(--color-ink);
-  font-weight: 600;
-  box-shadow: inset 2px 0 0 var(--color-ink);
-}
-
-.nav-item__icon {
-  flex: none;
-  width: 20px;
-  text-align: center;
-}
-
-.nav-item__label {
-  flex: 1;
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.nav-item__badge {
-  font-size: var(--font-size-badge);
-  color: var(--color-ink-mid);
-  font-variant-numeric: tabular-nums;
 }
 
 /*
@@ -335,56 +285,6 @@ a {
 
 .health--signal .health__value {
   color: var(--color-signal);
-}
-
-.kpi-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-card-padding);
-  background: var(--color-surface);
-  border: 1px solid var(--color-rule);
-  border-radius: var(--radius);
-}
-
-/* 행동을 요구하는 카드만 테두리에 신호색. 화면당 최대 1개 — 타입으로는 세지 못하므로
-   KpiCard의 주석과 리뷰로 강제한다. */
-.kpi-card--action {
-  border-color: var(--color-signal);
-}
-
-.kpi-card__label {
-  font-size: var(--font-size-meta);
-  color: var(--color-ink-mid);
-}
-
-.kpi-card__value {
-  font-size: var(--font-size-section);
-  font-weight: 600;
-}
-
-.kpi-card__hint {
-  font-size: var(--font-size-meta);
-  color: var(--color-ink-mid);
-}
-
-.log-row {
-  display: grid;
-  grid-template-columns: 56px 72px 1fr;
-  gap: var(--space-2);
-  align-items: center;
-  min-height: var(--row-height-one-line);
-  border-bottom: 1px solid var(--color-rule);
-  font-size: var(--font-size-meta);
-}
-
-.log-row__time {
-  color: var(--color-ink-mid);
-  font-variant-numeric: tabular-nums;
-}
-
-.log-row__message {
-  color: var(--color-ink);
 }
 
 .btn {

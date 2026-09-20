@@ -1,19 +1,17 @@
-import type { Measurable } from '../lib/domain';
-
 /**
- * 사이드바 구성. 목업 1a의 항목·그룹을 그대로 옮겼다.
+ * 상단바 경로 표기(breadcrumb)의 라벨 원천.
  *
- * 배지는 사이드바가 실제로 세어 주는 항목에만 단다. 지금은 알림 하나뿐이다.
- * 프로젝트에도 자리표시자(null)를 달아 두었었는데, 그 자리는 채워지지 않은 채 —(측정 불가)만
- * 상시 떠 있었다 — 측정할 수 있는 값을 측정하지 못하는 것처럼 보이게 하는 표시다.
- * 세어 주는 쪽이 생기면 그때 badge를 도로 단다. 0은 측정 결과라 자리표시자로 쓸 수 없다.
+ * 원래는 사이드바 메뉴 구성이었고 목업 1a의 항목 열 개를 그대로 담고 있었다. 그중
+ * 아홉 개는 라우트가 없는 화면을 가리켰고, 사이드바 자체도 셸에서 렌더되지 않게 된 지
+ * 오래였다 — 지금 이 파일을 실제로 읽는 곳은 AppShell의 `useCrumbs()` 하나뿐이다.
+ * 그래서 "메뉴"인 척하지 않고 경로 표기에 필요한 것만 남긴다: 갈 수 있는 곳과 그 이름.
+ *
+ * 항목을 추가하려면 App.tsx에 라우트가 먼저 있어야 한다. 없는 곳을 여기 적으면
+ * 경로 표기가 존재하지 않는 화면 이름을 말하게 된다.
  */
 export interface NavItem {
   to: string;
   label: string;
-  /** 768–1279 구간에서 라벨 대신 보이는 글리프. 아이콘 라이브러리를 들이지 않으려고 문자로 둔다. */
-  icon: string;
-  badge?: Measurable<number>;
 }
 
 export interface NavGroup {
@@ -25,37 +23,8 @@ export const NAV_GROUPS: readonly NavGroup[] = [
   {
     label: '개요',
     items: [
-      { to: '/', label: '대시보드', icon: '◼' },
-      { to: '/projects', label: '프로젝트', icon: '▤' },
-      { to: '/inbox', label: '알림', icon: '✉', badge: null },
+      { to: '/projects', label: '프로젝트' },
+      { to: '/import', label: '레포 가져오기' },
     ],
   },
-  {
-    label: '모듈',
-    items: [
-      { to: '/docstore', label: 'DocStore', icon: '▦' },
-      { to: '/envcatalog', label: 'EnvCatalog', icon: '▣' },
-      { to: '/agentregistry', label: 'AgentRegistry', icon: '◈' },
-      { to: '/logs', label: '로그 · 헬스', icon: '≡' },
-    ],
-  },
-  {
-    label: '관리',
-    items: [
-      { to: '/reports', label: '리포트', icon: '▧' },
-      { to: '/audit', label: '감사 로그', icon: '◷' },
-      { to: '/settings', label: '설정', icon: '⚙' },
-    ],
-  },
-];
-
-/**
- * <768 하단 탭 4개. 설계서 09 — 모바일은 기능 축소가 아니라 과업 축소이므로
- * 사이드바를 접는 게 아니라 이동 중에 실제로 하는 일만 남긴다.
- */
-export const BOTTOM_TABS: readonly NavItem[] = [
-  { to: '/', label: '개요', icon: '◼' },
-  { to: '/projects', label: '프로젝트', icon: '▤' },
-  { to: '/logs', label: '로그', icon: '≡' },
-  { to: '/settings', label: '설정', icon: '⚙' },
 ];
