@@ -4,7 +4,7 @@
 - **작업자 / 모델**: Claude Code (Claude Sonnet 5)
 - **현재 브랜치**: `main` ([PR #73](https://github.com/twenter1003/Muster/pull/73) 머지 완료, `678de62`)
 
-## 저장소 상태 — 배포된 화면 직접 점검 후 3건 수정·머지, 배포만 남음
+## 저장소 상태 — 배포된 화면 직접 점검 후 3건 수정·머지·배포 전부 완료
 
 - ✅ **코드**: 배포된 프로덕션(`muster-00042-v72`)을 사용자가 직접 확인하고 지적한 3건을
   처리했다([PR #73](https://github.com/twenter1003/Muster/pull/73), `678de62`).
@@ -23,9 +23,10 @@
     (spawn_task로 별도 세션에 위임됨).
 - ✅ **검증**: 766개(단위) + e2e 243개 전부 통과. 목 서버 + iOS 시뮬레이터(iPhone 16e)로
   모바일 짤림 재현 후 수정 확인.
-- ⚠️ **아직 배포 전**: 이 3건은 `main`엔 있지만 Cloud Run은 여전히 `eea0d92`(PR #72분)를
-  서빙 중이다. 마이그레이션은 필요 없음(스키마 변경 없는 순수 코드 수정) — 바로
-  `./scripts/deploy-cloudrun.sh` 배포하면 된다.
+- ✅ **Cloud Run 배포 완료** (2026-09-20): 커밋 `0e724a9` 배포, 리비전 `muster-00043-rf8`가
+  트래픽 100% 서빙 중. 헬스체크·SPA 루트·404 JSON 전부 확인, 로그에 에러 없음. 스키마
+  변경이 없는 순수 코드 수정이라 마이그레이션은 필요 없었다. 롤백:
+  `gcloud run services update-traffic muster --region asia-northeast3 --to-revisions=muster-00042-v72=100`.
 
 ## (이전) 낭비 판정→측정값 교체·마이그레이션·배포 완료 — 2026-09-20 세션 앞부분
 
