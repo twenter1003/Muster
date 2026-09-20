@@ -2,7 +2,11 @@
 
 - **작성 일시**: 2026-09-20
 - **작업자 / 모델**: Claude Code (Claude Sonnet 5)
-- **현재 브랜치**: `main` ([PR #73](https://github.com/twenter1003/Muster/pull/73) 머지 완료, `678de62`)
+- **현재 브랜치**: `main` (`0e724a9` + `PROJECT_PROGRESS_SNAPSHOTS` 스키마 드롭, 배포·마이그레이션 완료)
+
+> 이 세션과 별도 세션이 거의 동시에 같은 커밋(`0e724a9`)을 각각 Cloud Run에 배포했다 —
+> 별도 세션은 리비전 `muster-00043-rf8`, 이 세션은 `muster-00044-kwv`. 후자가 더 나중에
+> 떠서 지금 트래픽 100%를 서빙 중이며 코드 내용은 동일하니 실질적 차이는 없다.
 
 ## 저장소 상태 — "모름" 원인 조사: 코드 문제 아님, 이 컴퓨터 훅이 낡았던 것 (코드 변경 없음)
 
@@ -50,10 +54,37 @@ PR #73 배포 후 사용자가 다시 확인: "모델별 토큰·비용 점유�
 방향 1(버전 배너)로 다음 세션에서 구현 시작. 이건 서비스 확장이 아니라 기존 기능의 신뢰성
 개선이라 "신규 기능 금지" 규칙에 안 걸린다.
 
-## (이전) 배포된 화면 직접 점검 후 3건 수정·머지·배포 전부 완료
+## 저장소 상태 — PR #73 배포 완료 + PROJECT_PROGRESS_SNAPSHOTS 스키마 정리
+
+- ✅ **PR #73 배포**: `main`에만 있고 Cloud Run엔 없던 상태(`eea0d92` 서빙 중)를 해소했다.
+  `./scripts/deploy-cloudrun.sh`로 `0e724a9`을 배포, 리비전 `muster-00044-kwv`가 트래픽 100%
+  서빙 중. 헬스체크(`/api/v1/health` → 200) 확인. 이 배포로 `analyzeProgress`(목표 진행률
+  AI 자동 판정)가 실제 서비스에서도 사라졌다.
+- ✅ **PROJECT_PROGRESS_SNAPSHOTS 스키마 삭제**: PR #73(커밋 9f7b595)이 `analyzeProgress`를
+  제거하면서 `ProjectProgressSnapshot` 엔티티가 죽은 코드가 됐다(어디서도 create/save/findOne
+  하지 않음, grep으로 확인) — 이번 세션에서 후속 과제를 처리했다.
+  - `apps/api/src/database/entities/project-progress-snapshot.entity.ts` 삭제,
+    `entities/index.ts`에서 export·import·`ALL_ENTITIES` 항목 제거(22개 엔티티로 감소).
+  - 마이그레이션 `1788930000000-DropProjectProgressSnapshots` 작성. `up()`은
+    `DROP TABLE "project_progress_snapshots"`, `down()`은 원본 생성 마이그레이션
+    (`1788900000000-AddProjectGoals`)의 CREATE TABLE·FK·인덱스·CHECK 제약을 그대로 복원.
+  - `apps/api/test/schema.e2e-spec.ts`의 `EXPECTED_TABLES`·엔티티/테이블 개수(23→22)·
+    CHECK 제약 개수(34→33, `chk_project_progress_percent_range` 소멸분) 갱신.
+  - **순서 주의**: 테이블 드롭 전에 Cloud Run이 여전히 구버전(`analyzeProgress` 포함)을
+    서빙 중이면 드롭 직후 그 구버전이 없는 테이블에 쓰기를 시도해 장애가 난다. 그래서
+    PR #73 배포를 먼저 끝내고 나서 마이그레이션을 적용했다.
+- ✅ **검증**: 로컬 docker db에 마이그레이션 전체 적용 후 `up()`/`down()`/`up()` 왕복 확인,
+  단위 테스트(API 511 + Web 231) + e2e 243개(스키마 검증 포함) 전부 통과.
+- ✅ **마이그레이션 적용 완료** (2026-09-20): `1788930000000-DropProjectProgressSnapshots`를
+  프로덕션 Supabase(session pooler)에 적용. `migration:show` 기준 16개 전부 `[X]`. 배포 직후
+  헬스체크 200 재확인. 되돌리려면
+  `DATABASE_URL='<세션 풀러 문자열>' pnpm --filter @muster/api migration:revert`
+  (단, 엔티티/서비스 코드가 이미 삭제됐으므로 revert는 빈 테이블만 복원한다).
+
+## (이전) 배포된 화면 직접 점검 후 3건 수정·머지 — PR #73
 
 - ✅ **코드**: 배포된 프로덕션(`muster-00042-v72`)을 사용자가 직접 확인하고 지적한 3건을
-  처리했다([PR #73](https://github.com/twenter1003/Muster/pull/73), `678de62`).
+  처리했다([PR #73](https://github.com/twenter1003/Muster/pull/73), `678de62`, 머지 완료).
   1. **모바일 카드 짤림** — 개발자용 A/B 벤치마크 HUD(`BenchmarkHud`, DESIGN_DRIFT 16번)가
      `position: fixed`로 항상 떠 있으면서 목록 카드를 가림. 위젯과 Variant A 전용 N+1 페칭
      경로를 통째로 제거(이미 결론 난 실험이라 되살릴 이유 없음).
@@ -65,13 +96,14 @@ PR #73 배포 후 사용자가 다시 확인: "모델별 토큰·비용 점유�
   3. **목표 진행률 "AI 분석" 제거** — Gemini로 커밋↔체크리스트 매칭해 자동 완료 판정하던
      기능. 수동 체크가 이미 완전한 대안으로 있어서 지연·비용·오판정 위험만 있고 얻는 게
      없어 걷어냄(초안 생성 `draftGoals`는 별개라 유지).
-  - `ProjectProgressSnapshot` 테이블은 이제 죽은 코드지만 스키마 삭제는 후속 과제로 분리
-    (spawn_task로 별도 세션에 위임됨).
+  - `ProjectProgressSnapshot` 테이블 스키마 삭제는 후속 과제로 분리했었다 — 위 섹션에서 완료.
 - ✅ **검증**: 766개(단위) + e2e 243개 전부 통과. 목 서버 + iOS 시뮬레이터(iPhone 16e)로
   모바일 짤림 재현 후 수정 확인.
-- ✅ **Cloud Run 배포 완료** (2026-09-20): 커밋 `0e724a9` 배포, 리비전 `muster-00043-rf8`가
-  트래픽 100% 서빙 중. 헬스체크·SPA 루트·404 JSON 전부 확인, 로그에 에러 없음. 스키마
-  변경이 없는 순수 코드 수정이라 마이그레이션은 필요 없었다. 롤백:
+- ✅ **Cloud Run 배포 완료** (2026-09-20): 커밋 `0e724a9` 배포. 별도 세션이 리비전
+  `muster-00043-rf8`로 먼저 배포했고, 이 세션이 곧이어 같은 커밋을 다시 배포해
+  `muster-00044-kwv`가 트래픽 100%를 서빙 중이다(위 "저장소 상태" 섹션 참고). 헬스체크·
+  SPA 루트·404 JSON 전부 확인, 로그에 에러 없음. 이 배포 자체는 스키마 변경이 없는 순수
+  코드 수정이었다. 롤백:
   `gcloud run services update-traffic muster --region asia-northeast3 --to-revisions=muster-00042-v72=100`.
 
 ## (이전) 낭비 판정→측정값 교체·마이그레이션·배포 완료 — 2026-09-20 세션 앞부분
