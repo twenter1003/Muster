@@ -45,9 +45,18 @@ alter role authenticator set pgrst.db_schemas = 'pgrst_no_exposed_schemas';
 notify pgrst;
 ```
 
-**다시 켠다면 순서가 중요하다.** `anon`의 권한 119개는 회수하지 않고 그대로 두었다 —
-닿을 경로가 없어 지금은 무해하지만, 켜는 순간 되살아난다. 켜기 전에 RLS를 켜거나 권한을
-회수할 것. 그리고 위 설정을 먼저 되돌린다:
+**`anon`의 권한 119개는 회수했다**(2026-09-20, 마이그레이션 19번 `RevokeAnonPrivileges`).
+현재 권한뿐 아니라 `postgres` 역할의 default privileges도 껐다 — 그러지 않으면 다음
+마이그레이션이 만드는 테이블에서 되살아난다. 적용 후 실측으로 119 → **0**. 앱은 `postgres`
+역할로 붙고 `public` 테이블 소유자도 전부 `postgres`라 영향이 없다(헬스체크 200으로 확인).
+
+`authenticated` 역할은 아직 119개를 그대로 갖고 있다. 이 앱은 Supabase Auth를 쓰지 않아
+그 역할의 JWT를 발급할 경로가 없어서 `anon`보다 위험이 낮다 — 다시 켤 때 판단할 것.
+`supabase_admin`이 설정한 기본 권한도 `anon`을 포함한 채 남아 있다(그 역할로 접속할 수
+없어 건드리지 못한다). 이 앱의 테이블은 전부 `postgres`가 만들므로 영향은 없다.
+
+**다시 켠다면 순서가 중요하다.** 켜기 전에 RLS를 켜거나 남은 권한을 마저 회수할 것.
+그리고 위 설정을 먼저 되돌린다:
 
 ```sql
 alter role authenticator reset pgrst.db_schemas;
