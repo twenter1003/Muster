@@ -1,0 +1,66 @@
+{
+  "note": "PR #89 마이그레이션 18번(DropDeadTables) 적용 직전 백업. 드롭 대상 6개 테이블의 전체 데이터(23행). documents·project_budgets는 0행이었다.",
+  "exported_at": "2026-09-20T12:06:25.870157+00:00",
+  "source": "Supabase cvicwscdjfpmcdtziyai (ap-northeast-2)",
+  "summary": "전부 2026-09-13 하루의 env-catalog 실험. NOL 프로젝트(192263f9-9da5-4235-961a-e60c6ef577c7)의 환경 구성 2건이며 둘 다 최종 상태 failed.",
+  "documents": [],
+  "project_budgets": [],
+  "env_templates": [
+    {
+      "id": "85e45f39-b8c4-4a5a-8c7c-7b69a98e0f33",
+      "owner_id": "5e29379d-9f0f-41e0-8608-8fa1719ba436",
+      "name": "nestjs",
+      "stack_preset": { "database": "postgres", "language": "typescript", "services": ["redis"], "framework": "nestjs" },
+      "docker_preset": {},
+      "created_at": "2026-09-13T10:31:30.350579+00:00"
+    }
+  ],
+  "project_env_configs": [
+    {
+      "id": "21652880-66c7-4f18-98b7-39b4d1829e77",
+      "project_id": "192263f9-9da5-4235-961a-e60c6ef577c7",
+      "template_id": "85e45f39-b8c4-4a5a-8c7c-7b69a98e0f33",
+      "stack_config": { "database": "postgresql", "language": "node", "framework": "nestjs", "extra_services": ["redis", "nginx", "rabbitmq", "minio", "mailhog"] },
+      "build_status": "failed",
+      "created_at": "2026-09-13T12:04:54.939724+00:00",
+      "dockerfile": "FROM node:20-alpine AS builder\n\nWORKDIR /app\n\nCOPY package*.json ./\nRUN npm install\n\nCOPY . .\nRUN npm run build\n\nFROM node:20-alpine\n\nWORKDIR /app\n\nRUN addgroup --system nodejs && adduser --system --ingroup nodejs nodeuser\nUSER nodeuser\n\nCOPY --from=builder /app/node_modules ./node_modules\nCOPY --from=builder /app/dist ./dist\nCOPY --from=builder /app/package*.json ./\n\nEXPOSE 3000\n\nCMD [\"node\", \"dist/main\"]\n",
+      "compose_services": ["app", "db(postgres:15-alpine)", "redis:7-alpine", "nginx:1.25-alpine", "rabbitmq:3-management-alpine", "minio", "mailhog:v1.0.1"],
+      "compose_note": "환경변수는 ${POSTGRES_USER} 등 .env 참조 형태. 전문은 git 히스토리의 PR #79 이전 env-catalog 코드와 함께 재생성 가능."
+    },
+    {
+      "id": "60cf0009-4599-4368-bf6c-ed2259e5b396",
+      "project_id": "192263f9-9da5-4235-961a-e60c6ef577c7",
+      "template_id": "85e45f39-b8c4-4a5a-8c7c-7b69a98e0f33",
+      "stack_config": { "database": "postgresql", "language": "node", "framework": "nestjs", "extra_services": ["redis", "nginx", "rabbitmq", "minio"] },
+      "build_status": "failed",
+      "created_at": "2026-09-13T12:14:49.889525+00:00",
+      "dockerfile": "FROM node:20-alpine\n\nWORKDIR /app\n\n# Install dependencies\nCOPY package.json package-lock.json* ./ \nRUN npm install --production --silent && mv node_modules ../node_modules\n\n# Copy application code\nCOPY . .\n\n# Build NestJS application\nRUN npm run build\n\n# Create a non-root user\nRUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser\nRUN chown -R appuser:appgroup /app\n\n# Use the non-root user\nUSER appuser\n\n# Expose the application port\nEXPOSE 3000\n\n# Start the application\nCMD [\"node\", \"dist/main\"]",
+      "compose_services": ["app", "db(postgres:16-alpine)", "redis:7-alpine", "rabbitmq:3-management-alpine", "minio", "nginx:1.25-alpine"],
+      "compose_note": "이 쪽 compose는 비밀번호가 하드코딩된 예시값(user/password, guest/guest, minioadmin)이었다 — 실제 시크릿이 아니라 생성기가 낸 자리표시자다."
+    }
+  ],
+  "policy_check_results": [
+    { "id": "7b79b0f4-411e-4d33-9f27-4258d041303a", "env_config_id": "21652880-66c7-4f18-98b7-39b4d1829e77", "tool": "trivy", "verdict": "pass", "risk_notes": null, "checked_at": "2026-09-13T12:05:00.703432+00:00" },
+    { "id": "c20f733e-c0e0-458e-af26-c6c37d0d3c0f", "env_config_id": "21652880-66c7-4f18-98b7-39b4d1829e77", "tool": "conftest", "verdict": "pass", "risk_notes": null, "checked_at": "2026-09-13T12:05:00.703432+00:00" },
+    { "id": "102912a6-a540-4899-95de-f2111f64c874", "env_config_id": "60cf0009-4599-4368-bf6c-ed2259e5b396", "tool": "trivy", "verdict": "pass", "risk_notes": null, "checked_at": "2026-09-13T12:14:51.955314+00:00" },
+    { "id": "00dd976a-7882-4458-93ec-d6e99e7f92de", "env_config_id": "60cf0009-4599-4368-bf6c-ed2259e5b396", "tool": "conftest", "verdict": "pass", "risk_notes": null, "checked_at": "2026-09-13T12:14:51.955314+00:00" }
+  ],
+  "env_config_transitions": [
+    { "id": "8abb0c08-5e92-4c17-8b69-a9d59375d797", "env_config_id": "21652880-66c7-4f18-98b7-39b4d1829e77", "from_status": null, "to_status": "generated", "actor_user_id": "5e29379d-9f0f-41e0-8608-8fa1719ba436", "reason": null, "created_at": "2026-09-13T12:04:54.939724+00:00" },
+    { "id": "21b0d307-2c26-4bc6-a54b-068a6a5fb9fc", "env_config_id": "21652880-66c7-4f18-98b7-39b4d1829e77", "from_status": "generated", "to_status": "policy_passed", "actor_user_id": null, "reason": null, "created_at": "2026-09-13T12:05:00.724248+00:00" },
+    { "id": "8f7189ee-53a1-4194-8781-1fd42719f099", "env_config_id": "21652880-66c7-4f18-98b7-39b4d1829e77", "from_status": "policy_passed", "to_status": "approved", "actor_user_id": "5e29379d-9f0f-41e0-8608-8fa1719ba436", "reason": null, "created_at": "2026-09-13T12:05:44.891239+00:00" },
+    { "id": "d0bbefc3-9d19-41ca-ae87-d9e085ed2bbb", "env_config_id": "21652880-66c7-4f18-98b7-39b4d1829e77", "from_status": "approved", "to_status": "running", "actor_user_id": "5e29379d-9f0f-41e0-8608-8fa1719ba436", "reason": null, "created_at": "2026-09-13T12:05:44.982303+00:00" },
+    { "id": "932f1070-acb9-4d80-88a6-9d4a049011d3", "env_config_id": "21652880-66c7-4f18-98b7-39b4d1829e77", "from_status": "running", "to_status": "failed", "actor_user_id": "5e29379d-9f0f-41e0-8608-8fa1719ba436", "reason": "실행을 시작하지 못했습니다: 실행하려면 먼저 프로젝트에 GitHub 레포를 연동해야 합니다.", "created_at": "2026-09-13T12:05:45.044805+00:00" },
+    { "id": "1f924887-a873-4961-bdb6-944399104f76", "env_config_id": "60cf0009-4599-4368-bf6c-ed2259e5b396", "from_status": null, "to_status": "generated", "actor_user_id": "5e29379d-9f0f-41e0-8608-8fa1719ba436", "reason": null, "created_at": "2026-09-13T12:14:49.889525+00:00" },
+    { "id": "949fa26f-e6c3-436c-ac79-85ec957f841c", "env_config_id": "60cf0009-4599-4368-bf6c-ed2259e5b396", "from_status": "generated", "to_status": "policy_passed", "actor_user_id": null, "reason": null, "created_at": "2026-09-13T12:14:51.973531+00:00" },
+    { "id": "d69f882f-b3e2-41bb-93da-1ef14dbf41d5", "env_config_id": "60cf0009-4599-4368-bf6c-ed2259e5b396", "from_status": "policy_passed", "to_status": "approved", "actor_user_id": "5e29379d-9f0f-41e0-8608-8fa1719ba436", "reason": null, "created_at": "2026-09-13T12:15:27.146911+00:00" },
+    { "id": "5b7d2e7a-9a9f-443c-98ae-bbc362cebbac", "env_config_id": "60cf0009-4599-4368-bf6c-ed2259e5b396", "from_status": "approved", "to_status": "running", "actor_user_id": "5e29379d-9f0f-41e0-8608-8fa1719ba436", "reason": null, "created_at": "2026-09-13T12:15:27.249478+00:00" },
+    { "id": "7123afc2-3544-424a-a3e3-f739cb777baa", "env_config_id": "60cf0009-4599-4368-bf6c-ed2259e5b396", "from_status": "running", "to_status": "failed", "actor_user_id": "5e29379d-9f0f-41e0-8608-8fa1719ba436", "reason": "실행을 시작하지 못했습니다: twenter1003/Muster_test의 Actions를 실행할 권한이 없습니다. 레포 권한과 Actions 활성화 여부를 확인해 주세요.", "created_at": "2026-09-13T12:15:28.168432+00:00" },
+    { "id": "240d1cfa-1b9e-4f07-b70e-869a75a7ecda", "env_config_id": "60cf0009-4599-4368-bf6c-ed2259e5b396", "from_status": "failed", "to_status": "running", "actor_user_id": "5e29379d-9f0f-41e0-8608-8fa1719ba436", "reason": null, "created_at": "2026-09-13T12:36:41.192769+00:00" },
+    { "id": "8bb0053c-1fbd-4871-8b68-c1b496ec03aa", "env_config_id": "60cf0009-4599-4368-bf6c-ed2259e5b396", "from_status": "running", "to_status": "failed", "actor_user_id": "5e29379d-9f0f-41e0-8608-8fa1719ba436", "reason": "실행을 시작하지 못했습니다: twenter1003/Muster_test에 muster-env-build.yml 워크플로가 없습니다. docs/EXECUTION.md의 템플릿을 레포에 넣어 주세요.", "created_at": "2026-09-13T12:36:42.182203+00:00" },
+    { "id": "386748d8-bac0-47e2-98d4-e21ed38450fa", "env_config_id": "60cf0009-4599-4368-bf6c-ed2259e5b396", "from_status": "failed", "to_status": "running", "actor_user_id": "5e29379d-9f0f-41e0-8608-8fa1719ba436", "reason": null, "created_at": "2026-09-13T12:52:43.084212+00:00" },
+    { "id": "c847031c-5e13-4456-b277-30828683569d", "env_config_id": "60cf0009-4599-4368-bf6c-ed2259e5b396", "from_status": "running", "to_status": "failed", "actor_user_id": "5e29379d-9f0f-41e0-8608-8fa1719ba436", "reason": "실행을 시작하지 못했습니다: GitHub Actions 실행 요청이 실패했습니다.", "created_at": "2026-09-13T12:52:45.325417+00:00" },
+    { "id": "1d1e5489-bc05-4d57-a5d4-a53529faea29", "env_config_id": "60cf0009-4599-4368-bf6c-ed2259e5b396", "from_status": "failed", "to_status": "running", "actor_user_id": "5e29379d-9f0f-41e0-8608-8fa1719ba436", "reason": null, "created_at": "2026-09-13T13:02:37.34593+00:00" },
+    { "id": "692bbc00-d54e-439f-8f83-253c5cba4ade", "env_config_id": "60cf0009-4599-4368-bf6c-ed2259e5b396", "from_status": "running", "to_status": "failed", "actor_user_id": null, "reason": "GitHub Actions failure (https://github.com/twenter1003/Muster_test/actions/runs/34758728000)", "created_at": "2026-09-13T13:02:50.710126+00:00" }
+  ]
+}

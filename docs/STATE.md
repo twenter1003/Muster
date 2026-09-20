@@ -11,7 +11,7 @@
 
 - **갱신**: 2026-09-20
 - **배포**: Cloud Run 리비전 `muster-00049-4g2` (트래픽 100%, 헬스체크 200)
-- **DB**: Supabase, 마이그레이션 18개. **18번은 아직 프로덕션에 안 돌렸다** — 아래 참조
+- **DB**: Supabase, 마이그레이션 18개 전부 적용됨. 테이블 16개(+`migrations`).
 - **코드와 배포는 같다** — PR #89까지 배포됐다.
 - **GCS는 더 이상 쓰지 않는다.** 버킷 `muster-docs-taewoo`는 비어 있었고(객체 0개) 삭제했다.
   `GCP_PROJECT_ID`는 남는다 — Vertex AI(Gemini 폴백)와 Secret Manager가 쓴다.
@@ -20,6 +20,15 @@
 `PUT /projects/:id/budget` 포함), 남긴 것은 200(공개) 또는 401(인증 요구 — 라우트는 살아
 있다는 뜻)을 낸다. SSE 스트림도 401로 살아 있다. 실서버 로그인 화면에 문서·GCS 언급이
 없는 것도 브라우저로 확인했다.
+
+DB 검증(2026-09-20, 마이그레이션 18번 적용 후): 드롭한 6개 테이블이 하나도 남아 있지
+않고, `public` 테이블 17개(앱 16 + `migrations`), `migrations` 18행, CHECK 제약 **22개**로
+`schema.e2e-spec.ts`가 고정한 값과 일치한다. 적용 직후 50분간 Postgres 로그에 ERROR·FATAL이
+**0건**이고 헬스체크(`SELECT 1` 포함)는 200이다.
+
+드롭 직전 그 테이블들에 23행이 남아 있었다(전부 2026-09-13 env-catalog 실험, 환경 구성
+2건 모두 `failed`). 전문을 [files/env-catalog-backup-2026-09-20.json](../files/env-catalog-backup-2026-09-20.json)에
+받아 뒀다 — `documents`·`project_budgets`는 0행이었다.
 
 ## 검증 기준선
 
@@ -73,25 +82,22 @@ node --test scripts/claude-code-hooks/report-agent-usage.test.mjs \
 엔드포인트 정리는 끝났다(PR #79). 지금 살아 있는 표면은
 [ARCHITECTURE.md](ARCHITECTURE.md)가 원천이다. 남은 것으로 확인된 것들:
 
-- **마이그레이션 18번을 프로덕션에 돌려야 한다.** 코드는 배포됐지만 `DropDeadTables`는
-  아직 Supabase에 적용되지 않았다 — 앱은 그 테이블들을 읽지도 쓰지도 않으므로 **지금
-  상태로도 동작에는 문제가 없다.** 돌리려면 사람이 커넥션 문자열을 들고:
+- **⚠️ RLS가 꺼져 있고 `public` 스키마가 PostgREST에 노출돼 있다.** Supabase 보안
+  어드바이저가 ERROR로 올린다 — 16개 테이블 전부이며 `users`·`sessions`·
+  `project_api_keys`·`audit_logs`가 포함된다. anon 키를 가진 사람은 모든 행을 읽고
+  고칠 수 있다.
 
-  ```bash
-  DATABASE_URL='<세션 풀러 문자열>' pnpm --filter @muster/api migration:run
-  ```
+  **이 앱은 Data API를 쓰지 않는다** — 저장소에 Supabase 클라이언트 키가 없고 TypeORM이
+  커넥션 문자열로만 붙는다. 그래서 선택지가 둘이다:
+  1. **Data API를 끄거나 노출 스키마를 비운다** — 쓰지 않는 표면을 없애는 쪽이라 이 앱에는
+     이게 맞아 보인다.
+  2. RLS를 켠다 — 앱은 `postgres` 역할로 붙어 RLS를 우회하므로 깨지지 않지만, 정책이 없으면
+     anon 접근이 전부 막힌다(그게 목적이면 그것으로 충분하다).
 
-  **되돌릴 수 없다** — `down()`은 빈 테이블만 복원하고 데이터는 돌아오지 않는다.
-  돌리기 전에 남은 행을 직접 세어 보고, 있으면 받아 둘 것:
+  `deployment_events`만 RLS가 켜져 있는데 정책이 없다. 의도한 것인지 확인할 것.
 
-  ```sql
-  SELECT 'documents' t, count(*) FROM documents
-  UNION ALL SELECT 'project_budgets', count(*) FROM project_budgets
-  UNION ALL SELECT 'env_templates', count(*) FROM env_templates
-  UNION ALL SELECT 'project_env_configs', count(*) FROM project_env_configs
-  UNION ALL SELECT 'policy_check_results', count(*) FROM policy_check_results
-  UNION ALL SELECT 'env_config_transitions', count(*) FROM env_config_transitions;
-  ```
+  어느 쪽이든 **판단이 필요해 이번 세션에서는 건드리지 않았다.**
+  [Supabase 문서](https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public)
 
 ## 작업 관례
 
