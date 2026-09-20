@@ -3,8 +3,7 @@ import { ErrorCode } from '../errors/error-codes';
 import type { GeminiClient } from './gemini-client';
 
 /**
- * API 키가 없는 환경용 바인딩. 서버는 뜨되 LLM을 쓰는 기능만 503을 낸다 —
- * GCS_BUCKET이 없을 때 DocStore만 막는 것과 같은 방식이다.
+ * API 키가 없는 환경용 바인딩. 서버는 뜨되 LLM을 쓰는 기능만 503을 낸다.
  */
 export class UnconfiguredGeminiClient implements GeminiClient {
   generate(): never {

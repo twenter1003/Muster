@@ -2,14 +2,9 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const INGEST_DIR = __dirname;
-const FORBIDDEN = [
-  'auth',
-  'project-core',
-  'doc-store',
-  'env-catalog',
-  'agent-registry',
-  'realtime',
-];
+// 지금 존재하는 모듈만 적는다. 없어진 모듈 이름을 남겨 두면 통과하는 이유가
+// "안 부른다"가 아니라 "부를 것이 없다"가 되어, 검사가 조용히 무의미해진다.
+const FORBIDDEN = ['auth', 'project-core', 'agent-registry', 'realtime'];
 
 function collectTsFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {

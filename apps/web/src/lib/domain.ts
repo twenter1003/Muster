@@ -44,14 +44,6 @@ export type PolicyTool = (typeof POLICY_TOOLS)[number];
 export const POLICY_VERDICTS = ['pass', 'fail'] as const;
 export type PolicyVerdict = (typeof POLICY_VERDICTS)[number];
 
-/** DOCUMENTS.type — 4종 */
-export const DOCUMENT_TYPES = ['prd', 'srs', 'tech_spec', 'other'] as const;
-export type DocumentType = (typeof DOCUMENT_TYPES)[number];
-
-/** DOCUMENTS.upload_status — 2종 */
-export const UPLOAD_STATUSES = ['pending', 'completed'] as const;
-export type UploadStatus = (typeof UPLOAD_STATUSES)[number];
-
 /** LOG_ENTRIES.level */
 export const LOG_LEVELS = ['error', 'warn', 'info'] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];

@@ -23,16 +23,10 @@ describe('hrefFor', () => {
     expect(hrefFor(hit({ kind: 'project', id: 'proj-1' }))).toBe('/projects/proj-1');
   });
 
-  it('문서는 자기 id가 아니라 프로젝트의 문서 탭으로 간다', () => {
-    // 문서 상세 경로는 없다. 문서 id로 보내면 "준비 중"이 뜬다.
-    expect(hrefFor(hit({ kind: 'document', id: 'doc-1', project_id: 'proj-2' }))).toBe(
-      '/projects/proj-2?tab=docs',
-    );
-  });
-
-  it('에이전트는 프로젝트의 에이전트 탭으로 간다', () => {
+  it('에이전트는 자기 id가 아니라 그 프로젝트로 간다', () => {
+    // 에이전트 상세 경로는 없다. 에이전트 id로 보내면 "준비 중"이 뜬다.
     expect(hrefFor(hit({ kind: 'agent', id: 'ag-1', project_id: 'proj-3' }))).toBe(
-      '/projects/proj-3?tab=agents',
+      '/projects/proj-3',
     );
   });
 });

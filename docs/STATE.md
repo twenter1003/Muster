@@ -20,15 +20,15 @@
 ## 검증 기준선
 
 ```bash
-pnpm -r test    # 545개 = API 384 + Web 161
+pnpm -r test    # 540개 = API 380 + Web 160
 node --test scripts/claude-code-hooks/report-agent-usage.test.mjs \
             scripts/antigravity-hooks/report-agent-usage.test.mjs \
             scripts/muster-connect.test.mjs    # 43개
 ```
 
-합계 **588개**. e2e는 로컬 Postgres가 필요하며 별도다(`pnpm --filter @muster/api test:e2e`, 183개).
+합계 **583개**. e2e는 로컬 Postgres가 필요하며 별도다(`pnpm --filter @muster/api test:e2e`, 183개).
 
-숫자가 715 → 588로, e2e가 243 → 183으로 준 것은 죽은 엔드포인트를 지우면서 그것만
+숫자가 715 → 583으로, e2e가 243 → 183으로 준 것은 죽은 엔드포인트를 지우면서 그것만
 검증하던 테스트가 같이 빠졌기 때문이다(PR #79). 살아 있는 동작을 지운 엔드포인트로
 확인하던 테스트는 지우지 않고 DB를 직접 보도록 고쳐 썼다.
 
@@ -39,6 +39,7 @@ node --test scripts/claude-code-hooks/report-agent-usage.test.mjs \
 
 | PR | 내용 |
 |---|---|
+| [#83](https://github.com/twenter1003/Muster/pull/83) | 문서 기능 접음 — `doc-store` 모듈·GCS 연동·검색의 document 종류·화면의 문서 패널 전부 제거 |
 | [#79](https://github.com/twenter1003/Muster/pull/79) | 죽은 엔드포인트 정리 — 모듈 3개(`env-catalog`·`inbox`·`reports`) + 컨트롤러·라우트 다수. 목 서버·스모크 동기화 |
 | [#78](https://github.com/twenter1003/Muster/pull/78) | 프로젝트 전용 서브에이전트 2개(`muster-investigator`, `muster-reviewer`) |
 | [#77](https://github.com/twenter1003/Muster/pull/77) | 문서 재편 — 18개 3,310줄 → 8개 1,803줄. 이 파일이 그때 생겼다 |
@@ -66,14 +67,6 @@ node --test scripts/claude-code-hooks/report-agent-usage.test.mjs \
 엔드포인트 정리는 끝났다(PR #79). 지금 살아 있는 표면은
 [ARCHITECTURE.md](ARCHITECTURE.md)가 원천이다. 남은 것으로 확인된 것들:
 
-- **`DocumentsService.create`가 고아로 남았다 — PR #79가 놓쳤다.** 업로드 엔드포인트
-  (`POST /projects/:id/documents`)를 지웠는데 서비스 메서드는 남겼다. 미호출 메서드를 찾는
-  스크립트가 바로 다음 줄의 TypeORM `this.documents.create({...})`와 이름이 겹쳐 "호출됨"으로
-  오판했다 — **이름만으로 호출 여부를 판정하면 이런 것을 놓친다.**
-  이걸 지우면 `ObjectStorage`·`GcsObjectStorage`·`CreateDocumentDto`·`objectPathOf`와
-  `GCS_BUCKET` 환경변수까지 **GCS 연동이 통째로** 따라 죽는다(`createDownloadUrl`·`delete`·
-  `exists`는 이미 PR #79에서 호출자를 잃었다). 문서 레코드와 GCS 객체는 남아 있고 목록
-  조회만 살아 있는 상태라, 지울지 업로드 화면을 되살릴지가 먼저다.
 - **`scripts/smoke-ui.mjs`를 실제로 돌려 본 적이 없다.** `playwright`가 어느
   package.json에도 없어서, 깨끗한 체크아웃에서는 `ERR_MODULE_NOT_FOUND`로 죽는다.
   PR #79에서 스크립트 내용은 살아 있는 화면 5개에 맞게 고쳤고 선택자는 목 서버를 띄워
@@ -83,9 +76,11 @@ node --test scripts/claude-code-hooks/report-agent-usage.test.mjs \
   `lib/useSse.ts`는 7종을 듣는데 `ProjectDetailPage`의 핸들러는 `agent_run_*` 셋과
   `log`·`health_update`에만 분기한다. 나머지 둘은 배열에 쌓이기만 한다. 화면을 붙일지
   구독을 뺄지 정할 것 — PR #79에서는 서버 표면 정리와 성격이 달라 건드리지 않았다.
-- **테이블 4개가 읽는 코드 없이 남아 있다** — `env_templates`·`project_env_configs`·
-  `env_config_transitions`·`policy_check_results`. 코드만 지우고 테이블은 남기기로 한
-  결과다. 지우려면 마이그레이션 18번과 `user.entity.ts`의 `env_templates` 관계 제거가 필요하다.
+- **테이블 5개가 읽는 코드 없이 남아 있다** — `env_templates`·`project_env_configs`·
+  `env_config_transitions`·`policy_check_results`·`documents`. 코드만 지우고 테이블은
+  남기기로 한 결과다. 지우려면 마이그레이션 18번이 필요하고, 엔티티 쪽에서 끊어야 할
+  관계는 `user.entity.ts`의 `env_templates` 하나다 — `Document`는 `Project`를 단방향
+  `ManyToOne`으로만 참조하므로 `project.entity.ts`에는 지울 것이 없다.
 
 ## 작업 관례
 

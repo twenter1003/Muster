@@ -18,10 +18,9 @@ echo "Phase 3 — GitHub OAuth"
 [ -n "$(envval GITHUB_OAUTH_CLIENT_SECRET)" ] && ok "CLIENT_SECRET 설정됨" || todo "CLIENT_SECRET 비어 있음 — apps/api/.env"
 
 echo
-echo "Phase 4 — GCS"
+echo "Phase 4 — GCP (Vertex AI · Secret Manager)"
 if gcloud auth list --format='value(account)' 2>/dev/null | grep -q .; then
   ok "gcloud 로그인됨 ($(gcloud auth list --format='value(account)' 2>/dev/null | head -1))"
-  [ -n "$(envval GCS_BUCKET)" ] && ok "GCS_BUCKET 설정됨" || todo "버킷 미생성 — ./scripts/setup-gcs.sh <프로젝트ID> <버킷이름>"
 else
   todo "gcloud 미로그인 — gcloud auth login"
 fi

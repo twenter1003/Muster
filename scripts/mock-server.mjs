@@ -340,7 +340,7 @@ function handleApi(req, res, url) {
     return json(res, 200, {
       query: term,
       hits,
-      truncated: { project: false, document: false, agent: false },
+      truncated: { project: false, agent: false },
     });
   }
 
@@ -573,38 +573,6 @@ function handleApi(req, res, url) {
           page([
             { id: 'key-1', label: 'macbook-pro', key_suffix: 'a7f2', created_at: iso(20 * DAY) },
             { id: 'key-2', label: 'local-agent', key_suffix: '9c31', created_at: iso(3 * DAY) },
-          ]),
-        );
-
-      case 'documents':
-        return json(
-          res,
-          200,
-          page([
-            {
-              id: 'doc-1',
-              title: '제품 요구사항 정의서 (PRD v2.1)',
-              type: 'prd',
-              upload_status: 'completed',
-              commit_ref: '7f8a9b1c',
-              created_at: iso(5 * DAY),
-            },
-            {
-              id: 'doc-2',
-              title: '기술 사양서',
-              type: 'tech_spec',
-              upload_status: 'completed',
-              commit_ref: null,
-              created_at: iso(10 * DAY),
-            },
-            {
-              id: 'doc-3',
-              title: '업로드가 끝나지 않은 문서',
-              type: 'other',
-              upload_status: 'pending',
-              commit_ref: null,
-              created_at: iso(HOUR),
-            },
           ]),
         );
 

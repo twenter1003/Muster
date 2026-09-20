@@ -29,8 +29,8 @@ export function LoginPage() {
 
         <h2 className="login__lead">여러 프로젝트를 한 화면에서</h2>
         <p className="login__body">
-          문서·개발환경·에이전트·진행 상황을 프로젝트별로 모아 봅니다. 로그인은 GitHub 계정 하나로
-          처리되고, 같은 인증으로 레포 연동 권한까지 함께 받습니다.
+          커밋·배포·로그·에이전트 토큰 사용량·목표 진행률을 프로젝트별로 모아 봅니다. 로그인은
+          GitHub 계정 하나로 처리되고, 같은 인증으로 레포 연동 권한까지 함께 받습니다.
         </p>
 
         {/* 이 화면의 유일한 솔리드 버튼이다 (설계서 10 · 화면당 1개). 클릭 즉시 시각적 피드백을 제공한다. */}
@@ -57,7 +57,6 @@ export function LoginPage() {
         <ul className="login__links">
           <li>레포 커밋·PR 웹훅</li>
           <li>배포·워크플로 이벤트</li>
-          <li>문서 저장소(GCS)</li>
           <li>에이전트 실행 이력</li>
         </ul>
       </div>

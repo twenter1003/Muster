@@ -35,20 +35,8 @@ export const envSchema = z.object({
   /** 로컬 시크릿 저장소 경로. SECRETS_BACKEND=gcp 이면 쓰이지 않는다. */
   SECRETS_DIR: z.string().default('.secrets'),
 
-  /**
-   * 문서 원본을 담을 GCS 버킷과 프로젝트 (설계서 Part 2 §4.1).
-   * 비어 있으면 DocStore가 503을 낸다 — 자격증명 없이 뜨는 것 자체는 막지 않는다.
-   * 나머지 기능은 GCS 없이도 동작해야 하기 때문이다.
-   */
-  GCS_BUCKET: z.string().optional(),
+  /** Vertex AI(ADC) 경로가 쓰는 프로젝트 id. GEMINI_API_KEY가 없을 때 필요하다. */
   GCP_PROJECT_ID: z.string().optional(),
-
-  /**
-   * signed URL 서명에 쓸 서비스 계정 이메일.
-   * Cloud Run에서는 메타데이터 서버가 알려주므로 비워 둔다. 로컬은 사용자 ADC를 쓰는데
-   * 거기엔 서명 주체 정보가 없어, 이 계정을 가장해 서명한다.
-   */
-  GCS_SIGNER_SERVICE_ACCOUNT: z.string().optional(),
 
   /**
    * LLM. 기본 경로는 Gemini API(`generateContent`)를 키로 직접 부르는 것이다.
