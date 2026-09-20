@@ -21,6 +21,13 @@ coverage/
 # 아트보드(.dc.html)와 canvas.json만 원본이고, 이 파일은 거기서 다시 만든다.
 muster-user-guide.html
 
-# graphify 산출물 및 로컬 에이전트 설정
+# graphify 산출물
 graphify-out/
-.claude/
+
+# .claude는 기본적으로 제외하되, "이 프로젝트를 아는 지식"은 추적한다 — 기기마다 다시
+# 만들 이유가 없다. 디렉터리(.claude/)가 아니라 내용물(.claude/*)을 제외해야 한다:
+# 디렉터리를 통째로 무시하면 git이 그 안으로 들어가지 않아 아래 예외가 먹지 않는다.
+# 제외로 남는 것: settings.json(훅·권한 등 기기별 설정), worktrees/.
+.claude/*
+!.claude/launch.json
+!.claude/agents/
