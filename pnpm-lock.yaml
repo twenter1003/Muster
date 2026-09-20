@@ -7,17 +7,16 @@ settings:
 importers:
 
   .:
-    dependencies:
+    devDependencies:
       '@browserbasehq/stagehand':
         specifier: ^4.1.0
         version: 4.1.0
-      zod:
-        specifier: ~4.4.3
-        version: 4.4.3
-    devDependencies:
       prettier:
         specifier: ^3.9.6
         version: 3.9.6
+      zod:
+        specifier: ~4.4.3
+        version: 4.4.3
 
   apps/api:
     dependencies:
