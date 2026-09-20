@@ -14,20 +14,14 @@ export { Project } from './project.entity';
 export { ProjectApiKey } from './project-api-key.entity';
 export { ProjectMember } from './project-member.entity';
 export { GitIntegration } from './git-integration.entity';
-export { Document } from './document.entity';
-export { EnvTemplate } from './env-template.entity';
-export { ProjectEnvConfig } from './project-env-config.entity';
-export { PolicyCheckResult } from './policy-check-result.entity';
 export { Agent } from './agent.entity';
 export { AgentRun } from './agent-run.entity';
-export { ProjectBudget } from './project-budget.entity';
 export { LogEntry } from './log-entry.entity';
 export { ProjectStageHistory } from './project-stage-history.entity';
 export { HealthSnapshot } from './health-snapshot.entity';
 export { AuditLog } from './audit-log.entity';
 export { WebhookDelivery } from './webhook-delivery.entity';
 export { DeploymentEvent } from './deployment-event.entity';
-export { EnvConfigTransition } from './env-config-transition.entity';
 export { ProjectInvite } from './project-invite.entity';
 export { ProjectGoals } from './project-goals.entity';
 
@@ -37,20 +31,14 @@ import { Project } from './project.entity';
 import { ProjectApiKey } from './project-api-key.entity';
 import { ProjectMember } from './project-member.entity';
 import { GitIntegration } from './git-integration.entity';
-import { Document } from './document.entity';
-import { EnvTemplate } from './env-template.entity';
-import { ProjectEnvConfig } from './project-env-config.entity';
-import { PolicyCheckResult } from './policy-check-result.entity';
 import { Agent } from './agent.entity';
 import { AgentRun } from './agent-run.entity';
-import { ProjectBudget } from './project-budget.entity';
 import { LogEntry } from './log-entry.entity';
 import { ProjectStageHistory } from './project-stage-history.entity';
 import { HealthSnapshot } from './health-snapshot.entity';
 import { AuditLog } from './audit-log.entity';
 import { WebhookDelivery } from './webhook-delivery.entity';
 import { DeploymentEvent } from './deployment-event.entity';
-import { EnvConfigTransition } from './env-config-transition.entity';
 import { ProjectInvite } from './project-invite.entity';
 import { ProjectGoals } from './project-goals.entity';
 
@@ -62,20 +50,14 @@ export const ALL_ENTITIES = [
   ProjectApiKey,
   ProjectMember,
   GitIntegration,
-  Document,
-  EnvTemplate,
-  ProjectEnvConfig,
-  PolicyCheckResult,
   Agent,
   AgentRun,
-  ProjectBudget,
   LogEntry,
   ProjectStageHistory,
   HealthSnapshot,
   AuditLog,
   WebhookDelivery,
   DeploymentEvent,
-  EnvConfigTransition,
   ProjectInvite,
   ProjectGoals,
 ] as const;

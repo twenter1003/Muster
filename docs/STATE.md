@@ -11,7 +11,7 @@
 
 - **갱신**: 2026-09-20
 - **배포**: Cloud Run 리비전 `muster-00048-mvr` (트래픽 100%, 헬스체크 200)
-- **DB**: Supabase, 마이그레이션 17개 전부 적용됨
+- **DB**: Supabase, 마이그레이션 18개. **18번은 아직 프로덕션에 안 돌렸다** — 아래 참조
 - **코드와 배포는 같다** — PR #87까지 배포됐다.
 - **GCS는 더 이상 쓰지 않는다.** 버킷 `muster-docs-taewoo`는 비어 있었고(객체 0개) 삭제했다.
   `GCP_PROJECT_ID`는 남는다 — Vertex AI(Gemini 폴백)와 Secret Manager가 쓴다.
@@ -30,9 +30,9 @@ node --test scripts/claude-code-hooks/report-agent-usage.test.mjs \
             scripts/muster-connect.test.mjs    # 43개
 ```
 
-합계 **569개**. e2e는 로컬 Postgres가 필요하며 별도다(`pnpm --filter @muster/api test:e2e`, 183개).
+합계 **569개**. e2e는 로컬 Postgres가 필요하며 별도다(`pnpm --filter @muster/api test:e2e`, 179개).
 
-숫자가 715 → 569로, e2e가 243 → 183으로 준 것은 죽은 엔드포인트를 지우면서 그것만
+숫자가 715 → 569로, e2e가 243 → 179로 준 것은 죽은 엔드포인트를 지우면서 그것만
 검증하던 테스트가 같이 빠졌기 때문이다(PR #79). 살아 있는 동작을 지운 엔드포인트로
 확인하던 테스트는 지우지 않고 DB를 직접 보도록 고쳐 썼다.
 
@@ -43,6 +43,7 @@ node --test scripts/claude-code-hooks/report-agent-usage.test.mjs \
 
 | PR | 내용 |
 |---|---|
+| [#89](https://github.com/twenter1003/Muster/pull/89) | 읽는 코드 없던 테이블 6개 드롭(마이그레이션 18번) + 엔티티·고아 enum 정리 |
 | [#87](https://github.com/twenter1003/Muster/pull/87) | 죽은 SSE 이벤트 4종 정리 — `budget_alert`(체인 전체 + `PUT /budget`)·`stage_change`·아무도 안 듣던 `WORKFLOW_RUN_COMPLETED`·`CODE_PUSHED` |
 | [#83](https://github.com/twenter1003/Muster/pull/83) | 문서 기능 접음 — `doc-store` 모듈·GCS 연동·검색의 document 종류·화면의 문서 패널 전부 제거 |
 | [#79](https://github.com/twenter1003/Muster/pull/79) | 죽은 엔드포인트 정리 — 모듈 3개(`env-catalog`·`inbox`·`reports`) + 컨트롤러·라우트 다수. 목 서버·스모크 동기화 |
@@ -72,12 +73,25 @@ node --test scripts/claude-code-hooks/report-agent-usage.test.mjs \
 엔드포인트 정리는 끝났다(PR #79). 지금 살아 있는 표면은
 [ARCHITECTURE.md](ARCHITECTURE.md)가 원천이다. 남은 것으로 확인된 것들:
 
-- **테이블 6개가 읽는 코드 없이 남아 있다** — `env_templates`·`project_env_configs`·
-  `env_config_transitions`·`policy_check_results`·`documents`·`project_budgets`. 코드만 지우고 테이블은
-  남기기로 한 결과다. 지우려면 마이그레이션 18번이 필요하고, 엔티티 쪽에서 끊어야 할
-  관계는 둘이다(2026-09-20 확인) — `user.entity.ts:40`의 `env_templates`,
-  `project.entity.ts:55`의 `budget`. `Document`는 `Project`를 단방향 `ManyToOne`으로만
-  참조하므로 문서 쪽에는 끊을 관계가 없다.
+- **마이그레이션 18번을 프로덕션에 돌려야 한다.** 코드는 배포됐지만 `DropDeadTables`는
+  아직 Supabase에 적용되지 않았다 — 앱은 그 테이블들을 읽지도 쓰지도 않으므로 **지금
+  상태로도 동작에는 문제가 없다.** 돌리려면 사람이 커넥션 문자열을 들고:
+
+  ```bash
+  DATABASE_URL='<세션 풀러 문자열>' pnpm --filter @muster/api migration:run
+  ```
+
+  **되돌릴 수 없다** — `down()`은 빈 테이블만 복원하고 데이터는 돌아오지 않는다.
+  돌리기 전에 남은 행을 직접 세어 보고, 있으면 받아 둘 것:
+
+  ```sql
+  SELECT 'documents' t, count(*) FROM documents
+  UNION ALL SELECT 'project_budgets', count(*) FROM project_budgets
+  UNION ALL SELECT 'env_templates', count(*) FROM env_templates
+  UNION ALL SELECT 'project_env_configs', count(*) FROM project_env_configs
+  UNION ALL SELECT 'policy_check_results', count(*) FROM policy_check_results
+  UNION ALL SELECT 'env_config_transitions', count(*) FROM env_config_transitions;
+  ```
 
 ## 작업 관례
 

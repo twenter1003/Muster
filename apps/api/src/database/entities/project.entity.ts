@@ -12,7 +12,6 @@ import {
 import { PROJECT_STAGES, type ProjectStage } from './enums';
 import { ProjectMember } from './project-member.entity';
 import { GitIntegration } from './git-integration.entity';
-import { ProjectBudget } from './project-budget.entity';
 
 /**
  * 프로젝트 본체.
@@ -51,7 +50,4 @@ export class Project {
 
   @OneToOne(() => GitIntegration, (integration) => integration.project)
   git_integration!: GitIntegration | null;
-
-  @OneToOne(() => ProjectBudget, (budget) => budget.project)
-  budget!: ProjectBudget | null;
 }

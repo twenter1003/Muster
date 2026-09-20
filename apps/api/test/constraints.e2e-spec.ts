@@ -58,29 +58,6 @@ describe('DB 제약 집행 검증', () => {
     ).rejects.toThrow(/chk_projects_current_stage/);
   });
 
-  it('정의되지 않은 build_status는 거부된다 — 승인 게이트를 우회할 수 없다', async () => {
-    const projectId = await newProject();
-    await expect(
-      ds.query(
-        `INSERT INTO project_env_configs (project_id, stack_config, docker_config, build_status)
-         VALUES ($1, '{}', '{}', 'totally_approved')`,
-        [projectId],
-      ),
-    ).rejects.toThrow(/chk_env_configs_build_status/);
-  });
-
-  it('rejected와 succeeded는 유효한 상태다 (설계서 6개에서 확장한 값)', async () => {
-    const projectId = await newProject();
-    for (const status of ['rejected', 'succeeded']) {
-      const id = await insert(
-        `INSERT INTO project_env_configs (project_id, stack_config, docker_config, build_status)
-         VALUES ($1, '{}', '{}', $2) RETURNING id`,
-        [projectId, status],
-      );
-      expect(id).toBeTruthy();
-    }
-  });
-
   it('설계서가 추가한 단계(design, operation)를 받아들인다', async () => {
     for (const stage of ['design', 'operation']) {
       const id = await insert(

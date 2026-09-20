@@ -40,13 +40,8 @@ describe('DB 스키마 ↔ ERD 일치 검증', () => {
     'projects',
     'project_members',
     'git_integrations',
-    'documents',
-    'env_templates',
-    'project_env_configs',
-    'policy_check_results',
     'agents',
     'agent_runs',
-    'project_budgets',
     'log_entries',
     'project_stage_history',
     'health_snapshots',
@@ -54,16 +49,15 @@ describe('DB 스키마 ↔ ERD 일치 검증', () => {
     'webhook_deliveries',
     'project_api_keys',
     'deployment_events',
-    'env_config_transitions',
     'project_invites',
     'project_goals',
   ];
 
-  it('엔티티 22개가 모두 등록되어 있다', () => {
-    expect(ALL_ENTITIES).toHaveLength(22);
+  it('엔티티 16개가 모두 등록되어 있다', () => {
+    expect(ALL_ENTITIES).toHaveLength(16);
   });
 
-  it('테이블 22개가 정확히 존재한다 (migrations 테이블 제외)', async () => {
+  it('테이블 16개가 정확히 존재한다 (migrations 테이블 제외)', async () => {
     const rows = await q<{ table_name: string }>(
       `SELECT table_name FROM information_schema.tables
        WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name <> 'migrations'
@@ -102,18 +96,6 @@ describe('DB 스키마 ↔ ERD 일치 검증', () => {
     ]);
   });
 
-  it('ENV_TEMPLATES.owner_id가 USERS를 참조한다', async () => {
-    const rows = await q<{ foreign_table: string }>(
-      `SELECT ccu.table_name AS foreign_table
-       FROM information_schema.table_constraints tc
-       JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name
-       JOIN information_schema.constraint_column_usage ccu ON tc.constraint_name = ccu.constraint_name
-       WHERE tc.constraint_type = 'FOREIGN KEY'
-         AND tc.table_name = 'env_templates' AND kcu.column_name = 'owner_id'`,
-    );
-    expect(rows.map((r) => r.foreign_table)).toEqual(['users']);
-  });
-
   it('모든 타임스탬프 컬럼이 timestamptz다 (타임존 없는 컬럼 0개)', async () => {
     const rows = await q<{ table_name: string; column_name: string }>(
       `SELECT table_name, column_name FROM information_schema.columns
@@ -128,12 +110,13 @@ describe('DB 스키마 ↔ ERD 일치 검증', () => {
        WHERE table_schema = 'public' AND column_name IN ('cost', 'cost_limit')
        ORDER BY table_name`,
     );
-    expect(rows).toHaveLength(2);
+    // cost_limit은 project_budgets와 함께 사라졌다(PR #89). 남은 것은 agent_runs.cost뿐이다.
+    expect(rows).toHaveLength(1);
     for (const row of rows) expect(row.data_type).toBe('numeric');
   });
 
   it('1:1 관계 컬럼에 유니크 제약이 정확히 하나씩만 걸려 있다', async () => {
-    for (const table of ['git_integrations', 'project_budgets']) {
+    for (const table of ['git_integrations']) {
       const rows = await q(
         `SELECT tc.constraint_name
          FROM information_schema.table_constraints tc
@@ -172,12 +155,12 @@ describe('DB 스키마 ↔ ERD 일치 검증', () => {
    * (AddCheckConstraints 마이그레이션이 SQL로 직접 추가한 것들). 생성된 SQL을 검토 없이
    * 머지하면 승인 게이트를 지탱하는 제약이 조용히 사라지므로, 개수를 테스트로 고정한다.
    */
-  it('CHECK 제약 33개가 그대로 살아 있다', async () => {
+  it('CHECK 제약 22개가 그대로 살아 있다', async () => {
     const rows = await q<{ n: string }>(
       `SELECT count(*)::text AS n FROM pg_constraint
        WHERE contype = 'c' AND conname LIKE 'chk_%'`,
     );
-    expect(Number(rows[0].n)).toBe(33);
+    expect(Number(rows[0].n)).toBe(22);
   });
 
   it('USERS.github_token_ref는 nullable이다 (토큰 원문이 아닌 참조만 보관)', async () => {
@@ -210,16 +193,6 @@ describe('DB 스키마 ↔ ERD 일치 검증', () => {
        FROM information_schema.referential_constraints rc
        JOIN information_schema.key_column_usage kcu ON rc.constraint_name = kcu.constraint_name
        WHERE kcu.table_name = 'audit_logs' AND kcu.column_name = 'project_id'`,
-    );
-    expect(rows.map((r) => r.delete_rule)).toEqual(['SET NULL']);
-  });
-
-  it('템플릿을 지워도 환경 구성 이력은 남는다 (template_id SET NULL)', async () => {
-    const rows = await q<{ delete_rule: string }>(
-      `SELECT rc.delete_rule
-       FROM information_schema.referential_constraints rc
-       JOIN information_schema.key_column_usage kcu ON rc.constraint_name = kcu.constraint_name
-       WHERE kcu.table_name = 'project_env_configs' AND kcu.column_name = 'template_id'`,
     );
     expect(rows.map((r) => r.delete_rule)).toEqual(['SET NULL']);
   });
