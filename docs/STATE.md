@@ -90,8 +90,9 @@ node --test scripts/claude-code-hooks/report-agent-usage.test.mjs \
 - **근거 없는 숫자를 만들지 않는다** — 단가는 [LLM_ECOSYSTEM_GUIDE.md](LLM_ECOSYSTEM_GUIDE.md)가
   단일 원천이다. 출처가 없으면 비워 두거나 비싸게 잡는다.
 - **훅을 고치면 임베딩 동기화**: `node scripts/sync-embedded-hooks.mjs` (CI가 `--check`로 막는다).
-- **`pnpm lint`는 CI와 같은 범위를 본다.** 전에는 api의 lint 스크립트가 `src`만 봤는데 CI는
-  `src test`를 봐서, 로컬에서 통과한 변경이 CI에서 포맷 오류로 떨어졌다. 스크립트를
-  CI와 맞췄다(PR #79). 워크플로의 명령을 바꾸면 `apps/*/package.json`도 같이 고칠 것.
+- **`pnpm lint`는 CI와 같은 것을 검사한다.** 두 번 어긋나서 두 번 CI를 버렸다 — api는
+  lint가 `src`만 보는데 CI는 `src test`를 봤고(PR #79), web은 CI가 `prettier --check`를
+  **별도 단계로** 돌리는데 로컬 lint에는 그게 없었다(PR #83). 둘 다 스크립트를 CI와
+  맞췄다. 워크플로의 명령을 바꾸면 `apps/*/package.json`도 같이 고칠 것.
 - **프론트엔드를 고치면 눈으로 확인한다** — 목 서버 + 스크린샷([RUN.md](RUN.md)).
 - 코드를 고친 뒤 `graphify update .`

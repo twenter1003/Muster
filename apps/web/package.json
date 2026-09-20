@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "lint": "eslint src --max-warnings 0 && prettier --check \"src/**/*.{ts,tsx,css}\"",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {

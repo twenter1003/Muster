@@ -237,8 +237,7 @@ function DeleteProjectDialog({
           </p>
         ) : (
           <p className="meta">
-            레포 연동(웹훅)과 이 프로젝트의 에이전트·로그·감사 기록이 함께 사라진다. 되돌릴 수
-            없다.
+            레포 연동(웹훅)과 이 프로젝트의 에이전트·로그·감사 기록이 함께 사라진다. 되돌릴 수 없다.
           </p>
         )}
         <p className="meta">
@@ -1362,7 +1361,6 @@ export function ProjectDetailPage() {
             )}
           </div>
         </div>
-
       </div>
 
       <ApiKeyModal
