@@ -5,18 +5,18 @@ describe('TokenWasteIntelligenceCard 데이터 및 렌더링 로직 검증', () 
   const mockIntelligence: TokenWasteIntelligence = {
     cache_efficiency: {
       hit_rate_percentage: 45,
-      current_estimated_cost: '18.5000',
-      optimized_cost: '6.2900',
-      potential_savings: '12.2100',
-      savings_percentage: 66,
+      input_tokens: 5_000_000,
+      cache_read_tokens: 4_090_000,
+      cache_write_tokens: 0,
+      savings_usd: '12.2100',
+      sessions_with_breakdown: 2,
+      sessions_without_breakdown: 0,
     },
-    waste_breakdown: {
-      level: 'HIGH_WASTE',
-      total_wasted_tokens: 35000000,
-      waste_percentage: 42,
-      context_bloat_tokens: 35000000,
-      duplicate_reads_tokens: 12000000,
-      high_waste_sessions_count: 2,
+    cost_distribution: {
+      median_cost_usd: '2.5000',
+      p99_cost_usd: '18.0000',
+      sample_size: 12,
+      outliers: [{ session_id: 'run-spike', cost_usd: '18.0000', multiple_of_median: 7.2 }],
     },
     optimization_guides: [
       {
@@ -32,7 +32,7 @@ describe('TokenWasteIntelligenceCard 데이터 및 렌더링 로직 검증', () 
         title: '100턴 단위 세션 분할 또는 컴팩션 (/compact)',
         description:
           '100턴을 초과하는 대형 세션은 매 턴마다 전체 대화 히스토리가 누적 입력 토큰으로 재전송',
-        impact: 'HIGH',
+        impact: 'MEDIUM',
         action_hint: '장기 세션은 새 세션으로 분기하거나 주기적으로 요약 압축하세요.',
       },
       {
@@ -52,30 +52,41 @@ describe('TokenWasteIntelligenceCard 데이터 및 렌더링 로직 검증', () 
     ],
   };
 
-  it('캐시 최적화 절감액과 절감률 계산이 일관성을 갖는다', () => {
-    const { current_estimated_cost, optimized_cost, potential_savings, savings_percentage } =
+  it('캐시 적중률·절감액이 실측값 그대로 노출된다(추정 역산 없음)', () => {
+    const { hit_rate_percentage, savings_usd, cache_read_tokens, input_tokens } =
       mockIntelligence.cache_efficiency;
 
-    const current = Number(current_estimated_cost);
-    const optimized = Number(optimized_cost);
-    const savings = Number(potential_savings);
-
-    expect(current).toBeGreaterThan(optimized);
-    expect(savings).toBeCloseTo(current - optimized, 2);
-    expect(savings_percentage).toBe(Math.round((savings / current) * 100));
+    expect(hit_rate_percentage).toBe(45);
+    expect(Number(savings_usd)).toBeGreaterThan(0);
+    expect(cache_read_tokens).toBeGreaterThan(0);
+    expect(input_tokens).toBeGreaterThan(0);
   });
 
-  it('컨텍스트 팽창 및 낭비 세션 수치가 올바르게 집계된다', () => {
-    const { level, total_wasted_tokens, high_waste_sessions_count, waste_percentage } =
-      mockIntelligence.waste_breakdown;
+  it('세션 비용 분포(중앙값·p99·이상치)가 판정 없이 수치로만 표현된다', () => {
+    const { median_cost_usd, p99_cost_usd, sample_size, outliers } =
+      mockIntelligence.cost_distribution;
 
-    expect(level).toBe('HIGH_WASTE');
-    expect(total_wasted_tokens).toBe(35000000);
-    expect(high_waste_sessions_count).toBe(2);
-    expect(waste_percentage).toBe(42);
+    expect(Number(p99_cost_usd)).toBeGreaterThan(Number(median_cost_usd));
+    expect(sample_size).toBe(12);
+    expect(outliers).toHaveLength(1);
+    expect(outliers[0].multiple_of_median).toBeGreaterThan(1);
   });
 
-  it('2026 프롬프트 캐싱 최적화 가이드 항목 3종이 정의되어 있다', () => {
+  it('내역 없는 세션만 있을 때 hit_rate_percentage는 null이다(0%로 세지 않는다)', () => {
+    const noBreakdown: TokenWasteIntelligence['cache_efficiency'] = {
+      hit_rate_percentage: null,
+      input_tokens: 0,
+      cache_read_tokens: 0,
+      cache_write_tokens: 0,
+      savings_usd: '0.0000',
+      sessions_with_breakdown: 0,
+      sessions_without_breakdown: 3,
+    };
+    expect(noBreakdown.hit_rate_percentage).toBeNull();
+    expect(noBreakdown.sessions_without_breakdown).toBe(3);
+  });
+
+  it('일반적인 캐싱 실천 가이드 항목 3종이 정의되어 있다', () => {
     const guides = mockIntelligence.optimization_guides;
     expect(guides).toHaveLength(3);
 
@@ -117,20 +128,6 @@ describe('TokenWasteIntelligenceCard 데이터 및 렌더링 로직 검증', () 
       expect(`/projects/${projectId}/waste-report.json`).toBe(
         '/projects/test-proj-456/waste-report.json',
       );
-    });
-
-    it('절감율과 낭비 토큰 메트릭이 리포트 요약 행에 적합한 데이터 구조를 갖춘다', () => {
-      const summary = {
-        total_tokens: 100_000_000,
-        total_wasted_tokens: mockIntelligence.waste_breakdown.total_wasted_tokens,
-        waste_percentage: mockIntelligence.waste_breakdown.waste_percentage,
-        potential_savings: mockIntelligence.cache_efficiency.potential_savings,
-        savings_percentage: mockIntelligence.cache_efficiency.savings_percentage,
-      };
-
-      expect(summary.total_wasted_tokens).toBe(35_000_000);
-      expect(summary.waste_percentage).toBe(42);
-      expect(summary.savings_percentage).toBe(66);
     });
   });
 });

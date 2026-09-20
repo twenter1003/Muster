@@ -169,39 +169,52 @@ const MODEL_BREAKDOWN = [
 ];
 
 const WASTE_INTELLIGENCE = {
-  waste_breakdown: {
-    level: 'MODERATE_WASTE',
-    total_tokens: 4120000,
-    estimated_wasted_tokens: 947600,
-    waste_percentage: 23,
-    reason: '반복 컨텍스트 재전송이 전체의 23%를 차지합니다.',
-  },
   cache_efficiency: {
     hit_rate_percentage: 42,
-    current_estimated_cost: '14.8320',
-    optimized_cost: '8.6026',
-    potential_savings: '6.2294',
-    savings_percentage: 42,
+    input_tokens: 2_389_600,
+    cache_read_tokens: 1_730_400,
+    cache_write_tokens: 0,
+    savings_usd: '6.2294',
+    sessions_with_breakdown: 2,
+    sessions_without_breakdown: 1,
+  },
+  cost_distribution: {
+    median_cost_usd: '0.1843',
+    p99_cost_usd: '0.6631',
+    sample_size: 3,
+    outliers: [{ session_id: 'agent-1-run-2', cost_usd: '0.6631', multiple_of_median: 3.6 }],
   },
   optimization_guides: [
     {
-      title: '프롬프트 캐싱 활성화',
-      description: '시스템 프롬프트와 레포 컨텍스트를 캐시 블록으로 고정하면 반복 비용이 90% 줄어듭니다.',
-      estimated_savings: '4.1200',
-      priority: 'high',
+      id: 'prompt-cache-pinning',
+      title: '공통 컨텍스트 상단 배치 (Prompt Cache Pinning)',
+      description:
+        'README, API 명세, 설계서 등 변하지 않는 핵심 문서를 시스템 프롬프트 최상단에 배치하면 90% 캐시 읽기 할인이 적용됩니다.',
+      impact: 'HIGH',
+      action_hint: '시스템 프롬프트의 가변 컨텍스트를 맨 뒤로 이동하세요.',
     },
     {
-      title: '세션 분할',
-      description: '60분 이상 이어지는 세션은 컨텍스트가 누적되어 토큰당 효율이 급격히 떨어집니다.',
-      estimated_savings: '1.6800',
-      priority: 'medium',
+      id: 'session-compaction',
+      title: '100턴 단위 세션 분할 또는 컴팩션 (/compact)',
+      description:
+        '100턴을 초과하는 대형 세션은 매 턴마다 전체 대화 히스토리가 누적 입력 토큰으로 재전송되어 비용이 기하급수적으로 증가합니다.',
+      impact: 'MEDIUM',
+      action_hint: '장기 세션은 새 세션으로 분기하거나 주기적으로 요약 압축하세요.',
     },
     {
-      title: '경량 모델 라우팅',
-      description: '단순 조회·포맷 변환 작업은 Haiku/Flash 계열로 보내면 동일 결과에 비용만 낮아집니다.',
-      estimated_savings: '0.4294',
-      priority: 'low',
+      id: 'subagent-delegation',
+      title: '경량 탐색 작업은 Flash/Haiku 서브에이전트로 위임',
+      description: '단순 코드 검색, 파일 목록 조사 등은 경량 모델 서브에이전트로 분리하세요.',
+      impact: 'MEDIUM',
+      action_hint: '단순 탐색 시 경량 모델 서브에이전트를 적극 활용하세요.',
     },
+  ],
+  model_cache_benchmarks: [
+    { model: 'Claude Sonnet 5', discount: '90% 할인', readPrice: '$0.20 / 1M' },
+    { model: 'Gemini 3.8 Flash', discount: '90% 할인', readPrice: '$0.075 / 1M' },
+    { model: 'GPT-5.6 Terra', discount: '90% 할인', readPrice: '$0.20 / 1M' },
+    { model: 'Claude Fable 5.1', discount: '97.5% 파격 할인', readPrice: '$0.25 / 1M' },
+    { model: 'Gemini 3.6 Flash', discount: '90% 할인', readPrice: '$0.050 / 1M' },
   ],
 };
 
@@ -228,6 +241,9 @@ const runsFor = (agentId) => [
     status: 'running',
     tokens_used: 23000,
     cost: '0.0828',
+    input_tokens: 3200,
+    cache_read_tokens: 19800,
+    cache_write_tokens: 0,
     started_at: iso(6 * MIN),
     ended_at: null,
   },
@@ -237,6 +253,9 @@ const runsFor = (agentId) => [
     status: 'succeeded',
     tokens_used: 184200,
     cost: '0.6631',
+    input_tokens: 156800,
+    cache_read_tokens: 27400,
+    cache_write_tokens: 0,
     started_at: iso(3 * HOUR),
     ended_at: iso(2 * HOUR),
   },
@@ -246,6 +265,10 @@ const runsFor = (agentId) => [
     status: 'failed',
     tokens_used: 51200,
     cost: '0.1843',
+    // 내역 없음(예전 실행) — "모름" 상태를 목 서버에서도 재현한다.
+    input_tokens: null,
+    cache_read_tokens: null,
+    cache_write_tokens: null,
     started_at: iso(DAY),
     ended_at: iso(DAY - 20 * MIN),
   },
@@ -498,10 +521,12 @@ function handleApi(req, res, url) {
       started_at: iso(3 * HOUR),
       ended_at: iso(2 * HOUR),
       duration_seconds: 3600,
-      waste: {
-        level: 'MODERATE_WASTE',
-        estimated_wasted_tokens: 42000,
-        reason: '컨텍스트 재전송 비중이 높습니다.',
+      cache: {
+        hit_rate_percentage: 15,
+        input_tokens: 156800,
+        cache_read_tokens: 27400,
+        savings_usd: '0.0940',
+        has_breakdown: true,
       },
     });
   }
@@ -717,25 +742,26 @@ function handleApi(req, res, url) {
           agent_series,
           available_agents: AGENT_NAMES,
           model_breakdown: MODEL_BREAKDOWN,
-          waste_insight: {
-            level: 'MODERATE_WASTE',
-            wasted_tokens: 947600,
-            wasted_cost: '3.4114',
-            message: '반복 컨텍스트 재전송이 전체의 23%를 차지합니다.',
-          },
           waste_intelligence: WASTE_INTELLIGENCE,
           burn_rate: BURN_RATE,
-          recent_runs: runsFor('agent-1').map((r) => ({
-            ...r,
-            agent_name: 'claude-code',
-            model: 'claude-sonnet-5',
-            duration_seconds: 3600,
-            waste: {
-              level: 'MODERATE_WASTE',
-              estimated_wasted_tokens: 42000,
-              reason: '컨텍스트 재전송 비중이 높습니다.',
-            },
-          })),
+          recent_runs: runsFor('agent-1').map((r) => {
+            const denom = (r.input_tokens ?? 0) + (r.cache_read_tokens ?? 0) + (r.cache_write_tokens ?? 0);
+            const hasBreakdown = r.input_tokens != null;
+            return {
+              ...r,
+              agent_name: 'claude-code',
+              model: 'claude-sonnet-5',
+              duration_seconds: 3600,
+              cache: {
+                hit_rate_percentage:
+                  hasBreakdown && denom > 0 ? Math.round((r.cache_read_tokens / denom) * 100) : null,
+                input_tokens: r.input_tokens ?? 0,
+                cache_read_tokens: r.cache_read_tokens ?? 0,
+                savings_usd: hasBreakdown ? '0.0940' : '0.0000',
+                has_breakdown: hasBreakdown,
+              },
+            };
+          }),
         });
       }
 

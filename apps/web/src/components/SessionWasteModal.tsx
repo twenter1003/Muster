@@ -4,8 +4,8 @@ import { downloadWasteReport } from '../lib/exportUtils';
 import {
   formatCost,
   formatTokenCount,
-  getWasteBadge,
-  type WasteLevel,
+  getCacheBadge,
+  type SessionCacheView,
 } from '../lib/tokenIntelligence';
 import { getAgentLabel } from '../lib/agentFilter';
 import { formatBurnRate } from '../lib/burnRate';
@@ -23,13 +23,7 @@ export interface SessionWasteInfo {
   started_at: string;
   ended_at: string | null;
   duration_seconds?: number;
-  waste?: {
-    level: WasteLevel;
-    reason?: string;
-    estimated_wasted_tokens?: number;
-    estimated_wasted_cost?: string;
-    recommendation?: string;
-  };
+  cache?: SessionCacheView;
 }
 
 export interface SessionWasteModalProps {
@@ -37,9 +31,17 @@ export interface SessionWasteModalProps {
   onClose: () => void;
   run: SessionWasteInfo | null;
   projectId?: string;
+  /** 프로젝트 전체 세션 비용 중 이 세션이 중앙값의 몇 배인지(분포 데이터가 없으면 null). */
+  multipleOfMedian?: number | null;
 }
 
-export function SessionWasteModal({ open, onClose, run, projectId }: SessionWasteModalProps) {
+export function SessionWasteModal({
+  open,
+  onClose,
+  run,
+  projectId,
+  multipleOfMedian,
+}: SessionWasteModalProps) {
   const [downloadingFormat, setDownloadingFormat] = useState<'csv' | 'json' | null>(null);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
 
@@ -83,24 +85,21 @@ export function SessionWasteModal({ open, onClose, run, projectId }: SessionWast
   const durationMin = Math.max(0.1, durationSec / 60);
   const burnRate = Math.round(run.tokens_used / durationMin);
 
-  const wasteLevel: WasteLevel = run.waste?.level ?? 'NORMAL';
-  const wasteBadge = isRunning
+  const hitRate = run.cache?.hit_rate_percentage ?? null;
+  const cacheBadge = getCacheBadge(hitRate);
+  const statusBadge = isRunning
     ? { text: '작업 중', className: 'badge badge--pulse' }
     : isCancelled
       ? { text: '강제 중단됨', className: 'badge badge--signal' }
-      : getWasteBadge(wasteLevel);
+      : cacheBadge;
 
   const agentLabel = getAgentLabel(run.agent_name);
-  const wastedTokens = run.waste?.estimated_wasted_tokens ?? 0;
-  const wastedCost = run.waste?.estimated_wasted_cost ?? '0.00';
+  const hasBreakdown = run.cache?.has_breakdown ?? false;
+  const savingsUsd = run.cache?.savings_usd ?? '0.0000';
+  const isCostOutlier = typeof multipleOfMedian === 'number' && multipleOfMedian >= 2;
 
   return (
-    <Modal
-      open={open}
-      title="에이전트 세션 토큰 낭비 딥다이브"
-      onClose={onClose}
-      className="session-waste-modal"
-    >
+    <Modal open={open} title="에이전트 세션 상세" onClose={onClose} className="session-waste-modal">
       <div className="session-modal__body" data-testid="session-waste-modal-body">
         {/* 상단 메타 바 */}
         <div className="session-modal__header-bar">
@@ -112,8 +111,8 @@ export function SessionWasteModal({ open, onClose, run, projectId }: SessionWast
             </code>
           </div>
           <div className="session-modal__status-meta">
-            <span className={wasteBadge.className} data-testid="session-status-badge">
-              {wasteBadge.text}
+            <span className={statusBadge.className} data-testid="session-status-badge">
+              {statusBadge.text}
             </span>
           </div>
         </div>
@@ -135,7 +134,11 @@ export function SessionWasteModal({ open, onClose, run, projectId }: SessionWast
             >
               {formatCost(run.cost)}
             </strong>
-            <span className="session-modal__metric-sub">USD 기준</span>
+            <span className="session-modal__metric-sub">
+              {typeof multipleOfMedian === 'number'
+                ? `프로젝트 중앙값의 ${multipleOfMedian}배`
+                : 'USD 기준'}
+            </span>
           </div>
           <div className="session-modal__metric-card">
             <span className="session-modal__metric-label">소요 시간</span>
@@ -158,48 +161,45 @@ export function SessionWasteModal({ open, onClose, run, projectId }: SessionWast
           </div>
         </div>
 
-        {/* 낭비 진단 분석 패널 */}
+        {/* 캐시 효율 패널 (실측) */}
         <div
-          className={`session-modal__diagnosis session-modal__diagnosis--${wasteLevel.toLowerCase()}`}
+          className={`session-modal__diagnosis${
+            hasBreakdown
+              ? hitRate !== null && hitRate >= 70
+                ? ' session-modal__diagnosis--normal'
+                : ' session-modal__diagnosis--caution'
+              : ''
+          }`}
         >
           <div className="session-modal__diagnosis-head">
             <div className="session-modal__diagnosis-title">
-              <span className="session-modal__diagnosis-icon">
-                {wasteLevel === 'HIGH_WASTE' ? '🚨' : wasteLevel === 'CAUTION' ? '⚠️' : '✅'}
-              </span>
-              <strong>
-                {wasteLevel === 'HIGH_WASTE'
-                  ? '심각한 토큰 낭비 및 컨텍스트 팽창 감지'
-                  : wasteLevel === 'CAUTION'
-                    ? '주의: 컨텍스트 누적 팽창 시작'
-                    : '정상: 효율적인 토큰 소모 상태'}
-              </strong>
+              <span className="session-modal__diagnosis-icon">{hasBreakdown ? '📊' : 'ℹ️'}</span>
+              <strong>{hasBreakdown ? '캐시 효율 (실측)' : '토큰 내역 없음'}</strong>
             </div>
-            {wastedTokens > 0 && (
+            {hasBreakdown && Number(savingsUsd) > 0 && (
               <span className="session-modal__waste-estimate">
-                추정 낭비: ~{formatTokenCount(wastedTokens)} ({formatCost(wastedCost)})
+                캐싱으로 아낀 금액: {formatCost(savingsUsd)}
               </span>
             )}
           </div>
 
           <p className="session-modal__diagnosis-reason">
-            {run.waste?.reason ||
-              (wasteLevel === 'HIGH_WASTE'
-                ? '장기 대화와 반복된 프롬프트 누적으로 인해 불필요한 토큰 소모가 급증하고 있습니다.'
-                : wasteLevel === 'CAUTION'
-                  ? '대화 컨텍스트가 증가하면서 턴당 전송되는 프롬프트 토큰이 점진적으로 증가하고 있습니다.'
-                  : '컨텍스트 재사용률이 우수하며 낭비 없는 정상적인 실행 상태를 유지하고 있습니다.')}
+            {hasBreakdown
+              ? `캐시 적중률 ${hitRate}% (= 캐시 읽기 ${formatTokenCount(run.cache?.cache_read_tokens ?? 0)} / 입력 ${formatTokenCount(run.cache?.input_tokens ?? 0)} 토큰 대비)`
+              : '이 세션은 토큰 종류별 내역이 없어 캐시 지표를 계산할 수 없습니다(예전 실행이거나 내역을 보내지 않는 에이전트).'}
           </p>
 
-          {wasteLevel !== 'NORMAL' && (
+          {isCostOutlier && (
             <div className="session-modal__recommendations">
-              <span className="session-modal__rec-label">권장 최적화 조치:</span>
+              <span className="session-modal__rec-label">
+                이 세션 비용이 프로젝트 중앙값보다 뚜렷이 높습니다. 확인해볼 것:
+              </span>
               <ul className="session-modal__rec-list">
                 <li>
-                  <code>/compact</code> 명령어를 실행하여 대화 이력을 요약 압축하세요.
+                  <code>/compact</code> 명령어로 대화 이력을 요약 압축했는지
                 </li>
-                <li>세션을 분할하고 새 세션을 시작하여 누적 프롬프트 페이로드를 줄이세요.</li>
-                <li>프롬프트 캐싱(Prompt Caching) 지원 모델 활용 여부를 점검하세요.</li>
+                <li>세션이 지나치게 길어져 새 세션 분리가 필요한지</li>
+                <li>프롬프트 캐싱(Prompt Caching)이 정상 적용되고 있는지</li>
               </ul>
             </div>
           )}
@@ -263,7 +263,7 @@ export function SessionWasteModal({ open, onClose, run, projectId }: SessionWast
                 onClick={() => handleExport('csv')}
                 disabled={downloadingFormat !== null}
                 data-testid="modal-export-csv-btn"
-                title="프로젝트 전체 낭비 리포트를 CSV로 다운로드합니다"
+                title="프로젝트 전체 캐시 효율 리포트를 CSV로 다운로드합니다"
               >
                 {downloadingFormat === 'csv' ? '⏳ 생성 중...' : '📥 전체 리포트 (CSV)'}
               </button>
@@ -273,7 +273,7 @@ export function SessionWasteModal({ open, onClose, run, projectId }: SessionWast
                 onClick={() => handleExport('json')}
                 disabled={downloadingFormat !== null}
                 data-testid="modal-export-json-btn"
-                title="프로젝트 전체 낭비 리포트를 JSON으로 다운로드합니다"
+                title="프로젝트 전체 캐시 효율 리포트를 JSON으로 다운로드합니다"
               >
                 {downloadingFormat === 'json' ? '⏳ 생성 중...' : '📥 JSON'}
               </button>

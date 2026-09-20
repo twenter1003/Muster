@@ -248,4 +248,12 @@ export class ModelPricingService {
   getTable(): Record<string, ModelPricing> {
     return LLM_PRICING_TABLE;
   }
+
+  /** token-waste.ts의 PricingLookup 어댑터 — modelCode 없이 단가만 필요한 소비자용. */
+  resolvePricingRates(
+    model?: string,
+    agentName?: string,
+  ): { inputPerMillion: number; cacheReadPerMillion?: number } {
+    return this.resolvePricing(model, agentName).pricing;
+  }
 }

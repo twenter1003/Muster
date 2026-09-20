@@ -460,6 +460,41 @@ report-agent-usage.mjs`, 설치는 `docs/AGENT_TOKEN_REPORTING.md`):
 
 ---
 
+## 19. 낭비 판정(임계값)·캐싱 ROI(상수)를 실측값으로 교체 (정정) — 18번의 남은 과제 처리
+
+18번에서 진짜 캐시 수치가 들어오기 시작했지만, 그 위의 판단 로직(`token-waste.ts`)은 여전히
+상수였다. 이번 정정으로 그 판단을 실측값으로 바꿨다.
+
+**무엇이 틀어졌나**: `assessSessionWaste()`는 세션 토큰이 5천만/1천만을 넘으면 60%/25%를 낭비로
+판정했다. 토큰이 큰 이유가 대개 캐시 읽기가 쌓여서인데 — 실제 세션 12개 중 5개가 HIGH_WASTE로
+분류됐다(캐싱이 가장 잘 든 세션이 가장 낭비가 심하다고 찍힘). 캐싱 ROI도 중복 읽기를
+`총토큰 × 0.15`로 고정하고 적중률을 낭비율에서 역산한 뒤, "$6.23 절감(42%)"처럼 측정값의
+정밀도로 표시했다 — 정확히 계산할 실제 데이터(캐시 읽기 토큰, 18번에서 이미 확보)를 두고
+추정한 셈이다.
+
+**벤치마크 조사**: Helicone·OpenRouter·Braintrust 중 "낭비 토큰"이라는 숫자를 주장하는 곳은
+하나도 없었다. 전부 적중률·절감액 같은 실측 반사실이나 중앙값 대비 p99 분포로 표현한다.
+
+**채택**:
+- `computeCacheEfficiency()`: 적중률 = `cache_read / (input + cache_write + cache_read)`,
+  절감액 = `cache_read_tokens × (모델별 정규 입력가 − 캐시 읽기가)`. 내역 없는(예전) 실행은
+  **0이 아니라 집계에서 제외** — "모름"과 "캐시 안 씀"을 구분한다.
+- `computeCostDistribution()`: 세션당 비용의 중앙값·p99와, 중앙값의 2배 이상이면서 상위 1%에
+  드는 이상치 목록. 임계값으로 "낭비"를 선언하는 대신 분포만 보여준다.
+- `assessSessionWaste`/`computeWasteInsight`/구 `computeTokenWasteIntelligence`(임계값·상수
+  기반)는 삭제했다. 정적인 캐싱 실천 가이드와 모델별 캐시 단가 벤치마크는 프로젝트별 "판정"이
+  아니라 공통 참고 정보라 유지했다.
+- `ModelPricingService.resolvePricingRates()`를 추가해 `token-waste.ts`의 순수 함수 계층이
+  모델별 단가(캐시 읽기가가 모델마다 다르다 — Fable 97.5% 할인, 나머지 90% 등)를 주입받는다.
+
+**영향 범위**: 백엔드 3곳(`usage-timeseries.service.ts`, `token-waste-report.service.ts`,
+`agent-runs.service.ts`)과 프론트 3곳(`TokenWasteIntelligenceCard.tsx`, `SessionWasteModal.tsx`,
+`ProjectDetailPage.tsx`), `mock-server.mjs`. API 응답의 `waste_insight` 필드와 `SessionRunView`/
+`SessionRunDetailView`의 `waste` 필드(레벨 기반)가 사라지고 `cache`(적중률/절감액 기반)로
+바뀌었다 — 이 API를 직접 소비하는 외부 클라이언트가 있다면 갱신이 필요하다.
+
+---
+
 ## 경미한 추가 (보고용)
 
 | 컬럼 | 이유 |

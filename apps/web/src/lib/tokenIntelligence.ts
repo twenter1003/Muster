@@ -1,5 +1,3 @@
-export type WasteLevel = 'NORMAL' | 'CAUTION' | 'HIGH_WASTE';
-
 export interface WasteBadgeInfo {
   text: string;
   className: string;
@@ -33,18 +31,20 @@ export function formatTokenCount(tokens: number | string): string {
 }
 
 /**
- * 낭비 위험도에 따른 뱃지 텍스트와 스타일 클래스를 반환한다.
+ * 캐시 적중률(실측)에 따른 뱃지 텍스트와 스타일 클래스를 반환한다.
+ * 내역이 없는(예전) 세션은 "0%"가 아니라 "모름"으로 구분한다.
  */
-export function getWasteBadge(level?: WasteLevel): WasteBadgeInfo {
-  switch (level) {
-    case 'HIGH_WASTE':
-      return { text: '낭비 위험', className: 'badge badge--warn' };
-    case 'CAUTION':
-      return { text: '주의', className: 'badge badge--caution' };
-    case 'NORMAL':
-    default:
-      return { text: '정상', className: 'badge badge--ok' };
+export function getCacheBadge(hitRatePercentage: number | null | undefined): WasteBadgeInfo {
+  if (hitRatePercentage === null || hitRatePercentage === undefined) {
+    return { text: '캐시 내역 없음', className: 'badge' };
   }
+  if (hitRatePercentage >= 70) {
+    return { text: `캐시 적중 ${hitRatePercentage}%`, className: 'badge badge--ok' };
+  }
+  if (hitRatePercentage >= 40) {
+    return { text: `캐시 적중 ${hitRatePercentage}%`, className: 'badge badge--caution' };
+  }
+  return { text: `캐시 적중 ${hitRatePercentage}%`, className: 'badge badge--warn' };
 }
 
 /**
@@ -63,20 +63,34 @@ export function formatCost(cost?: number | string | null): string {
 }
 
 export interface CacheEfficiencyMetric {
-  hit_rate_percentage: number;
-  current_estimated_cost: string;
-  optimized_cost: string;
-  potential_savings: string;
-  savings_percentage: number;
+  hit_rate_percentage: number | null;
+  input_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  savings_usd: string;
+  sessions_with_breakdown: number;
+  sessions_without_breakdown: number;
 }
 
-export interface WasteBreakdown {
-  level: WasteLevel;
-  total_wasted_tokens: number;
-  waste_percentage: number;
-  context_bloat_tokens: number;
-  duplicate_reads_tokens: number;
-  high_waste_sessions_count: number;
+export interface SessionCacheView {
+  hit_rate_percentage: number | null;
+  input_tokens: number;
+  cache_read_tokens: number;
+  savings_usd: string;
+  has_breakdown: boolean;
+}
+
+export interface CostOutlier {
+  session_id: string;
+  cost_usd: string;
+  multiple_of_median: number;
+}
+
+export interface CostDistribution {
+  median_cost_usd: string;
+  p99_cost_usd: string;
+  sample_size: number;
+  outliers: CostOutlier[];
 }
 
 export interface OptimizationGuide {
@@ -95,7 +109,19 @@ export interface ModelCacheBenchmark {
 
 export interface TokenWasteIntelligence {
   cache_efficiency: CacheEfficiencyMetric;
-  waste_breakdown: WasteBreakdown;
+  cost_distribution: CostDistribution;
   optimization_guides: OptimizationGuide[];
   model_cache_benchmarks: ModelCacheBenchmark[];
+}
+
+/** 세션 비용이 프로젝트 중앙값의 몇 배인지 계산한다. 분포 데이터가 없으면 null. */
+export function multipleOfMedian(
+  costUsd: string | number | null | undefined,
+  distribution: CostDistribution | null | undefined,
+): number | null {
+  if (!distribution || distribution.sample_size === 0) return null;
+  const median = Number(distribution.median_cost_usd);
+  const cost = typeof costUsd === 'string' ? Number(costUsd) : costUsd;
+  if (!Number.isFinite(median) || median <= 0 || !Number.isFinite(cost) || !cost) return null;
+  return Math.round((cost / median) * 10) / 10;
 }

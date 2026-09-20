@@ -3,11 +3,9 @@ import { Repository } from 'typeorm';
 import { InjectRepository } from '../../database/inject-repository.decorator';
 import { Agent, AgentRun } from '../../database/entities';
 import {
-  assessSessionWaste,
-  computeWasteInsight,
+  computeSessionCacheView,
   computeTokenWasteIntelligence,
-  type SessionWasteAssessment,
-  type WasteInsightSummary,
+  type SessionCacheView,
   type TokenWasteIntelligence,
 } from './token-waste';
 import { computeBurnRate, type BurnRateStatus } from './burn-rate';
@@ -24,7 +22,7 @@ export interface SessionRunView {
   started_at: string;
   ended_at: string | null;
   duration_seconds: number;
-  waste: SessionWasteAssessment;
+  cache: SessionCacheView;
 }
 
 export type TokenGranularity = 'hour' | 'day' | 'month';
@@ -63,7 +61,6 @@ export interface UsageBreakdown {
   agent_series?: Record<string, TimeSeriesBucket[]>;
   available_agents?: string[];
   model_breakdown?: ModelUsageItem[];
-  waste_insight?: WasteInsightSummary;
   waste_intelligence?: TokenWasteIntelligence;
   burn_rate?: BurnRateStatus;
   recent_runs?: SessionRunView[];
@@ -86,6 +83,9 @@ export class UsageTimeseriesService {
   ) {
     this.modelPricing = modelPricing ?? new ModelPricingService();
   }
+
+  private readonly resolvePricing = (model?: string, agentName?: string) =>
+    this.modelPricing.resolvePricingRates(model, agentName);
 
   /**
    * 프로젝트 목록·상세 화면의 "토큰 사용량" 카드가 쓰는 다차원 시계열 집계 및 모델 브레이크다운.
@@ -371,7 +371,17 @@ export class UsageTimeseriesService {
         started_at: r.started_at.toISOString(),
         ended_at: r.ended_at ? r.ended_at.toISOString() : null,
         duration_seconds,
-        waste: assessSessionWaste(r.tokens_used),
+        cache: computeSessionCacheView(
+          {
+            id: r.id,
+            input_tokens: r.input_tokens,
+            cache_read_tokens: r.cache_read_tokens,
+            cache_write_tokens: r.cache_write_tokens,
+            model: r.model,
+            agent_name: r.agent?.name,
+          },
+          this.resolvePricing,
+        ),
       };
     });
 
@@ -388,14 +398,17 @@ export class UsageTimeseriesService {
       agent_series,
       available_agents,
       model_breakdown,
-      waste_insight: computeWasteInsight(recentRuns),
       waste_intelligence: computeTokenWasteIntelligence(
         recentRuns.map((r) => ({
-          tokens_used: r.tokens_used,
+          id: r.id,
           cost: r.cost,
-          turns: null,
+          input_tokens: r.input_tokens,
+          cache_read_tokens: r.cache_read_tokens,
+          cache_write_tokens: r.cache_write_tokens,
+          model: r.model,
           agent_name: r.agent?.name,
         })),
+        this.resolvePricing,
       ),
       burn_rate,
       recent_runs,
