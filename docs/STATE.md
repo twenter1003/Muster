@@ -81,8 +81,22 @@ node --test scripts/claude-code-hooks/report-agent-usage.test.mjs \
 
 ## 다음 과제
 
-**지금 열린 과제는 없다.** 죽은 코드 정리(PR #79·#83·#87·#89)와 Supabase Data API
-차단까지 끝났다. 지금 살아 있는 표면은 [ARCHITECTURE.md](ARCHITECTURE.md)가 원천이다.
+**막힌 것은 없다.** 죽은 코드 정리(PR #79·#83·#87·#89)와 Supabase Data API 차단까지
+끝났다. 지금 살아 있는 표면은 [ARCHITECTURE.md](ARCHITECTURE.md)가 원천이다.
+
+해도 되고 안 해도 되는 것 하나가 남아 있다:
+
+- **`anon` 역할의 `public` 스키마 권한 119개를 회수할지.** Data API가 꺼져 있어 지금은
+  닿을 경로가 없다 — 급하지 않다. 다만 누가 Data API를 다시 켜면 그 순간 되살아나므로,
+  회수해 두면 기본값이 "권한 없음"이 된다. 앱은 `postgres` 역할로 붙어 영향이 없다.
+
+  ```sql
+  revoke all on all tables in schema public from anon;
+  revoke all on all sequences in schema public from anon;
+  alter default privileges in schema public revoke all on tables from anon;
+  ```
+
+  되돌리려면 권한을 다시 부여해야 하므로 판단이 필요하다. 배경은 [DEPLOY.md](DEPLOY.md).
 
 새 과제가 생기면 여기에 적는다.
 
