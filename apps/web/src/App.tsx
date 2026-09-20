@@ -13,10 +13,11 @@ import { ProjectDetailPage } from './routes/ProjectDetailPage';
  * 라우팅. 경량 재설계 이후 로그인 필요 구간은 셋뿐이다 — 프로젝트 목록(/)·
  * 레포 가져오기(/import)·프로젝트 상세(/projects/:id).
  *
- * 리포트·감사 로그·알림·DocStore·EnvCatalog·AgentRegistry·설정 라우트는 여기서 뺐다
- * (README/docs 참조). 그 화면 파일 자체는 지우지 않았다 — 언젠가 다시 필요해지면
- * 라우트 한 줄만 되살리면 된다. DashboardPage·ProjectOverviewPage도 같은 이유로 남아
- * 있지만 더 이상 어떤 라우트도 가리키지 않는다.
+ * 리포트·감사 로그·알림·DocStore·EnvCatalog·AgentRegistry·설정·대시보드·
+ * 프로젝트 개요 화면은 **파일까지 삭제했다**. 한동안 "라우트만 빼고 파일은 남겨 둔다"로
+ * 두었는데, 그 상태가 7,400줄을 도달 불가능한 채로 살려 두면서 매 세션 "이건 살아 있는
+ * 코드인가"를 다시 판단하게 만들었다. 되살릴 일이 생기면 git 히스토리에서 꺼낸다 —
+ * 지우지 않고 두는 것보다 그쪽이 싸다.
  *
  * react-router-dom을 들인 이유: /projects/:id가 파라미터를 쓴다. 직접 짜면 history API·
  * 뒤로가기·활성 링크 표시를 다시 만들게 되고, 그건 라우터를 잘못 만드는 일이다.

@@ -22,11 +22,11 @@ Muster/
 │   │   ├── test/               # e2e 테스트
 │   │   └── src/
 │   │       ├── main.ts         # 부트스트랩 (globalPrefix=api/v1, ValidationPipe)
-│   │       ├── app.module.ts   # 7개 모듈 + ConfigModule + EventEmitterModule 조립
+│   │       ├── app.module.ts   # 12개 모듈 + ConfigModule + EventEmitterModule 조립
 │   │       ├── config/
 │   │       │   └── env.schema.ts   # Zod 환경변수 검증 (실패 시 부팅 차단)
 │   │       ├── database/           # 데이터 접근 레이어
-│   │       │   ├── entities/       # 17개 엔티티 + enum 값 집합
+│   │       │   ├── entities/       # 22개 엔티티 + enum 값 집합
 │   │       │   ├── migrations/     # 스키마 변경 이력 (synchronize는 항상 off)
 │   │       │   ├── data-source.ts  # 런타임·CLI 공용 접속 설정
 │   │       │   └── database.module.ts

@@ -16,8 +16,9 @@
    graphify query "<차기 과제 관련 키워드>"
    ```
    특정 관계 확인은 `graphify explain "<심볼/파일명>"`, `graphify path "<A>" "<B>"`.
-3. **테스트 무결성 검증**: `pnpm -r test` (기준선 **766개** = API 511 + Web 231 + 훅 24,
-   프론트 `hookVersion` 테스트 5개 포함). e2e는 별도 스크립트다(`pnpm --filter @muster/api
+3. **테스트 무결성 검증**: `pnpm -r test` (기준선 **715개** = API 511 + Web 161 + 훅 43).
+   죽은 화면 11개를 지우면서 그 코드만 테스트하던 75개가 같이 빠졌다(PR #76) — 이전
+   기준선 766은 더 이상 맞지 않는다. e2e는 별도 스크립트다(`pnpm --filter @muster/api
    test:e2e`, 로컬 Postgres 필요). 훅 테스트는 워크스페이스 밖이라 따로 돌린다:
    ```bash
    node --test scripts/claude-code-hooks/report-agent-usage.test.mjs scripts/antigravity-hooks/report-agent-usage.test.mjs scripts/muster-connect.test.mjs
@@ -73,11 +74,13 @@ pnpm --filter @muster/web build && node scripts/mock-server.mjs   # → localhos
 `.claude/launch.json`에 `mock`으로 등록되어 있다. 실기기 확인은 iOS 시뮬레이터 Safari로
 `http://localhost:4173`을 열면 된다 — 크롬 에뮬레이션으로는 안 잡히는 것들이 있다(HANDOVER 2.3절).
 
-### 도달 가능한 화면은 5개뿐
+### 화면은 5개뿐 (이제 파일도 그것뿐이다)
 
 `/login`, `/invite/:token`, `/projects`, `/projects/:id`, `/import`.
-`ProjectOverviewPage`·`DashboardPage`·`ReportsPage`·`SettingsPage` 등 11개 화면 파일은
-**라우트가 없어 도달할 수 없다**(App.tsx:17-20). 고치기 전에 그 화면이 살아 있는지 먼저 볼 것.
+예전에는 라우트 없는 화면 파일 11개(`ProjectOverviewPage`·`DashboardPage`·`ReportsPage`·
+`SettingsPage` 등)가 그대로 남아 있었는데, PR #76에서 **전부 삭제했다** — 딸린 컴포넌트
+18개·lib 9개·죽은 사이드바까지 9,000줄 가까이. 되살릴 일이 생기면 git 히스토리에서 꺼낸다.
+`apps/web/src/routes/`에 있는 파일은 이제 전부 실제로 도달 가능한 화면이다.
 
 ---
 
