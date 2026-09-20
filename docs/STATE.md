@@ -10,19 +10,12 @@
 > 여기에 **적지 않는 것**: 지난 세션 서사, 이미 끝난 작업의 경위 — 그건 git 로그와 PR에 있다.
 
 - **갱신**: 2026-09-20
-- **배포**: Cloud Run 리비전 `muster-00045-5df` (트래픽 100%, 헬스체크 200)
+- **배포**: Cloud Run 리비전 `muster-00046-chs` (트래픽 100%, 헬스체크 200)
 - **DB**: Supabase, 마이그레이션 17개 전부 적용됨
-- **코드와 배포가 다르다.** PR #79(엔드포인트 정리)가 `main`에 있으나 **배포되지 않았다.**
-  배포된 리비전은 지운 엔드포인트를 아직 서빙한다. 헬스체크는 200이고 화면이 쓰는 엔드포인트는
-  그대로라 **동작에는 문제가 없다** — 다만 죽은 표면이 아직 열려 있다.
+- **코드와 배포는 같다** — PR #79까지 배포됐다.
 
-  배포하지 못한 이유: `.github/workflows/deploy.yml`이 요구하는 저장소 변수 넷
-  (`GCP_WIF_PROVIDER`·`GCP_SERVICE_ACCOUNT`·`GCP_PROJECT`·`DEPLOY_URL`)이 **설정된 적이 없다**
-  (DEPLOY.md 8단계가 "선택, 한 번만"으로 남겨 둔 항목이다). 워크플로를 돌리면 "설정 확인"
-  단계에서 바로 죽는다. 로컬 `./scripts/deploy-cloudrun.sh`는 `gcloud` 로그인이 필요하다.
-
-  **다음 세션에서 할 것**: 사람이 DEPLOY.md 8단계로 변수를 채우거나, 로컬에서
-  `gcloud auth login` 후 `./scripts/deploy-cloudrun.sh`를 돌린다.
+배포 검증(2026-09-20): 지운 엔드포인트 9종이 전부 404, 남긴 것은 200(공개) 또는
+401(인증 요구 — 라우트는 살아 있다는 뜻)을 낸다.
 
 ## 검증 기준선
 
@@ -73,6 +66,14 @@ node --test scripts/claude-code-hooks/report-agent-usage.test.mjs \
 엔드포인트 정리는 끝났다(PR #79). 지금 살아 있는 표면은
 [ARCHITECTURE.md](ARCHITECTURE.md)가 원천이다. 남은 것으로 확인된 것들:
 
+- **`DocumentsService.create`가 고아로 남았다 — PR #79가 놓쳤다.** 업로드 엔드포인트
+  (`POST /projects/:id/documents`)를 지웠는데 서비스 메서드는 남겼다. 미호출 메서드를 찾는
+  스크립트가 바로 다음 줄의 TypeORM `this.documents.create({...})`와 이름이 겹쳐 "호출됨"으로
+  오판했다 — **이름만으로 호출 여부를 판정하면 이런 것을 놓친다.**
+  이걸 지우면 `ObjectStorage`·`GcsObjectStorage`·`CreateDocumentDto`·`objectPathOf`와
+  `GCS_BUCKET` 환경변수까지 **GCS 연동이 통째로** 따라 죽는다(`createDownloadUrl`·`delete`·
+  `exists`는 이미 PR #79에서 호출자를 잃었다). 문서 레코드와 GCS 객체는 남아 있고 목록
+  조회만 살아 있는 상태라, 지울지 업로드 화면을 되살릴지가 먼저다.
 - **`scripts/smoke-ui.mjs`를 실제로 돌려 본 적이 없다.** `playwright`가 어느
   package.json에도 없어서, 깨끗한 체크아웃에서는 `ERR_MODULE_NOT_FOUND`로 죽는다.
   PR #79에서 스크립트 내용은 살아 있는 화면 5개에 맞게 고쳤고 선택자는 목 서버를 띄워
