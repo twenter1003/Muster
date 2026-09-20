@@ -99,12 +99,7 @@ export function SessionWasteModal({
   const isCostOutlier = typeof multipleOfMedian === 'number' && multipleOfMedian >= 2;
 
   return (
-    <Modal
-      open={open}
-      title="에이전트 세션 상세"
-      onClose={onClose}
-      className="session-waste-modal"
-    >
+    <Modal open={open} title="에이전트 세션 상세" onClose={onClose} className="session-waste-modal">
       <div className="session-modal__body" data-testid="session-waste-modal-body">
         {/* 상단 메타 바 */}
         <div className="session-modal__header-bar">

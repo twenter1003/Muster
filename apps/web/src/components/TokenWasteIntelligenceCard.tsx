@@ -170,8 +170,8 @@ export function TokenWasteIntelligenceCard({
             </span>
           </div>
           <p className="meta token-waste-card__metric-sub">
-            p99 {formatCost(cost_distribution.p99_cost_usd)} · 표본 {cost_distribution.sample_size}건
-            {totalCost ? ` · 총 ${formatCost(totalCost)}` : ''}
+            p99 {formatCost(cost_distribution.p99_cost_usd)} · 표본 {cost_distribution.sample_size}
+            건{totalCost ? ` · 총 ${formatCost(totalCost)}` : ''}
           </p>
           {cost_distribution.outliers.length > 0 && (
             <div className="token-waste-card__chip-list" style={{ marginTop: 6 }}>
