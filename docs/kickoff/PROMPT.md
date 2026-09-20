@@ -8,9 +8,8 @@
 
 에이전트는 사용자에게 첫 응답을 하기 전, **반드시 아래 4단계를 순서대로 수행**해야 한다. (이 문서를 맹신하여 코드 조회를 건너뛰지 말 것)
 
-1. **저장소 동기화**: `git checkout main && git pull origin main` (최신: `e9e684c`).
-   단, [PR #72](https://github.com/twenter1003/Muster/pull/72)(2026-09-20, 후보 1 완료분)가
-   아직 머지 전이면 그 PR 상태부터 확인할 것 — 남겨 둔 작업이 붕 뜨지 않게.
+1. **저장소 동기화**: `git checkout main && git pull origin main` (최신: `a1fb436`,
+   [PR #72](https://github.com/twenter1003/Muster/pull/72) 머지 반영).
 2. **지식 그래프 조회 (`graphify`) [필수]**:
    ```bash
    graphify query "<차기 과제 관련 키워드>"
@@ -21,22 +20,22 @@
    ```bash
    node --test scripts/claude-code-hooks/report-agent-usage.test.mjs scripts/antigravity-hooks/report-agent-usage.test.mjs
    ```
-4. **문서 확인**: [docs/HANDOVER.md](../HANDOVER.md) (이번 세션 전말) · [docs/DESIGN_DRIFT.md](../DESIGN_DRIFT.md) **18번**(비용 정정) · [docs/DEPLOY.md](../DEPLOY.md)
+4. **문서 확인**: [docs/HANDOVER.md](../HANDOVER.md) (이번 세션 전말) · [docs/DESIGN_DRIFT.md](../DESIGN_DRIFT.md) **18·19번**(비용 정정과 그 후속) · [docs/DEPLOY.md](../DEPLOY.md)
 5. **4인 원팀(PM, 백엔드, 프론트엔드, QA) 설계안 제시 및 승인**: 임의로 코딩을 시작하지 않는다.
 
 ---
 
-## ⚠️ 현재 상태 — 후보 1 완료, PR·마이그레이션·배포가 남았다
+## ⚠️ 현재 상태 — 코드는 머지됨, 마이그레이션·배포가 남았다
 
 - ✅ [PR #71](https://github.com/twenter1003/Muster/pull/71) 머지 완료(`20cf209`).
-- ✅ **낭비 판정→측정값 교체 완료** (2026-09-20, [PR #72](https://github.com/twenter1003/Muster/pull/72)). 780개 통과.
-  **단 이 PR이 아직 머지 전이다** — 다음 세션은 이것부터 확인할 것.
+- ✅ [PR #72](https://github.com/twenter1003/Muster/pull/72) 머지 완료(`a1fb436`, 2026-09-20):
+  낭비 판정→측정값 교체. 780개 통과.
 - ⚠️ **마이그레이션 `1788920000000-AddAgentRunTokenBreakdown`이 프로덕션 DB에 미적용이다.**
   이게 없으면 새 코드가 토큰 4종 컬럼을 찾지 못해 실행 기록 저장이 실패한다. **배포보다 먼저 적용.**
 - ⚠️ **Cloud Run 미배포** — 비용 7.6배 정정과 이번 캐시 지표 교체 모두 아직 사용자 화면에
   반영되지 않았다.
 
-배포 절차는 [docs/DEPLOY.md](../DEPLOY.md). 다음 과제에 착수하기 전에 이 셋을 먼저 처리할지
+배포 절차는 [docs/DEPLOY.md](../DEPLOY.md). 다음 과제에 착수하기 전에 이 둘을 먼저 처리할지
 사용자와 정할 것.
 
 ---
@@ -93,9 +92,8 @@ pnpm --filter @muster/web build && node scripts/mock-server.mjs   # → localhos
 
 `token-waste.ts`를 전면 재작성해 임계값 판정(60%/25% 낭비)과 상수 기반 ROI 시뮬레이션을
 실측 캐시 적중률·절감액·세션당 비용 분포(중앙값/p99, 이상치 점프)로 교체했다. 백엔드 3곳,
-프론트 3곳, `mock-server.mjs`까지 갱신, 780개 통과. 상세는 [docs/HANDOVER.md](../HANDOVER.md)
-"0. 이번 세션 완료 내역" 참조. **[PR #72](https://github.com/twenter1003/Muster/pull/72)가 머지
-전이면 그것부터 확인할 것.**
+프론트 3곳, `mock-server.mjs`까지 갱신, 780개 통과. [PR #72](https://github.com/twenter1003/Muster/pull/72)
+머지 완료(`a1fb436`). 상세는 [docs/HANDOVER.md](../HANDOVER.md) "0. 이번 세션 완료 내역" 참조.
 
 ### 🎯 다음 과제명: 상세 페이지 재편 (기능 추가 없이 재배치)
 
