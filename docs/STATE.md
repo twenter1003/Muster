@@ -11,10 +11,10 @@
 
 - **갱신**: 2026-09-20
 - **배포**: Cloud Run 리비전 `muster-00049-4g2` (트래픽 100%, 헬스체크 200)
-- **DB**: Supabase, 마이그레이션 **19개** 전부 적용됨. 테이블 16개(+`migrations`).
+- **DB**: Supabase, 마이그레이션 **20개** 전부 적용됨. 테이블 16개(+`migrations`).
 - **Data API(PostgREST)는 꺼져 있다** (2026-09-20). 이 앱은 쓰지 않는다 — TypeORM이 커넥션
   문자열로 직접 붙는다. 끈 이유와 다시 켤 때의 절차는 [DEPLOY.md](DEPLOY.md).
-- **코드와 배포는 같다** — PR #94까지. #94는 마이그레이션만이라 앱 코드가 바뀌지 않았고,
+- **코드와 배포는 같다** — PR #96까지. #94·#96은 마이그레이션만이라 앱 코드가 바뀌지 않았고,
   Cloud Run 리비전은 그대로다(재배포 불필요).
 - **GCS는 더 이상 쓰지 않는다.** 버킷 `muster-docs-taewoo`는 비어 있었고(객체 0개) 삭제했다.
   `GCP_PROJECT_ID`는 남는다 — Vertex AI(Gemini 폴백)와 Secret Manager가 쓴다.
@@ -29,10 +29,11 @@ DB 검증(2026-09-20, 마이그레이션 18번 적용 후): 드롭한 6개 테�
 `schema.e2e-spec.ts`가 고정한 값과 일치한다. 적용 직후 50분간 Postgres 로그에 ERROR·FATAL이
 **0건**이고 헬스체크(`SELECT 1` 포함)는 200이다.
 
-권한 검증(2026-09-20, 마이그레이션 19번 적용 후): `anon`의 `public` 테이블 권한이 119 → **0**,
-시퀀스 권한도 0이다. `postgres` 역할의 default privileges에서도 `anon`이 빠졌다(테이블·시퀀스).
-적용 후 헬스체크는 200 — 앱은 `postgres` 역할로 붙어 영향이 없다. 보안 어드바이저에 남은
-것은 INFO 1건(`deployment_events`가 RLS만 켜져 있고 정책이 없음)뿐이다.
+권한 검증(2026-09-20, 마이그레이션 19·20번 적용 후): `public` 테이블 권한이 `anon` 119 → **0**,
+`authenticated` 119 → **0**(시퀀스 권한도 각각 0). `postgres` 역할의 default privileges에서도
+둘 다 빠졌다(테이블·시퀀스). `service_role` 119개와 앱이 쓰는 `postgres` 119개는 그대로다 —
+`service_role`은 일부러 남겼다([DEPLOY.md](DEPLOY.md)에 이유가 있다). 적용 후 헬스체크 200.
+보안 어드바이저에 남은 것은 INFO 1건(`deployment_events`가 RLS만 켜져 있고 정책이 없음)뿐이다.
 
 드롭 직전 그 테이블들에 23행이 남아 있었다(전부 2026-09-13 env-catalog 실험, 환경 구성
 2건 모두 `failed`). 전문을 [files/env-catalog-backup-2026-09-20.json](../files/env-catalog-backup-2026-09-20.json)에
@@ -60,6 +61,7 @@ node --test scripts/claude-code-hooks/report-agent-usage.test.mjs \
 
 | PR | 내용 |
 |---|---|
+| [#96](https://github.com/twenter1003/Muster/pull/96) | `authenticated` 역할도 같은 방식으로 회수(마이그레이션 20번). `service_role`은 일부러 남김 |
 | [#94](https://github.com/twenter1003/Muster/pull/94) | `anon` 역할의 `public` 권한 119개 + default privileges 회수(마이그레이션 19번). `anon` 역할이 없는 환경에선 건너뛴다 |
 | [#89](https://github.com/twenter1003/Muster/pull/89) | 읽는 코드 없던 테이블 6개 드롭(마이그레이션 18번) + 엔티티·고아 enum 정리 |
 | [#87](https://github.com/twenter1003/Muster/pull/87) | 죽은 SSE 이벤트 4종 정리 — `budget_alert`(체인 전체 + `PUT /budget`)·`stage_change`·아무도 안 듣던 `WORKFLOW_RUN_COMPLETED`·`CODE_PUSHED` |
@@ -91,15 +93,11 @@ node --test scripts/claude-code-hooks/report-agent-usage.test.mjs \
 **막힌 것은 없다.** 죽은 코드 정리(PR #79·#83·#87·#89)와 Supabase Data API 차단까지
 끝났다. 지금 살아 있는 표면은 [ARCHITECTURE.md](ARCHITECTURE.md)가 원천이다.
 
-`anon` 역할의 `public` 스키마 권한 회수도 끝났다(PR #94, 마이그레이션 19번) —
-적용 후 실측으로 테이블 권한 119 → **0**, 시퀀스 권한도 0이다.
+`anon`·`authenticated` 역할의 `public` 스키마 권한 회수도 끝났다(PR #94·#96, 마이그레이션
+19·20번) — 적용 후 실측으로 둘 다 테이블 권한 119 → **0**이다. Data API를 다시 켜더라도
+그 두 역할의 기본값은 이제 "권한 없음"이다.
 
-해도 되고 안 해도 되는 것 하나가 남아 있다:
-
-- **`authenticated` 역할의 권한 119개도 회수할지.** `anon`과 같은 양을 갖고 있지만, 이 앱은
-  Supabase Auth를 쓰지 않아 그 역할의 JWT를 발급할 경로가 없다 — `anon`보다 위험이 낮다.
-  회수 절차는 마이그레이션 19번(`RevokeAnonPrivileges`)을 그대로 따라가면 된다. 배경은
-  [DEPLOY.md](DEPLOY.md).
+**지금 남은 선택 과제는 없다.**
 
 새 과제가 생기면 여기에 적는다.
 
