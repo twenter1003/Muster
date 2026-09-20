@@ -2,7 +2,7 @@
 
 - **작성 일시**: 2026-09-20
 - **작업자 / 모델**: Claude Code (Claude Sonnet 5)
-- **현재 브랜치**: `refactor/measured-cache-roi` (PR 대기)
+- **현재 브랜치**: `refactor/measured-cache-roi` ([PR #72](https://github.com/twenter1003/Muster/pull/72) 대기)
 
 ## 저장소 상태 — 낭비 판정→측정값 교체 완료, 마이그레이션·배포는 여전히 남음
 
@@ -10,7 +10,7 @@
   비용 분포로 교체(HANDOVER 후보 1, DESIGN_DRIFT 18번의 남은 과제). 백엔드 3곳(`usage-timeseries`,
   `token-waste-report`, `agent-runs`)·프론트 3곳(`TokenWasteIntelligenceCard`, `SessionWasteModal`,
   `ProjectDetailPage`)·`mock-server.mjs`까지 전부 갱신. 브랜치 `refactor/measured-cache-roi`에
-  푸시 대기 — **PR·머지·`main` 동기화가 아직 안 끝났다.**
+  [PR #72](https://github.com/twenter1003/Muster/pull/72)로 올림 — **머지·`main` 동기화가 아직 안 끝났다.**
 - ✅ **검증**: 780개 통과(API 517 + Web 241 + 훅 22, 이전 769개에서 +11), 빌드·린트 통과,
   목 서버로 데스크톱·모바일 시각 확인 완료.
 - ⚠️ **마이그레이션 미적용**: `1788920000000-AddAgentRunTokenBreakdown`이 **프로덕션 DB에 적용되지
@@ -52,7 +52,7 @@
 **검증**: 신규/수정 테스트 포함 780개 통과(이전 769개 → API 517·Web 241·훅 22 그대로).
 `token-waste.spec.ts`는 실측 시나리오(입력 98.6%가 캐시 읽기인 경우 등)로 전면 재작성했다.
 
-**남은 것**: 브랜치 `refactor/measured-cache-roi`는 아직 PR·머지 전이다. 마이그레이션
+**남은 것**: [PR #72](https://github.com/twenter1003/Muster/pull/72)가 아직 머지 전이다. 마이그레이션
 `1788920000000`과 Cloud Run 배포는 사용자 지시로 이번 과제 완료 후 처리하기로 미뤘다.
 
 ---
@@ -181,7 +181,8 @@ xcrun simctl boot "iPhone 16e" && xcrun simctl ui <UDID> appearance dark
 ### ✅ 후보 1 완료 (2026-09-20): 낭비 판정·캐싱 ROI를 측정값으로 교체
 
 `refactor/measured-cache-roi` 브랜치에서 완료. 상세는 위 "0. 이번 세션 완료 내역" 참조.
-PR·머지가 아직이라 다음 세션은 그것부터 확인할 것.
+[PR #72](https://github.com/twenter1003/Muster/pull/72)가 아직 머지 전이라 다음 세션은
+그것부터 확인할 것.
 
 **벤치마크 근거(조사 결과, 참고용으로 남겨 둠)**: 조사한 제품 중 "낭비 토큰"이라는 숫자를
 주장하는 곳은 **하나도 없었다**. Helicone은 관측된 캐시 읽기 토큰으로 "73% 적중, $1,247 절감"
@@ -220,7 +221,8 @@ PR·머지가 아직이라 다음 세션은 그것부터 확인할 것.
 
 1. **지식 그래프 선행 조회**: `graphify query "<키워드>"`로 모듈 의존성을 먼저 확인할 것.
 2. **세션 내 완결 원칙**: 브랜치 → 구현 → 테스트 → 빌드 → QA → PR/머지까지 한 세션에 완결.
-   **단 이번 세션은 이 원칙을 지키지 못했다** — 맨 위 "저장소 상태" 참조.
+   2026-09-19 세션은 이 원칙을 지키지 못했다(PR #71로 정리). 2026-09-20 세션은 PR #72까지는
+   냈지만 **머지·`main` 동기화는 다음 세션 몫으로 남았다** — 맨 위 "저장소 상태" 참조.
 3. **모듈 경계 무결성**: `ingest`는 타 비즈니스 모듈을 직접 import하지 않고 `EventEmitter2`로만
    소통(`module-boundary.spec.ts` 상시 검증).
 4. **강제 중단(Abort) 언급 금지**: PR #68에서 제거됨.

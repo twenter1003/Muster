@@ -9,8 +9,8 @@
 에이전트는 사용자에게 첫 응답을 하기 전, **반드시 아래 4단계를 순서대로 수행**해야 한다. (이 문서를 맹신하여 코드 조회를 건너뛰지 말 것)
 
 1. **저장소 동기화**: `git checkout main && git pull origin main` (최신: `e9e684c`).
-   단, `refactor/measured-cache-roi` 브랜치(2026-09-20, 후보 1 완료분)가 아직 PR·머지 전이면
-   그 브랜치나 PR 상태부터 확인할 것 — 남겨 둔 작업이 붕 뜨지 않게.
+   단, [PR #72](https://github.com/twenter1003/Muster/pull/72)(2026-09-20, 후보 1 완료분)가
+   아직 머지 전이면 그 PR 상태부터 확인할 것 — 남겨 둔 작업이 붕 뜨지 않게.
 2. **지식 그래프 조회 (`graphify`) [필수]**:
    ```bash
    graphify query "<차기 과제 관련 키워드>"
@@ -29,8 +29,8 @@
 ## ⚠️ 현재 상태 — 후보 1 완료, PR·마이그레이션·배포가 남았다
 
 - ✅ [PR #71](https://github.com/twenter1003/Muster/pull/71) 머지 완료(`20cf209`).
-- ✅ **낭비 판정→측정값 교체 완료** (2026-09-20, `refactor/measured-cache-roi`). 780개 통과.
-  **단 이 브랜치가 아직 PR·머지 전이다** — 다음 세션은 이것부터 확인할 것.
+- ✅ **낭비 판정→측정값 교체 완료** (2026-09-20, [PR #72](https://github.com/twenter1003/Muster/pull/72)). 780개 통과.
+  **단 이 PR이 아직 머지 전이다** — 다음 세션은 이것부터 확인할 것.
 - ⚠️ **마이그레이션 `1788920000000-AddAgentRunTokenBreakdown`이 프로덕션 DB에 미적용이다.**
   이게 없으면 새 코드가 토큰 4종 컬럼을 찾지 못해 실행 기록 저장이 실패한다. **배포보다 먼저 적용.**
 - ⚠️ **Cloud Run 미배포** — 비용 7.6배 정정과 이번 캐시 지표 교체 모두 아직 사용자 화면에
@@ -70,7 +70,7 @@ pnpm --filter @muster/web build && node scripts/mock-server.mjs   # → localhos
 
 ## 최근 완료된 것 (최신순)
 
-- **낭비 판정→측정값 교체** (2026-09-20, `refactor/measured-cache-roi`, PR 대기): `token-waste.ts`
+- **낭비 판정→측정값 교체** (2026-09-20, [PR #72](https://github.com/twenter1003/Muster/pull/72)): `token-waste.ts`
   임계값 판정 제거 → 실측 캐시 적중률·절감액·비용 분포(중앙값/p99)로 교체. 780개 통과.
 - **토큰 4종 분리 · 비용 7.6배 과다 계상 정정** (`a29ce7a`, DESIGN_DRIFT 18번)
   - 훅이 `input+cache_creation+cache_read`를 합쳐 보내고 서버가 정규 입력가로 곱하고 있었다.
@@ -94,8 +94,8 @@ pnpm --filter @muster/web build && node scripts/mock-server.mjs   # → localhos
 `token-waste.ts`를 전면 재작성해 임계값 판정(60%/25% 낭비)과 상수 기반 ROI 시뮬레이션을
 실측 캐시 적중률·절감액·세션당 비용 분포(중앙값/p99, 이상치 점프)로 교체했다. 백엔드 3곳,
 프론트 3곳, `mock-server.mjs`까지 갱신, 780개 통과. 상세는 [docs/HANDOVER.md](../HANDOVER.md)
-"0. 이번 세션 완료 내역" 참조. **브랜치 `refactor/measured-cache-roi`가 PR·머지 전이면 그것부터
-확인할 것.**
+"0. 이번 세션 완료 내역" 참조. **[PR #72](https://github.com/twenter1003/Muster/pull/72)가 머지
+전이면 그것부터 확인할 것.**
 
 ### 🎯 다음 과제명: 상세 페이지 재편 (기능 추가 없이 재배치)
 
