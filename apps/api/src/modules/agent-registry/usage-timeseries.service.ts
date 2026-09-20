@@ -75,8 +75,8 @@ const DAILY_WINDOW_DAYS = 7;
 
 /**
  * 프로젝트의 토큰/비용 시계열 집계(일·시·월 버킷, 모델 브레이크다운)와 실시간 Burn Rate.
- * `budget.service.ts`에서 분리했다 — 예산 한도/알림과는 다른 책임(집계·조회)이라
- * 별도 서비스로 두면 각 파일이 한 가지 이유로만 바뀐다.
+ * 한때 `budget.service.ts`에 있던 것을 책임이 다르다고 보아 떼어 냈다(집계·조회).
+ * 그 파일은 예산 알림 체인과 함께 PR #87에서 지웠고, 이 서비스만 남았다.
  */
 @Injectable()
 export class UsageTimeseriesService {

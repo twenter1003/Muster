@@ -4,7 +4,11 @@ import { StreamService } from './stream.service';
 
 /**
  * Realtime — Ingest(와 ProjectCore)가 발행한 도메인 이벤트를 구독해 SSE로 스트리밍.
- * Part 1 §3.4 / Part 4 §7.3 (event: log / health_update / stage_change).
+ * Part 1 §3.4 / Part 4 §7.3.
+ *
+ * 설계서 §7.3은 타입을 log·health_update·stage_change 셋으로 적었지만, 지금 나가는 것은
+ * log·health_update와 agent_run_* 셋이다(+하트비트 ping). stage_change는 받아서 쓰는
+ * 화면이 없어 PR #87에서 지웠다 — 현재 목록은 stream.service.ts가 원천이다.
  *
  * 발행자를 import하지 않는다. 계약은 common/events/domain-events.ts에 있고 전달은
  * EventEmitter2가 한다 (Part 2 §8) — 그래서 Ingest의 결합 규칙을 깨지 않고도 붙는다.

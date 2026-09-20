@@ -62,11 +62,7 @@ export class StreamService {
   private typed<T extends { project_id: string }>(
     name: string,
     type:
-      | 'log'
-      | 'health_update'
-      | 'agent_run_started'
-      | 'agent_run_heartbeat'
-      | 'agent_run_finished',
+      'log' | 'health_update' | 'agent_run_started' | 'agent_run_heartbeat' | 'agent_run_finished',
     projectId: string,
   ): Observable<MessageEvent> {
     return fromEvent<T>(this.events, name).pipe(
