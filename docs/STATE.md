@@ -17,13 +17,17 @@
 ## 검증 기준선
 
 ```bash
-pnpm -r test    # 672개 = API 511 + Web 161
+pnpm -r test    # 545개 = API 384 + Web 161
 node --test scripts/claude-code-hooks/report-agent-usage.test.mjs \
             scripts/antigravity-hooks/report-agent-usage.test.mjs \
             scripts/muster-connect.test.mjs    # 43개
 ```
 
-합계 **715개**. e2e는 로컬 Postgres가 필요하며 별도다(`pnpm --filter @muster/api test:e2e`, 243개).
+합계 **588개**. e2e는 로컬 Postgres가 필요하며 별도다(`pnpm --filter @muster/api test:e2e`, 183개).
+
+숫자가 715 → 588로, e2e가 243 → 183으로 준 것은 죽은 엔드포인트를 지우면서 그것만
+검증하던 테스트가 같이 빠졌기 때문이다(PR #79). 살아 있는 동작을 지운 엔드포인트로
+확인하던 테스트는 지우지 않고 DB를 직접 보도록 고쳐 썼다.
 
 숫자가 안 맞으면 먼저 **이 파일이 낡은 것은 아닌지** 의심할 것. 테스트를 지우거나 더한
 변경이 이 파일을 갱신하지 않았을 수 있다.
@@ -32,6 +36,7 @@ node --test scripts/claude-code-hooks/report-agent-usage.test.mjs \
 
 | PR | 내용 |
 |---|---|
+| [#79](https://github.com/twenter1003/Muster/pull/79) | 죽은 엔드포인트 정리 — 모듈 3개(`env-catalog`·`inbox`·`reports`) + 컨트롤러·라우트 다수. 목 서버·스모크 동기화 |
 | [#78](https://github.com/twenter1003/Muster/pull/78) | 프로젝트 전용 서브에이전트 2개(`muster-investigator`, `muster-reviewer`) |
 | [#77](https://github.com/twenter1003/Muster/pull/77) | 문서 재편 — 18개 3,310줄 → 8개 1,803줄. 이 파일이 그때 생겼다 |
 | [#76](https://github.com/twenter1003/Muster/pull/76) | 도달 불가능한 화면 11개 + 딸린 죽은 코드 삭제 (11,048줄). 그 영향으로 Web 테스트 236→161 |
@@ -53,18 +58,23 @@ node --test scripts/claude-code-hooks/report-agent-usage.test.mjs \
 살아 있는 엔드포인트 4개를 "미사용"으로 보고했다. 파괴적 작업 전에는 메인 세션이 직접
 확인한다 — 그래서 investigator 정의가 "확인하지 않은 것"을 반드시 밝히게 돼 있다.
 
-## 다음 과제: 백엔드 엔드포인트 정리
+## 다음 과제
 
-PR #76이 화면 11개를 지우면서, **그 화면만 서빙하던 백엔드가 죽은 채로 남았다.**
-[ARCHITECTURE.md](ARCHITECTURE.md)의 "호출되지 않는 엔드포인트" 표가 대상 목록이다.
+엔드포인트 정리는 끝났다(PR #79). 지금 살아 있는 표면은
+[ARCHITECTURE.md](ARCHITECTURE.md)가 원천이다. 남은 것으로 확인된 것들:
 
-착수 전 판단할 것:
-- `env-catalog` 모듈은 통째로 죽었다 — 엔티티·테이블까지 지우면 마이그레이션이 필요하고,
-  되돌리기 비용이 커진다. 코드만 지우고 테이블은 남길지 결정할 것.
-- `GET /inbox`는 죽은 사이드바 배지가 쓰던 유일한 소비자였다(PR #76에서 그 사이드바를
-  지웠으므로 지금은 호출자가 없다).
-- `token-waste-intelligence`·`burn-rate`·`waste-report` 계열은 화면이 `token-usage` 응답
-  하나로 다 그리고 있어 호출자가 없다. "계획했다 안 붙인 것"인지 확인이 먼저다.
+- **`scripts/smoke-ui.mjs`를 실제로 돌려 본 적이 없다.** `playwright`가 어느
+  package.json에도 없어서, 깨끗한 체크아웃에서는 `ERR_MODULE_NOT_FOUND`로 죽는다.
+  PR #79에서 스크립트 내용은 살아 있는 화면 5개에 맞게 고쳤고 선택자는 목 서버를 띄워
+  브라우저로 하나씩 확인했지만, **스크립트 자체의 실행은 검증하지 못했다.**
+  의존성으로 넣을지(브라우저 바이너리까지 받는다) 아니면 이 파일을 지울지 정할 것.
+- **웹이 `budget_alert`·`stage_change` SSE를 구독만 하고 아무것도 안 한다.**
+  `lib/useSse.ts`는 7종을 듣는데 `ProjectDetailPage`의 핸들러는 `agent_run_*` 셋과
+  `log`·`health_update`에만 분기한다. 나머지 둘은 배열에 쌓이기만 한다. 화면을 붙일지
+  구독을 뺄지 정할 것 — PR #79에서는 서버 표면 정리와 성격이 달라 건드리지 않았다.
+- **테이블 4개가 읽는 코드 없이 남아 있다** — `env_templates`·`project_env_configs`·
+  `env_config_transitions`·`policy_check_results`. 코드만 지우고 테이블은 남기기로 한
+  결과다. 지우려면 마이그레이션 18번과 `user.entity.ts`의 `env_templates` 관계 제거가 필요하다.
 
 ## 작업 관례
 
@@ -74,5 +84,8 @@ PR #76이 화면 11개를 지우면서, **그 화면만 서빙하던 백엔드�
 - **근거 없는 숫자를 만들지 않는다** — 단가는 [LLM_ECOSYSTEM_GUIDE.md](LLM_ECOSYSTEM_GUIDE.md)가
   단일 원천이다. 출처가 없으면 비워 두거나 비싸게 잡는다.
 - **훅을 고치면 임베딩 동기화**: `node scripts/sync-embedded-hooks.mjs` (CI가 `--check`로 막는다).
+- **`pnpm lint`는 CI와 같은 범위를 본다.** 전에는 api의 lint 스크립트가 `src`만 봤는데 CI는
+  `src test`를 봐서, 로컬에서 통과한 변경이 CI에서 포맷 오류로 떨어졌다. 스크립트를
+  CI와 맞췄다(PR #79). 워크플로의 명령을 바꾸면 `apps/*/package.json`도 같이 고칠 것.
 - **프론트엔드를 고치면 눈으로 확인한다** — 목 서버 + 스크린샷([RUN.md](RUN.md)).
 - 코드를 고친 뒤 `graphify update .`

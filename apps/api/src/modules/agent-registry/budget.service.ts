@@ -37,10 +37,11 @@ export class BudgetService {
   ) {}
 
   /**
-   * 설계서 Part 4 §6 — 예산 설정 + 현재 사용률.
+   * 예산 설정 + 현재 사용률. 조회 엔드포인트(`GET /projects/:id/budget`)는 호출자가 없어
+   * 지웠고, 지금은 put()이 저장 결과를 돌려주기 위해서만 쓴다 — 그래서 private이다.
    * 사용량은 그 프로젝트 전체 AGENT_RUNS 집계다 (에이전트 단위가 아니라 프로젝트 단위).
    */
-  async get(projectId: string): Promise<BudgetUsage> {
+  private async get(projectId: string): Promise<BudgetUsage> {
     const [budget, used] = await Promise.all([
       this.budgets.findOneBy({ project_id: projectId }),
       this.sumUsage(projectId),
@@ -151,7 +152,14 @@ export class BudgetService {
  *
  * 여기서만 Number로 바꾼다. 비교용 표시값이고 저장·합산에는 쓰지 않는다.
  */
-function pct(used: string, limit: string | null): number | null {
+/**
+ * 사용률(%). 한도가 없거나 0 이하면 **0%가 아니라 null**이다 — 0으로 나눈 값을 백분율이라
+ * 할 수 없고, "한도를 안 정했다"와 "아직 0% 썼다"는 화면에서 다르게 보여야 한다.
+ *
+ * export하는 이유: 조회 엔드포인트가 사라지면서 이 계산을 통과시켜 보던 테스트가 갈 곳을
+ * 잃었다. 순수 함수이므로 API 표면과 무관하게 직접 검증한다.
+ */
+export function pct(used: string, limit: string | null): number | null {
   if (!limit) return null;
   const l = Number(limit);
   if (!Number.isFinite(l) || l <= 0) return null;

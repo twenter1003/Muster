@@ -17,12 +17,7 @@ import { Public } from '../../common/auth/public.decorator';
 import { ApiException } from '../../common/errors/api.exception';
 import { CursorPaginationQuery } from '../../common/pagination/pagination.dto';
 import { toPageRequest, type Page } from '../../common/pagination/paginate';
-import type {
-  DeploymentEvent,
-  HealthSnapshot,
-  LogEntry,
-  ProjectStageHistory,
-} from '../../database/entities';
+import type { DeploymentEvent, HealthSnapshot, LogEntry } from '../../database/entities';
 import { AppendLogDto } from './dto/append-log.dto';
 import { LogQuery } from './dto/log-query.dto';
 import { LogsService } from './logs.service';
@@ -59,13 +54,6 @@ export interface HealthSnapshotView {
   measured_at: string;
 }
 
-interface StageHistoryView {
-  id: string;
-  project_id: string;
-  stage: string;
-  entered_at: string;
-}
-
 export const toLogView = (l: LogEntry): LogView => ({
   id: l.id,
   project_id: l.project_id,
@@ -94,13 +82,6 @@ export const toHealthView = (h: HealthSnapshot): HealthSnapshotView => ({
   mttr_score: h.mttr_score,
   composite_score: h.composite_score,
   measured_at: h.measured_at.toISOString(),
-});
-
-const toStageView = (s: ProjectStageHistory): StageHistoryView => ({
-  id: s.id,
-  project_id: s.project_id,
-  stage: s.stage,
-  entered_at: s.entered_at.toISOString(),
 });
 
 /** 설계서 Part 4 §7.2 — 프로젝트 하위 로그·이벤트 조회. */
@@ -160,15 +141,5 @@ export class ProjectIngestController {
   ): Promise<Page<HealthSnapshotView>> {
     const page = await this.health.list(projectId, toPageRequest(query));
     return { items: page.items.map(toHealthView), next_cursor: page.next_cursor };
-  }
-
-  @Get(':id/stage-history')
-  @UseGuards(ProjectMemberGuard)
-  async listStages(
-    @Param('id') projectId: string,
-    @Query() query: CursorPaginationQuery,
-  ): Promise<Page<StageHistoryView>> {
-    const page = await this.timeline.listStages(projectId, toPageRequest(query));
-    return { items: page.items.map(toStageView), next_cursor: page.next_cursor };
   }
 }

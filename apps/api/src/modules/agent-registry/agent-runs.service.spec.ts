@@ -356,38 +356,4 @@ describe('AgentRunsService', () => {
       ).rejects.toThrow(ApiException);
     });
   });
-
-  describe('detail', () => {
-    it('세션 단건 상세 및 캐시 효율 데이터(cache, duration_seconds, model)를 정확히 반환한다', async () => {
-      const run = {
-        id: 'run-detail-1',
-        agent_id: 'agent-1',
-        model: 'claude-sonnet-5',
-        status: 'running',
-        tokens_used: 45000,
-        cost: '0.1500',
-        input_tokens: 5000,
-        cache_read_tokens: 40000,
-        cache_write_tokens: 0,
-        started_at: new Date(Date.now() - 30000),
-        ended_at: null,
-      } as AgentRun;
-
-      (runsRepo.findOneBy as jest.Mock).mockResolvedValue(run);
-      (membersRepo.countBy as jest.Mock).mockResolvedValue(1);
-
-      const detail = await service.detail('run-detail-1', { userId: 'user-1' });
-
-      expect(detail.id).toBe('run-detail-1');
-      expect(detail.agent_id).toBe('agent-1');
-      expect(detail.agent_name).toBe('claude-code');
-      expect(detail.project_id).toBe('proj-1');
-      expect(detail.model).toBe('claude-sonnet-5');
-      expect(detail.tokens_used).toBe(45000);
-      expect(detail.duration_seconds).toBeGreaterThanOrEqual(30);
-      expect(detail.cache).toBeDefined();
-      expect(detail.cache.has_breakdown).toBe(true);
-      expect(detail.cache.hit_rate_percentage).toBe(89); // round(40000/45000*100)
-    });
-  });
 });

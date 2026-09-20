@@ -1,20 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '../../database/inject-repository.decorator';
-import { Document, Project, ProjectMember } from '../../database/entities';
-import type { DocumentType, UploadStatus } from '../../database/entities/enums';
-import { ApiException } from '../../common/errors/api.exception';
-import {
-  buildPage,
-  keysetPage,
-  type Page,
-  type PageRequest,
-  type ScopedPage,
-} from '../../common/pagination/paginate';
+import { Document } from '../../database/entities';
+import type { UploadStatus } from '../../database/entities/enums';
+import { buildPage, type Page, type PageRequest } from '../../common/pagination/paginate';
 import { OBJECT_STORAGE, type ObjectStorage } from './object-storage';
-import { AuditService } from '../audit/audit.service';
 import type { CreateDocumentDto } from './dto/create-document.dto';
-import type { UpdateDocumentDto } from './dto/update-document.dto';
 
 export interface DocumentWithUpload {
   document: Document;
@@ -26,9 +17,7 @@ export interface DocumentWithUpload {
 export class DocumentsService {
   constructor(
     @InjectRepository(Document) private readonly documents: Repository<Document>,
-    @InjectRepository(ProjectMember) private readonly members: Repository<ProjectMember>,
     @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
-    private readonly audit: AuditService,
   ) {}
 
   /**
@@ -64,55 +53,6 @@ export class DocumentsService {
 
     const rows = await qb.getMany();
     return buildPage(rows, page.limit, (d) => ({ ts: d.created_at.toISOString(), id: d.id }));
-  }
-
-  /**
-   * `GET /documents` — 프로젝트를 가로지르는 문서 목록.
-   *
-   * 사이드바의 DocStore 화면은 프로젝트 하나가 아니라 내가 가진 전부를 본다. 이 엔드포인트가
-   * 없을 때 그 화면이 할 수 있는 일은 프로젝트 목록을 받아 프로젝트마다 문서를 다시 받는
-   * 것뿐이었고, 그건 프로젝트 수만큼의 요청(N+1)이면서 페이지네이션도 성립하지 않는다.
-   */
-  async listForMember(
-    userId: string,
-    page: PageRequest,
-    filters: { type?: DocumentType },
-  ): Promise<ScopedPage<Document>> {
-    // 범위를 **먼저** 좁힌다. 멤버가 아닌 프로젝트의 문서가 한 건이라도 섞이면 남의
-    // 프로젝트 이름과 문서 제목이 그대로 새어 나간다.
-    const names = await this.memberProjects(userId);
-    const ids = [...names.keys()];
-
-    // IN ()은 문법 오류다. 멤버인 프로젝트가 없으면 질의 자체를 하지 않는다.
-    if (ids.length === 0) return { items: [], next_cursor: null, project_names: names };
-
-    const qb = this.documents.createQueryBuilder('d').where('d.project_id IN (:...ids)', { ids });
-
-    if (filters.type) qb.andWhere('d.type = :type', { type: filters.type });
-
-    const result = await keysetPage(qb, 'created_at', page, (d) => d.created_at);
-    return { ...result, project_names: names };
-  }
-
-  /**
-   * 요청자가 멤버인, 살아 있는 프로젝트의 id→이름.
-   *
-   * ReportsService·InboxService와 같은 질의를 다시 적는다. 공통 헬퍼로 빼지 않는 이유는
-   * ingest/member-scope.ts 주석 참조 — 도메인 테이블을 읽는 헬퍼는 common/에 둘 자리가 없고,
-   * Ingest는 어차피 밖에서 가져다 쓸 수 없다.
-   */
-  private async memberProjects(userId: string): Promise<Map<string, string>> {
-    const rows = await this.members
-      .createQueryBuilder('m')
-      // soft delete된 프로젝트는 조인 조건에서 떨군다. 별도 WHERE로 두면 조건을 빠뜨렸을 때
-      // 삭제된 프로젝트의 문서가 조용히 목록에 들어온다.
-      .innerJoin(Project, 'p', 'p.id = m.project_id AND p.deleted_at IS NULL')
-      .select('m.project_id', 'project_id')
-      .addSelect('p.name', 'name')
-      .where('m.user_id = :userId', { userId })
-      .getRawMany<{ project_id: string; name: string }>();
-
-    return new Map(rows.map((r) => [r.project_id, r.name]));
   }
 
   /**
@@ -153,109 +93,6 @@ export class DocumentsService {
       await this.documents.delete({ id: document.id }).catch(() => undefined);
       throw error;
     }
-  }
-
-  /**
-   * 설계서 Part 4 §4 — 업로드 완료 확인. pending → completed.
-   *
-   * 클라이언트 주장을 그대로 믿지 않고 객체가 실제로 있는지 확인한다. 확인 없이 전이하면
-   * 업로드가 실패했는데 completed가 되어 조회 시 깨진 링크가 된다 — 완료 확인 단계를
-   * 둔 이유 자체가 그것이다.
-   */
-  async complete(documentId: string, userId: string): Promise<Document> {
-    const document = await this.findAccessibleOrFail(documentId, userId);
-
-    if (document.upload_status === 'completed') return document;
-
-    if (!document.file_url || !(await this.storage.exists(document.file_url))) {
-      throw ApiException.validationFailed(
-        '업로드된 파일을 찾을 수 없습니다. 발급받은 URL로 업로드를 먼저 끝내 주세요.',
-      );
-    }
-
-    document.upload_status = 'completed';
-    return this.documents.save(document);
-  }
-
-  /**
-   * 설계서 Part 4 §4 — 문서 상세 + 조회용 signed URL.
-   * pending 문서도 돌려준다(DESIGN_DRIFT.md 5번). 파일이 아직 없으므로 URL은 null이다.
-   */
-  async detail(
-    documentId: string,
-    userId: string,
-  ): Promise<{
-    document: Document;
-    download_url: string | null;
-    download_expires_at: Date | null;
-  }> {
-    const document = await this.findAccessibleOrFail(documentId, userId);
-
-    if (document.upload_status !== 'completed' || !document.file_url) {
-      return { document, download_url: null, download_expires_at: null };
-    }
-
-    const { url, expiresAt } = await this.storage.createDownloadUrl({
-      objectPath: document.file_url,
-    });
-    return { document, download_url: url, download_expires_at: expiresAt };
-  }
-
-  /** 설계서 Part 4 §4 — 메타데이터 수정. */
-  async update(documentId: string, userId: string, dto: UpdateDocumentDto): Promise<Document> {
-    const document = await this.findAccessibleOrFail(documentId, userId);
-
-    if (dto.title !== undefined) document.title = dto.title;
-    if (dto.type !== undefined) document.type = dto.type;
-    // undefined는 "안 건드림", null은 "연결 끊기"로 구분한다.
-    if (dto.commit_ref !== undefined) document.commit_ref = dto.commit_ref;
-
-    return this.documents.save(document);
-  }
-
-  /**
-   * 설계서 Part 4 §4 — 문서 삭제. GCS 객체도 함께 지운다.
-   *
-   * 객체를 먼저 지우고 레코드를 지운다. 반대로 하면 레코드가 사라진 뒤 객체 삭제가
-   * 실패했을 때 그 객체를 가리키는 것이 아무것도 없어 영영 남는다.
-   */
-  async remove(documentId: string, userId: string): Promise<void> {
-    const document = await this.findAccessibleOrFail(documentId, userId);
-
-    if (document.file_url) {
-      // 없는 객체를 지우는 것은 실패가 아니다 — 업로드가 시작조차 안 됐을 수 있다.
-      await this.storage.delete(document.file_url);
-    }
-
-    await this.documents.delete({ id: document.id });
-
-    // 컨트롤러가 아니라 여기서 남긴다 — 삭제 뒤에는 어느 프로젝트였는지 알 방법이 없고,
-    // 밖에서 알려면 상세 조회를 한 번 더 해야 한다(= 불필요한 signed URL 발급).
-    await this.audit.record({
-      user_id: userId,
-      action: 'document.delete',
-      project_id: document.project_id,
-    });
-  }
-
-  /**
-   * 문서 단위 접근 제어.
-   *
-   * ProjectMemberGuard는 경로의 `:id`가 프로젝트일 때만 쓸 수 있는데 `/documents/:id`는
-   * 문서 id다. 그래서 여기서 문서 → 프로젝트 → 멤버십을 직접 확인한다.
-   * 비멤버에게는 404를 준다 — 403은 "그 문서는 존재한다"를 알려주기 때문이다.
-   */
-  private async findAccessibleOrFail(documentId: string, userId: string): Promise<Document> {
-    const document = await this.documents.findOneBy({ id: documentId });
-    if (!document) throw ApiException.notFound('문서를 찾을 수 없습니다.');
-
-    const isMember = await this.members.countBy({
-      project_id: document.project_id,
-      user_id: userId,
-    });
-    if (!isMember) throw ApiException.notFound('문서를 찾을 수 없습니다.');
-
-    return document;
   }
 }
 

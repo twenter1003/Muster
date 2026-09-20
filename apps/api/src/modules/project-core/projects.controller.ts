@@ -23,13 +23,7 @@ import { ProjectsService } from './projects.service';
 import { GitIntegrationService } from './git-integration.service';
 import { CreateGitIntegrationDto } from './dto/create-git-integration.dto';
 import { ApiKeysService, type ApiKeyView } from './api-keys.service';
-import { MembersService, type ProjectMemberView } from './members.service';
-import {
-  InvitesService,
-  type InvitePreview,
-  type InviteView,
-  type IssuedInvite,
-} from './invites.service';
+import { InvitesService, type InvitePreview, type IssuedInvite } from './invites.service';
 import { CreateInviteDto, InviteTokenDto } from './dto/invite.dto';
 import { ProjectOwnerGuard } from '../../common/auth/project-owner.guard';
 import { CreateApiKeyDto } from './dto/create-api-key.dto';
@@ -87,7 +81,6 @@ export class ProjectsController {
     private readonly projects: ProjectsService,
     private readonly gitIntegrations: GitIntegrationService,
     private readonly apiKeys: ApiKeysService,
-    private readonly members: MembersService,
     private readonly invites: InvitesService,
     private readonly audit: AuditService,
     private readonly imports: ProjectImportService,
@@ -247,28 +240,14 @@ export class ProjectsController {
 
   /** 설계서 Part 4 §3 — 발급된 API 키 목록. 원문은 재조회 불가라 label/생성일만 나온다. */
   /**
-   * 설계서 Part 4 §3 — 프로젝트 멤버 목록.
-   *
-   * 배열을 그대로 내보내지 않고 `{ items, counts }`로 감싼다. 화면이 필요로 하는 것은
-   * 나열과 **역할별 수**(목업의 "owner 1") 둘 다이고, 배열만 주면 화면마다 각자 세게 된다.
-   * 페이지네이션이 없는 이유는 MembersService 주석 참조.
-   */
-  @Get(':id/members')
-  @UseGuards(ProjectMemberGuard)
-  async listMembers(
-    @Param('id') projectId: string,
-  ): Promise<{ items: ProjectMemberView[]; counts: Record<string, number> }> {
-    const items = await this.members.listByProject(projectId);
-
-    const counts: Record<string, number> = {};
-    for (const m of items) counts[m.role] = (counts[m.role] ?? 0) + 1;
-
-    return { items, counts };
-  }
-
-  /**
    * 초대 링크 발급 — **owner만**. 멤버를 늘리는 일이라 멤버 아무나 할 수 있으면 안 된다.
    * 원문 토큰은 이 응답에만 실린다.
+   *
+   * 화면에서 부르는 곳이 없다(발급 UI였던 SettingsPage가 PR #76에서 삭제됐다). 그래도
+   * 남기는 이유는 이것이 초대 토큰의 **유일한 생산자**이기 때문이다 — 살아 있는
+   * `/invite/:token` 화면과 `POST /invites/lookup`·`accept`가 그 토큰을 소비한다.
+   * 지우면 아무도 초대를 만들 수 없어 초대 기능 전체가 못 쓰게 된다.
+   * 목록 조회(`GET :id/invites`)와 멤버 목록(`GET :id/members`)은 그런 사정이 없어 지웠다.
    */
   @Post(':id/invites')
   @UseGuards(ProjectOwnerGuard)
@@ -285,12 +264,6 @@ export class ProjectsController {
       project_id: projectId,
     });
     return issued;
-  }
-
-  @Get(':id/invites')
-  @UseGuards(ProjectOwnerGuard)
-  async listInvites(@Param('id') projectId: string): Promise<{ items: InviteView[] }> {
-    return { items: await this.invites.listForProject(projectId) };
   }
 
   @Get(':id/api-keys')

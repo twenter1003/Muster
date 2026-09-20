@@ -339,43 +339,27 @@ describe('Phase 3 — Auth + ProjectCore (e2e)', () => {
       expect(res.body.error.code).toBe('INVALID_CURSOR');
     });
   });
-  describe('GET /projects/:id/members', () => {
-    /** 이 describe 안에서만 쓰는 프로젝트. 다른 테스트의 목록 개수에 끼어들지 않게 따로 만든다. */
-    const ownProject = async (): Promise<string> => {
+  describe('프로젝트를 만든 사람은 owner로 기록된다', () => {
+    /**
+     * 멤버 목록 조회(`GET /projects/:id/members`)는 호출자가 없어 지웠다. 그 엔드포인트의
+     * 응답 모양을 보던 테스트도 같이 지웠지만, **생성자가 owner 멤버로 남는다**는 사실은
+     * 초대·권한이 전부 그 위에 서 있으므로 DB에서 직접 지킨다.
+     */
+    it('생성 직후 멤버는 생성자 한 명이고 역할은 owner다', async () => {
       const res = await http()
         .post('/api/v1/projects')
         .set(auth(aliceToken))
         .send({ name: `members-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` })
         .expect(201);
-      return res.body.id as string;
-    };
+      const projectId = res.body.id as string;
 
-    it('멤버 전원과 역할별 수를 준다 — 화면이 직접 세지 않게', async () => {
-      const projectId = await ownProject();
-      const res = await http()
-        .get(`/api/v1/projects/${projectId}/members`)
-        .set(auth(aliceToken))
-        .expect(200);
-
-      expect(res.body.items).toHaveLength(1);
-      expect(res.body.items[0].github_login).toBe(alice.github_login);
-      expect(res.body.items[0].role).toBe('owner');
-      expect(res.body.counts).toEqual({ owner: 1 });
-    });
-
-    it('이메일은 실리지 않는다 — 목록을 보여 주려고 연락처를 나눠 줄 이유가 없다', async () => {
-      const projectId = await ownProject();
-      const res = await http()
-        .get(`/api/v1/projects/${projectId}/members`)
-        .set(auth(aliceToken))
-        .expect(200);
-
-      expect(res.body.items[0]).not.toHaveProperty('email');
-    });
-
-    it('비멤버는 남의 멤버 목록을 볼 수 없다', async () => {
-      const projectId = await ownProject();
-      await http().get(`/api/v1/projects/${projectId}/members`).set(auth(bobToken)).expect(404);
+      const rows = await ds.query<{ user_id: string; role: string }[]>(
+        `SELECT user_id, role FROM project_members WHERE project_id = $1`,
+        [projectId],
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0].user_id).toBe(alice.id);
+      expect(rows[0].role).toBe('owner');
     });
   });
 });

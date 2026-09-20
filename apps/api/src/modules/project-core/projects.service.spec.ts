@@ -366,7 +366,6 @@ describe('ProjectsController.list — summary 플래그 분기', () => {
       {} as never,
       {} as never,
       {} as never,
-      {} as never,
     );
 
     const res = await controller.list(dummyUser, { limit: 20 }, 'true', 'Asia/Seoul');
@@ -397,7 +396,6 @@ describe('ProjectsController.list — summary 플래그 분기', () => {
 
     const controller = new ProjectsController(
       { listSummariesForUser, listForUser } as unknown as ProjectsService,
-      {} as never,
       {} as never,
       {} as never,
       {} as never,

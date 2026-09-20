@@ -9,7 +9,6 @@ import {
   type CacheEfficiencyMetric,
   type CostDistribution,
   type OptimizationGuide,
-  type TokenWasteIntelligence,
 } from './token-waste';
 
 export interface SessionWasteReportRow {
@@ -58,32 +57,6 @@ export class TokenWasteReportService {
 
   private readonly resolvePricing = (model?: string, agentName?: string) =>
     this.modelPricing.resolvePricingRates(model, agentName);
-
-  /**
-   * 프로젝트의 에이전트 실행 이력을 바탕으로 캐시 적중률·절감액 및 비용 분포를 산출한다.
-   */
-  async getTokenWasteIntelligence(projectId: string): Promise<TokenWasteIntelligence> {
-    const runs = await this.runs
-      .createQueryBuilder('r')
-      .innerJoinAndSelect('r.agent', 'a')
-      .where('a.project_id = :projectId', { projectId })
-      .orderBy('r.started_at', 'DESC')
-      .take(100)
-      .getMany();
-
-    return computeTokenWasteIntelligence(
-      runs.map((r) => ({
-        id: r.id,
-        cost: r.cost,
-        input_tokens: r.input_tokens,
-        cache_read_tokens: r.cache_read_tokens,
-        cache_write_tokens: r.cache_write_tokens,
-        model: r.model,
-        agent_name: r.agent?.name,
-      })),
-      this.resolvePricing,
-    );
-  }
 
   /**
    * 프로젝트의 세션별 캐시 효율 이력과 비용 분포를 구조화된 JSON 데이터로 생성한다.
