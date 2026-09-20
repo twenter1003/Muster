@@ -256,4 +256,23 @@ export class ModelPricingService {
   ): { inputPerMillion: number; cacheReadPerMillion?: number } {
     return this.resolvePricing(model, agentName).pricing;
   }
+
+  /**
+   * 표시용 모델 코드 조회. `resolvePricing()`과 달리 에이전트 이름으로 특정 모델을
+   * 추측하지 않는다 — 비용 계산은 단가가 하나라도 있어야 하지만, 화면에 보여줄
+   * 모델명은 실제로 모르면 "모름"이어야지 그럴듯한 이름을 지어내면 안 된다
+   * (DESIGN_DRIFT 19번: antigravity 에이전트에 안 쓴 Gemini 3.6이 찍혀 나온 사고).
+   *
+   * 반환값: 단가표와 정확히/부분 일치하면 그 코드, 안 맞아도 원문이 있으면 원문 그대로,
+   * 원문 자체가 없으면 undefined("모름").
+   */
+  resolveKnownModelCode(model?: string): string | undefined {
+    const rawTarget = (model || '').toLowerCase().trim();
+    if (!rawTarget) return undefined;
+    if (LLM_PRICING_TABLE[rawTarget]) return rawTarget;
+    for (const code of Object.keys(LLM_PRICING_TABLE)) {
+      if (rawTarget.includes(code) || code.includes(rawTarget)) return code;
+    }
+    return model;
+  }
 }

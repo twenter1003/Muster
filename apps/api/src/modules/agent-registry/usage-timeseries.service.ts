@@ -334,18 +334,17 @@ export class UsageTimeseriesService {
     // model_breakdown 계산
     const totalTokensNum = Number(totalRow?.tokens ?? '0');
     const model_breakdown: ModelUsageItem[] = modelRows.map((row) => {
-      const { modelCode } = this.modelPricing.resolvePricing(
-        row.model_code || undefined,
-        row.agent_name,
-      );
-      const provider = resolveProvider(modelCode, row.agent_name);
-      const displayName = resolveDisplayName(modelCode, row.agent_name);
+      // 표시용 모델 코드 — resolvePricing()과 달리 에이전트 이름으로 특정 모델을
+      // 추측하지 않는다. 실제 model 값이 없거나 단가표와 안 맞으면 "모름"으로 둔다.
+      const modelCode = this.modelPricing.resolveKnownModelCode(row.model_code);
+      const provider = resolveProvider(modelCode ?? '', row.agent_name);
+      const displayName = modelCode ? resolveDisplayName(modelCode, row.agent_name) : '모름';
       const tokensNum = Number(row.tokens);
       const percentage =
         totalTokensNum > 0 ? Math.round((tokensNum / totalTokensNum) * 1000) / 10 : 0;
 
       return {
-        model_name: modelCode,
+        model_name: modelCode ?? 'unknown',
         display_name: displayName,
         provider,
         tokens: String(row.tokens),

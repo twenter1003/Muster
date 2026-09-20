@@ -134,4 +134,23 @@ describe('ModelPricingService', () => {
       expect(Number(cost)).toBeGreaterThan(0);
     });
   });
+
+  describe('resolveKnownModelCode', () => {
+    it('단가표와 정확히 일치하면 그 코드를 반환한다', () => {
+      expect(service.resolveKnownModelCode('claude-sonnet-5')).toBe('claude-sonnet-5');
+    });
+
+    it('버전 접미사가 붙어도 부분 일치로 찾는다', () => {
+      expect(service.resolveKnownModelCode('claude-opus-5-20260101')).toBe('claude-opus-5');
+    });
+
+    it('단가표에 없어도 원문이 있으면 원문 그대로 돌려준다 — 에이전트 이름으로 추측하지 않는다', () => {
+      expect(service.resolveKnownModelCode('some-unreleased-model')).toBe('some-unreleased-model');
+    });
+
+    it('원문 자체가 없으면 undefined("모름")를 반환한다', () => {
+      expect(service.resolveKnownModelCode(undefined)).toBeUndefined();
+      expect(service.resolveKnownModelCode('')).toBeUndefined();
+    });
+  });
 });

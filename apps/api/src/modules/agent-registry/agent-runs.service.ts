@@ -68,13 +68,33 @@ export class AgentRunsService {
     const before = projectId && status !== 'running' ? await this.budget.sumUsage(projectId) : null;
 
     const tokensUsed = dto?.tokens_used ?? 0;
+    const hasBreakdown =
+      dto?.input_tokens !== undefined ||
+      dto?.output_tokens !== undefined ||
+      dto?.cache_read_tokens !== undefined ||
+      dto?.cache_write_tokens !== undefined;
+
     let cost = dto?.cost;
-    if ((!cost || Number(cost) === 0) && tokensUsed > 0) {
-      cost = this.modelPricing.calculateCost({
-        tokens: tokensUsed,
-        agentName: agent?.name,
-        model: dto?.model,
-      });
+    if ((!cost || Number(cost) === 0) && (tokensUsed > 0 || hasBreakdown)) {
+      /*
+       * 내역이 왔으면(세션 하나에서 모델을 바꿔 쓴 경우, 훅이 완료된 실행을 내역과 함께
+       * 곧바로 생성한다) 캐시 단가까지 반영해서 낸다 — 합계만으로 정규가로 곱하면
+       * 캐싱을 잘 쓸수록 비용이 부풀려진다(실측 7.6배, DESIGN_DRIFT 18번).
+       */
+      cost = hasBreakdown
+        ? this.modelPricing.calculateCost({
+            inputTokens: dto?.input_tokens ?? 0,
+            outputTokens: dto?.output_tokens ?? 0,
+            cacheReadTokens: dto?.cache_read_tokens ?? 0,
+            cacheWriteTokens: dto?.cache_write_tokens ?? 0,
+            agentName: agent?.name,
+            model: dto?.model,
+          })
+        : this.modelPricing.calculateCost({
+            tokens: tokensUsed,
+            agentName: agent?.name,
+            model: dto?.model,
+          });
     } else if (!cost) {
       cost = '0';
     }
@@ -85,6 +105,10 @@ export class AgentRunsService {
         status,
         tokens_used: tokensUsed,
         model: dto?.model ?? null,
+        input_tokens: dto?.input_tokens,
+        output_tokens: dto?.output_tokens,
+        cache_read_tokens: dto?.cache_read_tokens,
+        cache_write_tokens: dto?.cache_write_tokens,
         cost,
         started_at: startedAt,
         ended_at: endedAt,
@@ -183,6 +207,10 @@ export class AgentRunsService {
       cost: dto.cost,
       started_at: dto.started_at,
       ended_at: dto.ended_at,
+      input_tokens: dto.input_tokens,
+      output_tokens: dto.output_tokens,
+      cache_read_tokens: dto.cache_read_tokens,
+      cache_write_tokens: dto.cache_write_tokens,
     });
   }
 

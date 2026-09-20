@@ -96,6 +96,7 @@ export function sumUsageFromTranscript(transcriptPath) {
     cache_write_tokens: 0,
     turns: 0,
     model: undefined,
+    by_model: [],
   };
   if (!existsSync(transcriptPath)) return empty;
 
@@ -105,6 +106,12 @@ export function sumUsageFromTranscript(transcriptPath) {
   let cacheWrite = 0;
   let turns = 0;
   let model;
+  /*
+   * 세션 중 모델을 바꿔 쓴 경우(예: Sonnet으로 시작해 Opus로 전환) 예전에는 맨 처음
+   * 나온 모델 하나로만 전체 세션을 기록해, 나중에 쓴 모델의 토큰이 첫 모델 것으로
+   * 잘못 잡혔다. 메시지마다 실제 model 필드로 버킷을 나눠 모델별 실사용량을 남긴다.
+   */
+  const byModel = new Map();
   const lines = readFileSync(transcriptPath, 'utf8').split('\n');
 
   for (const line of lines) {
@@ -116,11 +123,33 @@ export function sumUsageFromTranscript(transcriptPath) {
       continue;
     }
     if (entry.type !== 'assistant') continue;
-    if (!model && entry.message?.model) {
-      model = entry.message.model;
-    }
     const usage = entry.message?.usage;
     if (!usage) continue;
+
+    const msgModel = entry.message?.model || undefined;
+    if (!model && msgModel) model = msgModel;
+
+    const bucketKey = msgModel ?? '__unknown__';
+    let bucket = byModel.get(bucketKey);
+    if (!bucket) {
+      bucket = {
+        model: msgModel,
+        input_tokens: 0,
+        output_tokens: 0,
+        cache_read_tokens: 0,
+        cache_write_tokens: 0,
+        turns: 0,
+        started_at: entry.timestamp ?? null,
+        ended_at: entry.timestamp ?? null,
+      };
+      byModel.set(bucketKey, bucket);
+    }
+    bucket.input_tokens += usage.input_tokens ?? 0;
+    bucket.cache_write_tokens += usage.cache_creation_input_tokens ?? 0;
+    bucket.cache_read_tokens += usage.cache_read_input_tokens ?? 0;
+    bucket.output_tokens += usage.output_tokens ?? 0;
+    bucket.turns += 1;
+    if (entry.timestamp) bucket.ended_at = entry.timestamp;
 
     input += usage.input_tokens ?? 0;
     cacheWrite += usage.cache_creation_input_tokens ?? 0;
@@ -128,6 +157,11 @@ export function sumUsageFromTranscript(transcriptPath) {
     output += usage.output_tokens ?? 0;
     turns += 1;
   }
+
+  const by_model = Array.from(byModel.values()).map((b) => ({
+    ...b,
+    tokens_used: b.input_tokens + b.cache_write_tokens + b.cache_read_tokens + b.output_tokens,
+  }));
 
   return {
     // 합계는 화면의 "토큰" 숫자가 그대로 쓰므로 종전과 같은 의미를 유지한다.
@@ -138,6 +172,7 @@ export function sumUsageFromTranscript(transcriptPath) {
     cache_write_tokens: cacheWrite,
     turns,
     model,
+    by_model,
   };
 }
 
@@ -282,15 +317,65 @@ async function handleSessionEnd(hook, env) {
   }
 
   const usage = sumUsageFromTranscript(hook.transcript_path);
-  const cost = estimateCost(usage, env);
+  const models = (usage.by_model || []).filter((b) => b.tokens_used > 0);
 
+  if (models.length <= 1) {
+    const cost = estimateCost(usage, env);
+    await apiCall(config, 'PATCH', `/agent-runs/${state.run_id}`, {
+      status: 'succeeded',
+      tokens_used: usage.tokens_used,
+      ...breakdownOf(usage),
+      ...(usage.model ? { model: usage.model } : {}),
+      ...(cost !== undefined ? { cost } : {}),
+    });
+    rmSync(statePath, { force: true });
+    return;
+  }
+
+  /*
+   * 세션 중 모델을 둘 이상 썼다(예: Sonnet으로 시작해 Opus로 전환). 하나로 합쳐
+   * 보고하면 나중에 쓴 모델의 토큰이 처음 모델 것으로 잘못 잡힌다 — 처음 시작해 둔
+   * run은 첫 모델 몫으로 마무리하고, 나머지 모델은 실제 쓴 만큼만 새 실행으로 나눠 보고한다.
+   */
+  const [primary, ...rest] = models;
+  const primaryCost = estimateCost(primary, env);
   await apiCall(config, 'PATCH', `/agent-runs/${state.run_id}`, {
     status: 'succeeded',
-    tokens_used: usage.tokens_used,
-    ...breakdownOf(usage),
-    ...(usage.model ? { model: usage.model } : {}),
-    ...(cost !== undefined ? { cost } : {}),
+    tokens_used: primary.tokens_used,
+    ...breakdownOf(primary),
+    ...(primary.model ? { model: primary.model } : {}),
+    ...(primaryCost !== undefined ? { cost: primaryCost } : {}),
   });
+
+  for (const bucket of rest) {
+    const bucketCost = estimateCost(bucket, env);
+    const payload = {
+      status: 'succeeded',
+      tokens_used: bucket.tokens_used,
+      ...breakdownOf(bucket),
+      ...(bucket.model ? { model: bucket.model } : {}),
+      ...(bucketCost !== undefined ? { cost: bucketCost } : {}),
+      ...(bucket.started_at ? { started_at: bucket.started_at } : {}),
+      ...(bucket.ended_at ? { ended_at: bucket.ended_at } : {}),
+    };
+    try {
+      if (config.isGlobal) {
+        const gitRemote = getGitRemoteUrl(state.cwd ?? hook.cwd);
+        if (!gitRemote) continue;
+        await apiCall(config, 'POST', `/agent-runs/by-repo`, {
+          repo_url: gitRemote,
+          agent_name: 'claude-code',
+          ...payload,
+        });
+      } else {
+        await apiCall(config, 'POST', `/agents/${config.agentId}/runs`, payload);
+      }
+    } catch (err) {
+      process.stderr.write(
+        `[Muster] 모델별 분할 보고 실패(${bucket.model ?? '모름'}): ${err.message}\n`,
+      );
+    }
+  }
 
   rmSync(statePath, { force: true });
 }

@@ -98,7 +98,7 @@ test('Antigravity 훅: transcript 폴백 합산', async (t) => {
       assert.equal(usage.started_at, '2026-09-17T00:00:00Z');
       assert.equal(usage.ended_at, '2026-09-17T00:01:00Z');
       assert.ok(usage.tokens_used > 0);
-      assert.equal(usage.model, 'gemini-3.8-flash');
+      assert.equal(usage.model, undefined); // 실제 모델 정보가 없으면 지어내지 않고 모른다고 둔다
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -127,7 +127,11 @@ test('Antigravity 훅: transcript 폴백 합산', async (t) => {
     assert.equal(normalizeAntigravityModel('gemini-3.8-flash-preview'), 'gemini-3.8-flash');
     assert.equal(normalizeAntigravityModel('gemini-2.5-pro'), 'gemini-2.5-pro');
     assert.equal(normalizeAntigravityModel('claude-3-5-sonnet'), 'claude-sonnet-5');
-    assert.equal(normalizeAntigravityModel(null), 'gemini-3.8-flash');
+    assert.equal(normalizeAntigravityModel(null), undefined);
+  });
+
+  await t.test('normalizeAntigravityModel: 원문이 있어도 아는 패턴이 아니면 지어내지 않고 원문을 그대로 돌려준다', () => {
+    assert.equal(normalizeAntigravityModel('gemini-4.0-ultra'), 'gemini-4.0-ultra');
   });
 });
 
