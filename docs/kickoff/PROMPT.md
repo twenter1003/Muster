@@ -8,14 +8,15 @@
 
 에이전트는 사용자에게 첫 응답을 하기 전, **반드시 아래 4단계를 순서대로 수행**해야 한다. (이 문서를 맹신하여 코드 조회를 건너뛰지 말 것)
 
-1. **저장소 동기화**: `git checkout main && git pull origin main` (최신: `a1fb436`,
-   [PR #72](https://github.com/twenter1003/Muster/pull/72) 머지 반영).
+1. **저장소 동기화**: `git checkout main && git pull origin main` (최신: `678de62`,
+   [PR #73](https://github.com/twenter1003/Muster/pull/73) 머지 반영).
 2. **지식 그래프 조회 (`graphify`) [필수]**:
    ```bash
    graphify query "<차기 과제 관련 키워드>"
    ```
    특정 관계 확인은 `graphify explain "<심볼/파일명>"`, `graphify path "<A>" "<B>"`.
-3. **테스트 무결성 검증**: `pnpm -r test` (기준선 **780개** = API 517 + Web 241 + 훅 22).
+3. **테스트 무결성 검증**: `pnpm -r test` (기준선 **766개** = API 511 + Web 231 + 훅 24).
+   e2e는 별도 스크립트다(`pnpm --filter @muster/api test:e2e`, 로컬 Postgres 필요).
    훅 테스트는 워크스페이스 밖이라 따로 돌린다:
    ```bash
    node --test scripts/claude-code-hooks/report-agent-usage.test.mjs scripts/antigravity-hooks/report-agent-usage.test.mjs
@@ -25,18 +26,20 @@
 
 ---
 
-## ✅ 현재 상태 — 코드·마이그레이션·배포 전부 끝남
+## ⚠️ 현재 상태 — PR #73 머지됨, 배포만 남았다
 
 - ✅ [PR #71](https://github.com/twenter1003/Muster/pull/71) 머지 완료(`20cf209`).
-- ✅ [PR #72](https://github.com/twenter1003/Muster/pull/72) 머지 완료(`a1fb436`, 2026-09-20):
-  낭비 판정→측정값 교체. 780개 통과.
-- ✅ **마이그레이션 적용 완료** (2026-09-20): `1788920000000-AddAgentRunTokenBreakdown`을
-  프로덕션 Supabase에 직접 적용했다. `migration:show` 기준 15개 전부 적용됨.
-- ✅ **Cloud Run 배포 완료** (2026-09-20): 커밋 `eea0d92` 배포, 리비전 `muster-00042-v72`가
-  트래픽 100% 서빙 중. 헬스체크·SPA 루트·404 JSON 전부 확인. 비용 7.6배 정정과 이번 캐시
-  지표 교체가 이제 실제 사용자 화면에 반영된다.
+- ✅ [PR #72](https://github.com/twenter1003/Muster/pull/72) 머지·마이그레이션·배포 완료
+  (`a1fb436`, `muster-00042-v72`): 낭비 판정→측정값 교체.
+- ✅ [PR #73](https://github.com/twenter1003/Muster/pull/73) 머지 완료(`678de62`, 2026-09-20):
+  배포된 화면을 직접 확인해 찾은 3건(A/B HUD 모바일 짤림, 모델명 조작, 목표 AI 자동판정
+  제거) 수정. 766개(단위) + e2e 243개 통과.
+- ⚠️ **Cloud Run 미배포**: PR #73은 `main`엔 있지만 아직 배포 전이다(현재 서빙 중인
+  `muster-00042-v72`는 PR #72분까지만 반영). **스키마 변경 없는 순수 코드 수정이라
+  마이그레이션 없이 바로 `./scripts/deploy-cloudrun.sh` 배포하면 된다.**
 
-차기 세션은 배포·마이그레이션 걱정 없이 바로 다음 과제(아래)에 착수할 수 있다.
+배포 절차는 [docs/DEPLOY.md](../DEPLOY.md). 다음 과제에 착수하기 전에 배포부터 처리할지
+사용자와 정할 것.
 
 ---
 

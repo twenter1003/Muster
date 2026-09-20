@@ -2,9 +2,32 @@
 
 - **작성 일시**: 2026-09-20
 - **작업자 / 모델**: Claude Code (Claude Sonnet 5)
-- **현재 브랜치**: `main` ([PR #72](https://github.com/twenter1003/Muster/pull/72) 머지 완료, `a1fb436`)
+- **현재 브랜치**: `main` ([PR #73](https://github.com/twenter1003/Muster/pull/73) 머지 완료, `678de62`)
 
-## 저장소 상태 — 낭비 판정→측정값 교체·마이그레이션·배포 전부 완료
+## 저장소 상태 — 배포된 화면 직접 점검 후 3건 수정·머지, 배포만 남음
+
+- ✅ **코드**: 배포된 프로덕션(`muster-00042-v72`)을 사용자가 직접 확인하고 지적한 3건을
+  처리했다([PR #73](https://github.com/twenter1003/Muster/pull/73), `678de62`).
+  1. **모바일 카드 짤림** — 개발자용 A/B 벤치마크 HUD(`BenchmarkHud`, DESIGN_DRIFT 16번)가
+     `position: fixed`로 항상 떠 있으면서 목록 카드를 가림. 위젯과 Variant A 전용 N+1 페칭
+     경로를 통째로 제거(이미 결론 난 실험이라 되살릴 이유 없음).
+  2. **"모델별 토큰·비용 점유율" 모델명 조작** — antigravity 훅의 하드코딩 기본값
+     (`gemini-3.6-flash` 등), 서버 `resolvePricing()`의 에이전트 이름 추측 폴백을 표시에
+     재사용, claude-code 훅이 세션당 첫 모델만 기록 — 세 지점 모두 수정. 실제로 안 쓴 모델이
+     찍혀 나오는 문제와 세션 중 모델 전환(Sonnet↔Opus)이 사라지는 문제 해결. 모르면 이제
+     "모름"으로 뜬다(`ModelPricingService.resolveKnownModelCode()`).
+  3. **목표 진행률 "AI 분석" 제거** — Gemini로 커밋↔체크리스트 매칭해 자동 완료 판정하던
+     기능. 수동 체크가 이미 완전한 대안으로 있어서 지연·비용·오판정 위험만 있고 얻는 게
+     없어 걷어냄(초안 생성 `draftGoals`는 별개라 유지).
+  - `ProjectProgressSnapshot` 테이블은 이제 죽은 코드지만 스키마 삭제는 후속 과제로 분리
+    (spawn_task로 별도 세션에 위임됨).
+- ✅ **검증**: 766개(단위) + e2e 243개 전부 통과. 목 서버 + iOS 시뮬레이터(iPhone 16e)로
+  모바일 짤림 재현 후 수정 확인.
+- ⚠️ **아직 배포 전**: 이 3건은 `main`엔 있지만 Cloud Run은 여전히 `eea0d92`(PR #72분)를
+  서빙 중이다. 마이그레이션은 필요 없음(스키마 변경 없는 순수 코드 수정) — 바로
+  `./scripts/deploy-cloudrun.sh` 배포하면 된다.
+
+## (이전) 낭비 판정→측정값 교체·마이그레이션·배포 완료 — 2026-09-20 세션 앞부분
 
 - ✅ **코드**: 이번 세션에서 `token-waste.ts`의 임계값 기반 낭비 판정을 실측 캐시 적중률·절감액·
   비용 분포로 교체(HANDOVER 후보 1, DESIGN_DRIFT 18번의 남은 과제). 백엔드 3곳(`usage-timeseries`,
