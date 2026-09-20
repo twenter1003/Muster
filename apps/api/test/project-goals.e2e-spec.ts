@@ -48,7 +48,7 @@ class FakeRepoClient implements GitHubRepoClient {
   }
 }
 
-describe('목표/요구사항 + 진행률 (e2e)', () => {
+describe('목표/요구사항 문서 (e2e)', () => {
   let app: INestApplication;
   let ds: DataSource;
   let secrets: SecretStore;
@@ -169,57 +169,6 @@ describe('목표/요구사항 + 진행률 (e2e)', () => {
         .set(auth())
         .send({ content_md: '' })
         .expect(400);
-    });
-  });
-
-  describe('progress', () => {
-    it('아직 분석하지 않았으면 null이다', async () => {
-      const p = await newProject('progress-empty');
-      const res = await http().get(`/api/v1/projects/${p}/progress`).set(auth()).expect(200);
-      expect(res.body).toEqual({ progress: null });
-    });
-
-    it('확정된 목표가 없으면 분석은 409다', async () => {
-      const p = await newProject('progress-no-goals');
-      const res = await http()
-        .post(`/api/v1/projects/${p}/progress/analyze`)
-        .set(auth())
-        .expect(409);
-      expect(res.body.error.code).toBe('CONFLICT');
-    });
-
-    it('목표를 확정한 뒤 분석하면 스냅샷이 쌓이고 다음 조회에 최신 값이 보인다', async () => {
-      const p = await newProject('progress-analyze');
-      await connectRepo(p, 'https://github.com/octocat/progress-target');
-      await http()
-        .patch(`/api/v1/projects/${p}/goals`)
-        .set(auth())
-        .send({ content_md: '## 목표\n로그인 기능 구현' })
-        .expect(200);
-
-      github.commits = [{ sha: 'abcdef1234', message: '로그인 구현', authored_at: null, url: '' }];
-      gemini.responses = [
-        JSON.stringify({
-          percent: 60,
-          summary: '로그인은 끝났고 회원가입이 남았다.',
-          remaining_items: [{ title: '회원가입', description: '커밋에 없음' }],
-        }),
-      ];
-
-      const res = await http()
-        .post(`/api/v1/projects/${p}/progress/analyze`)
-        .set(auth())
-        .expect(201);
-
-      expect(res.body).toMatchObject({
-        percent: 60,
-        summary: '로그인은 끝났고 회원가입이 남았다.',
-        remaining_items: [{ title: '회원가입', description: '커밋에 없음' }],
-        based_on_commit_sha: 'abcdef1234',
-      });
-
-      const after = await http().get(`/api/v1/projects/${p}/progress`).set(auth()).expect(200);
-      expect(after.body.progress.percent).toBe(60);
     });
   });
 

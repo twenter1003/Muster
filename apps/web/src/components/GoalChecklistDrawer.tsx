@@ -12,10 +12,8 @@ export interface GoalChecklistDrawerProps {
   onClose: () => void;
   contentMd: string | null | undefined;
   saving?: boolean;
-  analyzing?: boolean;
   onToggleCheck: (index: number) => void;
   onEditGoals?: () => void;
-  onAnalyzeProgress?: () => void;
 }
 
 /**
@@ -65,10 +63,8 @@ export function GoalChecklistDrawer({
   onClose,
   contentMd,
   saving = false,
-  analyzing = false,
   onToggleCheck,
   onEditGoals,
-  onAnalyzeProgress,
 }: GoalChecklistDrawerProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
@@ -300,7 +296,7 @@ export function GoalChecklistDrawer({
                               <input
                                 type="checkbox"
                                 checked={item.completed}
-                                disabled={saving || analyzing}
+                                disabled={saving}
                                 onChange={() => onToggleCheck(item.index)}
                               />
                               <span className="goal-drawer__item-title">{item.title}</span>
@@ -336,7 +332,7 @@ export function GoalChecklistDrawer({
                   <input
                     type="checkbox"
                     checked={item.completed}
-                    disabled={saving || analyzing}
+                    disabled={saving}
                     onChange={() => onToggleCheck(item.index)}
                   />
                   <span className="goal-drawer__item-title">{item.title}</span>
@@ -370,19 +366,9 @@ export function GoalChecklistDrawer({
                   onClose();
                   onEditGoals();
                 }}
-                disabled={saving || analyzing}
+                disabled={saving}
               >
                 목표 직접 편집
-              </button>
-            )}
-            {onAnalyzeProgress && (
-              <button
-                type="button"
-                className="btn btn--primary goal-drawer__foot-btn"
-                onClick={onAnalyzeProgress}
-                disabled={saving || analyzing}
-              >
-                {analyzing ? 'AI 분석 중…' : '진행률 AI 분석'}
               </button>
             )}
           </div>

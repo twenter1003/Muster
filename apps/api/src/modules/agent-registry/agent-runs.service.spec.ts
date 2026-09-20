@@ -128,6 +128,31 @@ describe('AgentRunsService', () => {
       );
     });
 
+    it('토큰 내역 4종이 함께 오면 저장하고, 캐시 단가를 반영해 비용을 계산한다', async () => {
+      // claude-sonnet-5: 입력 $2.00/1M, 캐시 읽기 $0.20/1M
+      // input 0 + cache_read 1,000,000 × $0.20/1M = $0.2000
+      const run = await service.start('agent-1', {
+        status: 'succeeded',
+        tokens_used: 1_000_000,
+        input_tokens: 0,
+        output_tokens: 0,
+        cache_read_tokens: 1_000_000,
+        cache_write_tokens: 0,
+        model: 'claude-sonnet-5',
+      });
+
+      expect(runsRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input_tokens: 0,
+          output_tokens: 0,
+          cache_read_tokens: 1_000_000,
+          cache_write_tokens: 0,
+          cost: '0.2000',
+        }),
+      );
+      expect(run.id).toBe('run-1');
+    });
+
     it('running 상태로 실행을 시작하면 AGENT_RUN_STARTED 이벤트를 발행한다', async () => {
       await service.start('agent-1', { status: 'running' });
 

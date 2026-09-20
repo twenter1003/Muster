@@ -9,13 +9,14 @@ import {
   Min,
 } from 'class-validator';
 import { AGENT_RUN_STATUSES, type AgentRunStatus } from '../../../database/entities/enums';
+import { TokenBreakdownDto } from './token-breakdown.dto';
 
 /**
  * Git repository URL 기반 에이전트 토큰 사용량 자동 라우팅 DTO.
  * 외부 에이전트 훅(Stop, SessionEnd 등)이 현재 작업 중인 Git 주소를 넘겨주면,
  * 서버가 연동된 프로젝트와 에이전트를 자동 식별하여 실행 이력을 적재한다.
  */
-export class RecordRunByRepoDto {
+export class RecordRunByRepoDto extends TokenBreakdownDto {
   @IsNotEmpty({ message: 'repo_url은 필수입니다.' })
   @IsString({ message: 'repo_url은 문자열이어야 합니다.' })
   repo_url!: string;

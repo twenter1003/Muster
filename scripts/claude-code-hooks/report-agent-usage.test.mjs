@@ -118,6 +118,53 @@ test('sumUsageFromTranscript: 파일이 없으면 0을 돌려준다 (예외를 �
     cache_write_tokens: 0,
     turns: 0,
     model: undefined,
+    by_model: [],
+  });
+});
+
+test('sumUsageFromTranscript: 세션 중 모델을 바꾸면 메시지별로 모델을 나눠 집계한다', () => {
+  withTempDir((dir) => {
+    const file = join(dir, 'transcript.jsonl');
+    const lines = [
+      JSON.stringify({
+        type: 'assistant',
+        timestamp: '2026-09-20T00:00:00.000Z',
+        message: {
+          model: 'claude-sonnet-5',
+          usage: { input_tokens: 100, output_tokens: 50 },
+        },
+      }),
+      JSON.stringify({
+        type: 'assistant',
+        timestamp: '2026-09-20T00:05:00.000Z',
+        message: {
+          model: 'claude-opus-5',
+          usage: { input_tokens: 200, output_tokens: 80 },
+        },
+      }),
+      JSON.stringify({
+        type: 'assistant',
+        timestamp: '2026-09-20T00:06:00.000Z',
+        message: {
+          model: 'claude-opus-5',
+          usage: { input_tokens: 20, output_tokens: 8 },
+        },
+      }),
+    ];
+    writeFileSync(file, lines.join('\n'));
+
+    const result = sumUsageFromTranscript(file);
+    // 하위 호환 필드는 여전히 "맨 처음 나온 모델"이다 — 단일 모델 세션(대다수)의
+    // 하트비트 등에서 계속 쓰이므로 의미를 바꾸지 않는다.
+    assert.equal(result.model, 'claude-sonnet-5');
+    assert.equal(result.by_model.length, 2);
+
+    const sonnet = result.by_model.find((b) => b.model === 'claude-sonnet-5');
+    const opus = result.by_model.find((b) => b.model === 'claude-opus-5');
+    assert.equal(sonnet.tokens_used, 150);
+    assert.equal(opus.tokens_used, 308); // (200+80) + (20+8)
+    assert.equal(opus.started_at, '2026-09-20T00:05:00.000Z');
+    assert.equal(opus.ended_at, '2026-09-20T00:06:00.000Z');
   });
 });
 

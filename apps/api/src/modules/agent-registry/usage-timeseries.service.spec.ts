@@ -272,8 +272,20 @@ describe('UsageTimeseriesService', () => {
           .mockResolvedValueOnce([])
           .mockResolvedValueOnce([])
           .mockResolvedValueOnce([
-            { agent_name: 'claude-code', tokens: '70000', cost: '0.2520', run_count: 5 },
-            { agent_name: 'antigravity', tokens: '30000', cost: '0.0270', run_count: 3 },
+            {
+              agent_name: 'claude-code',
+              model_code: 'claude-sonnet-5',
+              tokens: '70000',
+              cost: '0.2520',
+              run_count: 5,
+            },
+            {
+              agent_name: 'antigravity',
+              model_code: 'gemini-3.6-flash',
+              tokens: '30000',
+              cost: '0.0270',
+              run_count: 3,
+            },
           ]),
         getRawOne: jest
           .fn()
@@ -310,6 +322,47 @@ describe('UsageTimeseriesService', () => {
       expect(claude.percentage + antigravity.percentage).toBe(100);
       expect(result.burn_rate).toBeDefined();
       expect(result.burn_rate?.spike_level).toBe('normal');
+    });
+
+    it('model_code가 없는(예전 실행이거나 훅이 못 보낸) 실행은 "모름"으로 표시하고 특정 모델을 지어내지 않는다', async () => {
+      const qbMock = {
+        innerJoin: jest.fn().mockReturnThis(),
+        innerJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getRawMany: jest
+          .fn()
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([
+            // model_code가 없다 — 예전엔 agent_name만 보고 'gemini-3.6-flash'를 지어냈다
+            // (DESIGN_DRIFT 19번). antigravity가 그 모델을 쓴 적이 없어도 찍혀 나왔다.
+            { agent_name: 'antigravity', tokens: '30000', cost: '0.0270', run_count: 3 },
+          ]),
+        getRawOne: jest
+          .fn()
+          .mockResolvedValueOnce({ tokens: '30000', cost: '0.0270' })
+          .mockResolvedValueOnce({ tokens: '30000', cost: '0.0270' }),
+        getMany: jest.fn().mockResolvedValue([]),
+      };
+
+      const runsRepo = {
+        createQueryBuilder: jest.fn().mockReturnValue(qbMock),
+      } as unknown as Repository<AgentRun>;
+
+      const service = new UsageTimeseriesService(runsRepo);
+      const result = await service.dailyUsage(PROJECT);
+
+      const row = result.model_breakdown![0];
+      expect(row.model_name).toBe('unknown');
+      expect(row.display_name).toBe('모름');
+      // provider는 agent_name(실제 사실)만으로 추론하는 것까지는 허용한다 — 특정 모델을 짓는 게 아니다.
+      expect(row.provider).toBe('google');
     });
 
     it('calculateBurnRate가 최근 세션 데이터를 기반으로 스파이크 상태를 정상 계산한다', async () => {

@@ -1,13 +1,10 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { HealthIndicator } from '../components/HealthIndicator';
 import { ApiKeyModal } from '../components/ApiKeyModal';
-import { BenchmarkHud } from '../components/BenchmarkHud';
-import { useBenchmark } from '../lib/benchmarkContext';
 import { apiFetch, type Page } from '../lib/api';
-import { EM_DASH, type Measurable } from '../lib/domain';
-import { useApi } from '../lib/useApi';
+import { EM_DASH } from '../lib/domain';
 import { formatCost, formatTokenCount } from '../lib/tokenIntelligence';
 import {
   cleanRepoUrl,
@@ -47,102 +44,8 @@ export interface ProjectSummaryView extends ProjectView {
   active_agents: string[];
 }
 
-interface HealthSnapshotView {
-  composite_score: string;
-  measured_at: string;
-}
-
-interface DeploymentEventView {
-  kind: string;
-  status: string;
-  commit_sha: string;
-  occurred_at: string;
-}
-
-interface LogView {
-  message: string;
-  created_at: string;
-}
-
-interface UsageBreakdown {
-  today_tokens: string;
-  month_tokens: string;
-  total_tokens?: string;
-  today_cost?: string;
-  month_cost?: string;
-  total_cost?: string;
-}
-
-interface TokenUsageSummary {
-  today: string;
-  total: string;
-  month: string;
-  todayCost?: string;
-  totalCost?: string;
-}
-
-/* ───────────────────────── Variant A: 점진적 채움 ─────────────────────────
- * 부속 호출이 3종 × 프로젝트 수(N+1)라서, 슬롯 로딩 및 레이아웃 시프트가 발생한다.
- */
-type Slot<T> = { status: 'loading' } | { status: 'ready'; value: Measurable<T> };
-
-const LOADING: Slot<never> = { status: 'loading' };
-const ready = <T,>(value: Measurable<T>): Slot<T> => ({ status: 'ready', value });
-
-interface RowDetail {
-  health: Slot<number>;
-  deployStatus: Slot<string>;
-  lastLog: Slot<string>;
-  tokens: Slot<TokenUsageSummary>;
-}
-
-const EMPTY_DETAIL: RowDetail = {
-  health: LOADING,
-  deployStatus: LOADING,
-  lastLog: LOADING,
-  tokens: LOADING,
-};
-
-type DetailPatch = Partial<RowDetail>;
-type DetailAction = { type: 'patch'; projectId: string; patch: DetailPatch };
-
-function detailsReducer(
-  state: Record<string, RowDetail>,
-  action: DetailAction,
-): Record<string, RowDetail> {
-  const current = state[action.projectId] ?? EMPTY_DETAIL;
-  return { ...state, [action.projectId]: { ...current, ...action.patch } };
-}
-
-async function slotFrom<R, T>(path: string, pick: (res: R) => Measurable<T>): Promise<Slot<T>> {
-  try {
-    return ready(pick(await apiFetch<R>(path)));
-  } catch {
-    return ready<T>(null);
-  }
-}
-
-function SlotCell<T>({
-  slot,
-  render,
-}: {
-  slot: Slot<T>;
-  render: (value: T) => JSX.Element | string;
-}) {
-  if (slot.status === 'loading') {
-    return (
-      <span className="plist__loading" aria-label="불러오는 중">
-        ···
-      </span>
-    );
-  }
-  if (slot.value === null) return <span className="plist__dash">{EM_DASH}</span>;
-  return <>{render(slot.value)}</>;
-}
-
 export function ProjectListPage() {
   const navigate = useNavigate();
-  const { variant, recordMetrics } = useBenchmark();
 
   // 검색, 필터, 정렬 상태
   const [searchQuery, setSearchQuery] = useState('');
@@ -152,157 +55,38 @@ export function ProjectListPage() {
   // API 키 모달 타겟 프로젝트
   const [apiKeyTarget, setApiKeyTarget] = useState<{ id: string; name: string } | null>(null);
 
-  // Variant A 전용 상태
-  const {
-    data: rawData,
-    error: rawError,
-    loading: rawLoading,
-  } = useApi<Page<ProjectView>>(variant === 'A' ? '/projects?limit=50' : null);
-  const [details, dispatch] = useReducer(detailsReducer, {});
-
-  // Variant B 전용 상태 (통합 1회 호출)
-  const [bData, setBData] = useState<Page<ProjectSummaryView> | null>(null);
-  const [bLoading, setBLoading] = useState(variant === 'B');
-  const [bError, setBError] = useState<Error | null>(null);
+  // 통합 1회 호출 (GET /projects?summary=true) — N+1 개별 호출 방식은 폐기했다(DESIGN_DRIFT 16번).
+  const [data, setData] = useState<Page<ProjectSummaryView> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
 
   const tz = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Seoul', []);
 
-  // ───────────────────────── Variant B 로딩 및 벤치마크 실측 ─────────────────────────
   useEffect(() => {
-    if (variant !== 'B') return;
     let active = true;
-    setBLoading(true);
-    setBError(null);
-    const startMs = performance.now();
+    setLoading(true);
+    setError(null);
 
     apiFetch<Page<ProjectSummaryView>>(
       `/projects?summary=true&limit=50&tz=${encodeURIComponent(tz)}`,
     )
       .then((res) => {
         if (!active) return;
-        const durationMs = performance.now() - startMs;
-        setBData(res);
-        setBLoading(false);
-        recordMetrics('B', {
-          reqCount: 1,
-          durationMs,
-          layoutShifts: 0,
-        });
+        setData(res);
+        setLoading(false);
       })
       .catch((err: unknown) => {
         if (!active) return;
-        setBError(err instanceof Error ? err : new Error(String(err)));
-        setBLoading(false);
+        setError(err instanceof Error ? err : new Error(String(err)));
+        setLoading(false);
       });
 
     return () => {
       active = false;
     };
-  }, [variant, tz, recordMetrics]);
+  }, [tz]);
 
-  // ───────────────────────── Variant A 로딩 및 벤치마크 실측 ─────────────────────────
-  const aProjects = useMemo(() => rawData?.items ?? [], [rawData]);
-  const aStartTimeRef = useRef<number>(0);
-  const aShiftsRef = useRef<number>(0);
-
-  useEffect(() => {
-    if (variant !== 'A' || aProjects.length === 0) return;
-    let live = true;
-    aStartTimeRef.current = performance.now();
-    aShiftsRef.current = 0;
-
-    let pendingSlots = aProjects.length * 4;
-    const totalRequests = 1 + pendingSlots;
-
-    const apply = (projectId: string, patch: DetailPatch) => {
-      if (!live) return;
-      aShiftsRef.current += 1;
-      dispatch({ type: 'patch', projectId, patch });
-
-      pendingSlots -= 1;
-      if (pendingSlots <= 0) {
-        const durationMs = performance.now() - aStartTimeRef.current;
-        recordMetrics('A', {
-          reqCount: totalRequests,
-          durationMs,
-          layoutShifts: aShiftsRef.current,
-        });
-      }
-    };
-
-    for (const p of aProjects) {
-      dispatch({ type: 'patch', projectId: p.id, patch: EMPTY_DETAIL });
-
-      void slotFrom<Page<HealthSnapshotView>, number>(
-        `/projects/${p.id}/health-snapshots?limit=1`,
-        (r) => {
-          const latest = r.items[0];
-          if (!latest) return null;
-          const score = Number(latest.composite_score);
-          return Number.isFinite(score) ? score : null;
-        },
-      ).then((health) => apply(p.id, { health }));
-
-      void slotFrom<Page<DeploymentEventView>, string>(
-        `/projects/${p.id}/deployment-events?limit=10`,
-        (r) => r.items.find((e) => e.kind === 'deployment')?.status ?? null,
-      ).then((deployStatus) => apply(p.id, { deployStatus }));
-
-      void slotFrom<Page<LogView>, string>(`/projects/${p.id}/logs?limit=1`, (r) => {
-        const latest = r.items[0];
-        return latest ? latest.message : null;
-      }).then((lastLog) => apply(p.id, { lastLog }));
-
-      void slotFrom<UsageBreakdown, TokenUsageSummary>(
-        `/projects/${p.id}/token-usage?tz=${encodeURIComponent(tz)}`,
-        (r) => ({
-          today: r.today_tokens ?? '0',
-          total: r.total_tokens ?? r.month_tokens ?? r.today_tokens ?? '0',
-          month: r.month_tokens ?? '0',
-          todayCost: r.today_cost ?? '0',
-          totalCost: r.total_cost ?? r.month_cost ?? r.today_cost ?? '0',
-        }),
-      ).then((tokens) => apply(p.id, { tokens }));
-    }
-
-    return () => {
-      live = false;
-    };
-  }, [variant, aProjects, tz, recordMetrics]);
-
-  const detailOf = useCallback((id: string): RowDetail => details[id] ?? EMPTY_DETAIL, [details]);
-
-  // 통합 정규화된 프로젝트 리스트 모델
-  const unifiedProjects = useMemo<ProjectListItemLike[]>(() => {
-    if (variant === 'B') {
-      return bData?.items ?? [];
-    }
-    return aProjects.map((p) => {
-      const d = detailOf(p.id);
-      return {
-        id: p.id,
-        name: p.name,
-        current_stage: p.current_stage,
-        created_at: p.created_at,
-        updated_at: p.updated_at,
-        repo_url: null,
-        health_score: d.health.status === 'ready' ? d.health.value : null,
-        deploy_status: d.deployStatus.status === 'ready' ? d.deployStatus.value : null,
-        last_log: d.lastLog.status === 'ready' ? d.lastLog.value : null,
-        tokens:
-          d.tokens.status === 'ready' && d.tokens.value
-            ? {
-                today: d.tokens.value.today,
-                total: d.tokens.value.total,
-                month: d.tokens.value.month,
-                todayCost: d.tokens.value.todayCost,
-                totalCost: d.tokens.value.totalCost,
-              }
-            : null,
-        active_agents: [],
-      };
-    });
-  }, [variant, bData, aProjects, detailOf]);
+  const unifiedProjects = useMemo<ProjectListItemLike[]>(() => data?.items ?? [], [data]);
 
   // 필터 및 검색 적용
   const filteredProjects = useMemo(() => {
@@ -329,18 +113,12 @@ export function ProjectListPage() {
     return { all, live, success, failure };
   }, [unifiedProjects]);
 
-  const loading = variant === 'B' ? bLoading : rawLoading;
-  const error = variant === 'B' ? bError : rawError;
-
   if (!loading && error === null && unifiedProjects.length === 0 && !searchQuery) {
     return <Navigate to="/import" replace />;
   }
 
   return (
     <section className="page plist">
-      {/* 플로팅 A/B 벤치마크 컨트롤러 */}
-      <BenchmarkHud />
-
       {/* API 키 관리 모달 연동 */}
       {apiKeyTarget && (
         <ApiKeyModal
@@ -357,16 +135,6 @@ export function ProjectListPage() {
             <h1 className="page__title">
               프로젝트 <span className="page__count">{unifiedProjects.length}개</span>
             </h1>
-            <span
-              className={`badge ${variant === 'B' ? 'badge--ok' : 'badge--caution'}`}
-              title={
-                variant === 'B'
-                  ? 'Treatment: 1회 통합 호출로 고속 로딩'
-                  : 'Control: 41개 개별 호출 점진 로딩'
-              }
-            >
-              {variant === 'B' ? '● Variant B 고속 모드' : '○ Variant A 점진 모드'}
-            </span>
           </div>
           <p className="meta">GitHub에서 연동된 저장소와 에이전트 관제 목록입니다.</p>
         </div>
@@ -471,11 +239,7 @@ export function ProjectListPage() {
         </p>
       ) : loading ? (
         <div className="plist__loading-state">
-          <p className="meta">
-            {variant === 'B'
-              ? '통합 대시보드 데이터를 즉시 불러오는 중…'
-              : '프로젝트 목록 및 41개 세부 지표를 점진적으로 불러오는 중…'}
-          </p>
+          <p className="meta">통합 대시보드 데이터를 즉시 불러오는 중…</p>
         </div>
       ) : filteredProjects.length === 0 ? (
         <div className="plist__empty-search">
@@ -494,12 +258,9 @@ export function ProjectListPage() {
       ) : (
         <div className="plist__grid">
           {filteredProjects.map((p) => {
-            // Variant A 모드일 때는 세부 슬롯 렌더링 유지
-            const d = detailOf(p.id);
-            const deployStatus =
-              variant === 'B' ? (p.deploy_status ?? p.latest_deploy_status ?? null) : null;
-            const lastLog = variant === 'B' ? (p.last_log ?? p.latest_log_message ?? null) : null;
-            const healthVal = variant === 'B' ? (p.health_score ?? null) : null;
+            const deployStatus = p.deploy_status ?? p.latest_deploy_status ?? null;
+            const lastLog = p.last_log ?? p.latest_log_message ?? null;
+            const healthVal = p.health_score ?? null;
             const activeAgents = p.active_agents ?? [];
             const cleanRepo = cleanRepoUrl(p.repo_url);
 
@@ -513,39 +274,22 @@ export function ProjectListPage() {
                     </div>
 
                     <div className="plist__card-status-badges">
-                      {variant === 'B' ? (
-                        deployStatus && (
-                          <span
-                            className={
-                              deployStatus === 'failure'
-                                ? 'badge badge--signal'
-                                : deployStatus === 'success'
-                                  ? 'badge badge--ok'
-                                  : 'badge'
-                            }
-                          >
-                            {deployStatus === 'success'
-                              ? '성공'
-                              : deployStatus === 'failure'
-                                ? '실패'
-                                : deployStatus}
-                          </span>
-                        )
-                      ) : (
-                        <SlotCell
-                          slot={d.deployStatus}
-                          render={(status) => (
-                            <span
-                              className={status === 'failure' ? 'badge badge--signal' : 'badge'}
-                            >
-                              {status === 'success'
-                                ? '성공'
-                                : status === 'failure'
-                                  ? '실패'
-                                  : status}
-                            </span>
-                          )}
-                        />
+                      {deployStatus && (
+                        <span
+                          className={
+                            deployStatus === 'failure'
+                              ? 'badge badge--signal'
+                              : deployStatus === 'success'
+                                ? 'badge badge--ok'
+                                : 'badge'
+                          }
+                        >
+                          {deployStatus === 'success'
+                            ? '성공'
+                            : deployStatus === 'failure'
+                              ? '실패'
+                              : deployStatus}
+                        </span>
                       )}
                     </div>
                   </div>
@@ -561,50 +305,21 @@ export function ProjectListPage() {
                   )}
 
                   <p className="meta plist__card-log">
-                    {variant === 'B' ? (
-                      lastLog ? (
-                        lastLog
-                      ) : (
-                        <span className="plist__dash">{EM_DASH}</span>
-                      )
-                    ) : (
-                      <SlotCell slot={d.lastLog} render={(m) => m} />
-                    )}
+                    {lastLog ? lastLog : <span className="plist__dash">{EM_DASH}</span>}
                   </p>
 
                   <div className="plist__card-foot">
-                    {variant === 'B' ? (
-                      <HealthIndicator score={healthVal} />
-                    ) : (
-                      <SlotCell
-                        slot={d.health}
-                        render={(score) => <HealthIndicator score={score} />}
-                      />
-                    )}
+                    <HealthIndicator score={healthVal} />
 
-                    {variant === 'B' ? (
-                      p.tokens ? (
-                        <TokenUsageDisplay
-                          today={p.tokens.today}
-                          total={p.tokens.total}
-                          todayCost={p.tokens.todayCost ?? p.tokens.today_cost}
-                          totalCost={p.tokens.totalCost ?? p.tokens.total_cost}
-                        />
-                      ) : (
-                        <span className="plist__dash">{EM_DASH}</span>
-                      )
-                    ) : (
-                      <SlotCell
-                        slot={d.tokens}
-                        render={({ today, total, todayCost, totalCost }) => (
-                          <TokenUsageDisplay
-                            today={today}
-                            total={total}
-                            todayCost={todayCost}
-                            totalCost={totalCost}
-                          />
-                        )}
+                    {p.tokens ? (
+                      <TokenUsageDisplay
+                        today={p.tokens.today}
+                        total={p.tokens.total}
+                        todayCost={p.tokens.todayCost ?? p.tokens.today_cost}
+                        totalCost={p.tokens.totalCost ?? p.tokens.total_cost}
                       />
+                    ) : (
+                      <span className="plist__dash">{EM_DASH}</span>
                     )}
                   </div>
                 </Link>

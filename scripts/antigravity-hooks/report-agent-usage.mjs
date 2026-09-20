@@ -128,9 +128,13 @@ export function loadConfig(
   return null;
 }
 
-/** 모델명 정규화 */
+/**
+ * 모델명을 단가표 코드로 정규화한다. 실제로 잡힌 원문이 알려진 패턴과 안 맞아도
+ * 원문 그대로 돌려준다 — 지어낸 특정 모델명으로 덮어쓰지 않는다. 원문 자체가 없으면
+ * undefined를 돌려주고, 호출부는 이걸 "모름"으로 다룬다(0%로 세지 않는다, DESIGN_DRIFT 19번).
+ */
 export function normalizeAntigravityModel(model) {
-  if (!model) return 'gemini-3.8-flash';
+  if (!model) return undefined;
   const m = model.toLowerCase();
   if (m.includes('3.8') && m.includes('flash')) return 'gemini-3.8-flash';
   if (m.includes('3.7') && m.includes('flash')) return 'gemini-3.7-flash';
@@ -138,13 +142,13 @@ export function normalizeAntigravityModel(model) {
   if (m.includes('3.1') && m.includes('lite')) return 'gemini-3.1-flash-lite';
   if (m.includes('2.5') && m.includes('pro')) return 'gemini-2.5-pro';
   if (m.includes('claude')) return 'claude-sonnet-5';
-  return 'gemini-3.8-flash';
+  return model;
 }
 
 /** transcript.jsonl 폴백 토큰 계산 */
 export function sumUsageFromTranscript(transcriptPath) {
   if (!transcriptPath || !existsSync(transcriptPath)) {
-    return { tokens_used: 0, turns: 0, started_at: null, ended_at: null, model: 'gemini-3.8-flash' };
+    return { tokens_used: 0, turns: 0, started_at: null, ended_at: null, model: undefined };
   }
 
   let chars = 0;
@@ -244,7 +248,7 @@ export function extractAntigravityUsage(conversationId, transcriptPath) {
       turns: dbUsage.turns,
       started_at: transcriptUsage.started_at || new Date().toISOString(),
       ended_at: transcriptUsage.ended_at || new Date().toISOString(),
-      model: transcriptUsage.model || 'gemini-3.8-flash',
+      model: transcriptUsage.model,
     };
   }
 
