@@ -23,15 +23,15 @@
 ## 검증 기준선
 
 ```bash
-pnpm -r test    # 540개 = API 380 + Web 160
+pnpm -r test    # 526개 = API 366 + Web 160
 node --test scripts/claude-code-hooks/report-agent-usage.test.mjs \
             scripts/antigravity-hooks/report-agent-usage.test.mjs \
             scripts/muster-connect.test.mjs    # 43개
 ```
 
-합계 **583개**. e2e는 로컬 Postgres가 필요하며 별도다(`pnpm --filter @muster/api test:e2e`, 183개).
+합계 **569개**. e2e는 로컬 Postgres가 필요하며 별도다(`pnpm --filter @muster/api test:e2e`, 183개).
 
-숫자가 715 → 583으로, e2e가 243 → 183으로 준 것은 죽은 엔드포인트를 지우면서 그것만
+숫자가 715 → 569로, e2e가 243 → 183으로 준 것은 죽은 엔드포인트를 지우면서 그것만
 검증하던 테스트가 같이 빠졌기 때문이다(PR #79). 살아 있는 동작을 지운 엔드포인트로
 확인하던 테스트는 지우지 않고 DB를 직접 보도록 고쳐 썼다.
 
@@ -42,6 +42,7 @@ node --test scripts/claude-code-hooks/report-agent-usage.test.mjs \
 
 | PR | 내용 |
 |---|---|
+| [#87](https://github.com/twenter1003/Muster/pull/87) | 죽은 SSE 이벤트 4종 정리 — `budget_alert`(체인 전체 + `PUT /budget`)·`stage_change`·아무도 안 듣던 `WORKFLOW_RUN_COMPLETED`·`CODE_PUSHED` |
 | [#83](https://github.com/twenter1003/Muster/pull/83) | 문서 기능 접음 — `doc-store` 모듈·GCS 연동·검색의 document 종류·화면의 문서 패널 전부 제거 |
 | [#79](https://github.com/twenter1003/Muster/pull/79) | 죽은 엔드포인트 정리 — 모듈 3개(`env-catalog`·`inbox`·`reports`) + 컨트롤러·라우트 다수. 목 서버·스모크 동기화 |
 | [#78](https://github.com/twenter1003/Muster/pull/78) | 프로젝트 전용 서브에이전트 2개(`muster-investigator`, `muster-reviewer`) |
@@ -70,15 +71,12 @@ node --test scripts/claude-code-hooks/report-agent-usage.test.mjs \
 엔드포인트 정리는 끝났다(PR #79). 지금 살아 있는 표면은
 [ARCHITECTURE.md](ARCHITECTURE.md)가 원천이다. 남은 것으로 확인된 것들:
 
-- **웹이 `budget_alert`·`stage_change` SSE를 구독만 하고 아무것도 안 한다.**
-  `lib/useSse.ts`는 7종을 듣는데 `ProjectDetailPage`의 핸들러는 `agent_run_*` 셋과
-  `log`·`health_update`에만 분기한다. 나머지 둘은 배열에 쌓이기만 한다. 화면을 붙일지
-  구독을 뺄지 정할 것 — PR #79에서는 서버 표면 정리와 성격이 달라 건드리지 않았다.
-- **테이블 5개가 읽는 코드 없이 남아 있다** — `env_templates`·`project_env_configs`·
-  `env_config_transitions`·`policy_check_results`·`documents`. 코드만 지우고 테이블은
+- **테이블 6개가 읽는 코드 없이 남아 있다** — `env_templates`·`project_env_configs`·
+  `env_config_transitions`·`policy_check_results`·`documents`·`project_budgets`. 코드만 지우고 테이블은
   남기기로 한 결과다. 지우려면 마이그레이션 18번이 필요하고, 엔티티 쪽에서 끊어야 할
-  관계는 `user.entity.ts`의 `env_templates` 하나다 — `Document`는 `Project`를 단방향
-  `ManyToOne`으로만 참조하므로 `project.entity.ts`에는 지울 것이 없다.
+  관계는 둘이다(2026-09-20 확인) — `user.entity.ts:40`의 `env_templates`,
+  `project.entity.ts:55`의 `budget`. `Document`는 `Project`를 단방향 `ManyToOne`으로만
+  참조하므로 문서 쪽에는 끊을 관계가 없다.
 
 ## 작업 관례
 

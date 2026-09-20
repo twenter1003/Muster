@@ -3,16 +3,14 @@ import { API_BASE } from './api';
 
 /**
  * 스트림 이벤트 타입. ping은 하트비트라 화면에 보이지 않는다.
- * 앞의 셋은 설계서 Part 4 §7.3, budget_alert는 그 뒤에 더한 넷째다(DESIGN_DRIFT.md 10번).
+ *
+ * **화면이 실제로 쓰는 것만 적는다.** 전에는 `stage_change`·`budget_alert`도 구독했는데
+ * ProjectDetailPage의 핸들러에 그 분기가 없어 배열에 쌓이기만 했다. 서버도 더는 보내지
+ * 않는다(PR #87에서 발행부까지 지웠다). 여기에 이름을 더하려면 받아서 **무엇을 할지**를
+ * 같이 정할 것 — 구독만 늘리면 조용히 죽은 코드가 된다.
  */
 export type StreamEventType =
-  | 'log'
-  | 'health_update'
-  | 'stage_change'
-  | 'budget_alert'
-  | 'agent_run_started'
-  | 'agent_run_heartbeat'
-  | 'agent_run_finished';
+  'log' | 'health_update' | 'agent_run_started' | 'agent_run_heartbeat' | 'agent_run_finished';
 
 export type ConnectionState = 'connecting' | 'open' | 'closed';
 
@@ -59,8 +57,6 @@ export function useSse(projectId: string | null, limit = 50) {
     const handlers: Array<[StreamEventType, (e: MessageEvent<string>) => void]> = [
       ['log', push('log')],
       ['health_update', push('health_update')],
-      ['stage_change', push('stage_change')],
-      ['budget_alert', push('budget_alert')],
       ['agent_run_started', push('agent_run_started')],
       ['agent_run_heartbeat', push('agent_run_heartbeat')],
       ['agent_run_finished', push('agent_run_finished')],

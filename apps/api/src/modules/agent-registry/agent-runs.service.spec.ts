@@ -1,7 +1,6 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Repository } from 'typeorm';
 import { AgentRunsService } from './agent-runs.service';
-import { BudgetService } from './budget.service';
 import { ModelPricingService } from './model-pricing.service';
 import { DomainEvent } from '../../common/events/domain-events';
 import { ApiException } from '../../common/errors/api.exception';
@@ -13,7 +12,6 @@ describe('AgentRunsService', () => {
   let agentsRepo: Partial<Repository<Agent>>;
   let membersRepo: Partial<Repository<ProjectMember>>;
   let gitIntegrationsRepo: Partial<Repository<GitIntegration>>;
-  let budgetService: Partial<BudgetService>;
   let modelPricingService: ModelPricingService;
   let events: EventEmitter2;
 
@@ -46,10 +44,6 @@ describe('AgentRunsService', () => {
         }),
       }),
     };
-    budgetService = {
-      sumUsage: jest.fn().mockResolvedValue({ tokens: '100', cost: '0' }),
-      recalculateAndAlert: jest.fn().mockResolvedValue(undefined),
-    };
     modelPricingService = new ModelPricingService();
     events = new EventEmitter2();
     jest.spyOn(events, 'emit');
@@ -59,7 +53,6 @@ describe('AgentRunsService', () => {
       agentsRepo as Repository<Agent>,
       membersRepo as Repository<ProjectMember>,
       gitIntegrationsRepo as Repository<GitIntegration>,
-      budgetService as BudgetService,
       modelPricingService,
       events,
     );
@@ -78,11 +71,10 @@ describe('AgentRunsService', () => {
           ended_at: null,
         }),
       );
-      expect(budgetService.recalculateAndAlert).not.toHaveBeenCalled();
       expect(run.id).toBe('run-1');
     });
 
-    it('dto에 과거 세션 데이터가 주어지면 해당 값으로 생성하고 예산 재계산을 트리거한다', async () => {
+    it('dto에 과거 세션 데이터가 주어지면 해당 값으로 생성한다', async () => {
       const startedAt = '2026-09-01T10:00:00.000Z';
       const endedAt = '2026-09-01T11:00:00.000Z';
 
@@ -104,10 +96,6 @@ describe('AgentRunsService', () => {
           ended_at: new Date(endedAt),
         }),
       );
-      expect(budgetService.recalculateAndAlert).toHaveBeenCalledWith('proj-1', {
-        tokens: '100',
-        cost: '0',
-      });
       expect(run.id).toBe('run-1');
     });
 

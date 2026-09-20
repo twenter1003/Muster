@@ -198,24 +198,17 @@ describe('WebhookIngestService', () => {
   });
 
   describe('이벤트 발행 (Part 2 §8)', () => {
-    it('로그를 적재하면 LOG_APPENDED와 CODE_PUSHED를 발행한다', async () => {
+    it('로그를 적재하면 LOG_APPENDED를 발행한다', async () => {
       const h = harness();
       await h.service.handle(request(PUSH, sign(PUSH)));
 
       expect(h.emitted.map((e) => e.name)).toContain(DomainEvent.LOG_APPENDED);
-      expect(h.emitted.map((e) => e.name)).toContain(DomainEvent.CODE_PUSHED);
 
       const logEvent = h.emitted.find((e) => e.name === DomainEvent.LOG_APPENDED);
       expect(logEvent?.payload).toMatchObject({
         project_id: PROJECT,
         log_entry_id: 'log-1',
         level: 'info',
-      });
-
-      const pushEvent = h.emitted.find((e) => e.name === DomainEvent.CODE_PUSHED);
-      expect(pushEvent?.payload).toMatchObject({
-        project_id: PROJECT,
-        commits_count: 1,
       });
     });
 

@@ -1,5 +1,4 @@
 import type { Repository } from 'typeorm';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ProjectsService } from './projects.service';
 import { ProjectsController } from './projects.controller';
 import type {
@@ -83,7 +82,6 @@ function setupTest(opts: {
   const agentRunRepo = { createQueryBuilder: () => agentRunQb } as unknown as Repository<AgentRun>;
   const agentRepo = { createQueryBuilder: () => agentsQb } as unknown as Repository<Agent>;
   const dataSource = {} as never;
-  const events = new EventEmitter2();
   const audit = { record: jest.fn() } as unknown as AuditService;
 
   const service = new ProjectsService(
@@ -96,7 +94,6 @@ function setupTest(opts: {
     agentRunRepo,
     agentRepo,
     dataSource,
-    events,
     audit,
   );
 

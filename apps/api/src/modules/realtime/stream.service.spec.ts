@@ -14,14 +14,17 @@ const logEvent = (projectId: string, message = '한 줄') => ({
   created_at: '2026-09-12T00:00:00.000Z',
 });
 
-const budgetEvent = (projectId: string) => ({
+/** 사용액이 실린 페이로드. 새면 남의 프로젝트 지출이 그대로 넘어간다. */
+const heartbeatEvent = (projectId: string) => ({
   project_id: projectId,
-  metric: 'cost' as const,
-  used: '81.0000',
-  limit: '100.0000',
-  usage_pct: 81,
-  threshold_pct: 80,
-  occurred_at: '2026-09-12T00:00:00.000Z',
+  agent_id: 'a-1',
+  agent_name: 'claude-code',
+  run_id: 'r-1',
+  tokens_used: 1200,
+  cost: '0.4200',
+  delta_tokens: 100,
+  delta_cost: '0.0300',
+  timestamp: '2026-09-12T00:00:00.000Z',
 });
 
 /** 이벤트 버스는 프로세스 전역이다. 여기서 거르지 않으면 남의 로그가 그대로 흘러간다. */
@@ -34,8 +37,8 @@ describe('StreamService', () => {
     service = new StreamService(emitter);
   });
 
-  it('네 이벤트 타입을 이름 그대로 내보낸다', async () => {
-    const received = firstValueFrom(service.forProject(MINE).pipe(take(4), toArray()));
+  it('두 이벤트 타입을 이름 그대로 내보낸다', async () => {
+    const received = firstValueFrom(service.forProject(MINE).pipe(take(2), toArray()));
 
     emitter.emit(DomainEvent.LOG_APPENDED, logEvent(MINE));
     emitter.emit(DomainEvent.HEALTH_SNAPSHOT_CREATED, {
@@ -44,30 +47,17 @@ describe('StreamService', () => {
       composite_score: 2.75,
       measured_at: '2026-09-12T00:00:00.000Z',
     });
-    emitter.emit(DomainEvent.PROJECT_STAGE_CHANGED, {
-      project_id: MINE,
-      stage: 'development',
-      entered_at: '2026-09-12T00:00:00.000Z',
-    });
 
-    emitter.emit(DomainEvent.BUDGET_THRESHOLD_EXCEEDED, budgetEvent(MINE));
-
-    // 앞의 셋은 설계서 Part 4 §7.3이 정한 이름이다 — 바꾸면 클라이언트 구독이 조용히 끊긴다.
-    // budget_alert는 그 뒤에 더한 넷째다(DESIGN_DRIFT.md 10번).
-    expect((await received).map((e) => e.type)).toEqual([
-      'log',
-      'health_update',
-      'stage_change',
-      'budget_alert',
-    ]);
+    // 설계서 Part 4 §7.3이 정한 이름이다 — 바꾸면 클라이언트 구독이 조용히 끊긴다.
+    expect((await received).map((e) => e.type)).toEqual(['log', 'health_update']);
   });
 
-  it('예산 경보도 프로젝트로 거른다', async () => {
-    // 사용액과 한도가 담긴 페이로드라, 새면 남의 프로젝트 지출이 그대로 넘어간다.
+  it('돈이 실린 이벤트도 프로젝트로 거른다', async () => {
+    // 토큰·비용이 담긴 페이로드라, 새면 남의 프로젝트 지출이 그대로 넘어간다.
     const received = firstValueFrom(service.forProject(MINE).pipe(take(1), toArray()));
 
-    emitter.emit(DomainEvent.BUDGET_THRESHOLD_EXCEEDED, budgetEvent(YOURS));
-    emitter.emit(DomainEvent.BUDGET_THRESHOLD_EXCEEDED, budgetEvent(MINE));
+    emitter.emit(DomainEvent.AGENT_RUN_HEARTBEAT, heartbeatEvent(YOURS));
+    emitter.emit(DomainEvent.AGENT_RUN_HEARTBEAT, heartbeatEvent(MINE));
 
     const events = await received;
     expect(events).toHaveLength(1);

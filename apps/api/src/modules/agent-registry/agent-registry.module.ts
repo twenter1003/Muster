@@ -7,7 +7,6 @@ import {
 } from './agents.controller';
 import { AgentsService } from './agents.service';
 import { AgentRunsService } from './agent-runs.service';
-import { BudgetService } from './budget.service';
 import { UsageTimeseriesService } from './usage-timeseries.service';
 import { TokenWasteReportService } from './token-waste-report.service';
 import { ModelPricingService } from './model-pricing.service';
@@ -29,7 +28,6 @@ import { ModelPricingService } from './model-pricing.service';
   providers: [
     AgentsService,
     AgentRunsService,
-    BudgetService,
     UsageTimeseriesService,
     TokenWasteReportService,
     ModelPricingService,

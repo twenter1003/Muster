@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DataSource, IsNull, Repository } from 'typeorm';
 import { InjectRepository } from '../../database/inject-repository.decorator';
 import {
@@ -15,7 +14,6 @@ import {
 } from '../../database/entities';
 import { ApiException } from '../../common/errors/api.exception';
 import { buildPage, type Page, type PageRequest } from '../../common/pagination/paginate';
-import { DomainEvent, type ProjectStageChangedEvent } from '../../common/events/domain-events';
 import { AuditService } from '../audit/audit.service';
 import type { CreateProjectDto } from './dto/create-project.dto';
 import type { UpdateProjectDto } from './dto/update-project.dto';
@@ -47,7 +45,6 @@ export class ProjectsService {
     @InjectRepository(AgentRun) private readonly agentRuns: Repository<AgentRun>,
     @InjectRepository(Agent) private readonly agents: Repository<Agent>,
     private readonly dataSource: DataSource,
-    private readonly events: EventEmitter2,
     private readonly audit: AuditService,
   ) {}
 
@@ -332,23 +329,12 @@ export class ProjectsService {
       return saved;
     });
 
-    // 커밋 뒤에 발행한다 (Part 4 §7.3의 SSE `stage_change`). 트랜잭션 안에서 발행하면
-    // 롤백된 전환이 화면에만 남는다. 이력 자체는 위에서 current_stage와 원자적으로
-    // 기록되므로, 발행이 실패해도 타임라인에는 구멍이 나지 않는다.
-    if (stageChanged) {
-      this.events.emit(DomainEvent.PROJECT_STAGE_CHANGED, {
-        project_id: saved.id,
-        stage: saved.current_stage,
-        entered_at: new Date().toISOString(),
-      } satisfies ProjectStageChangedEvent);
-    }
-
     return saved;
   }
 
   /**
    * 설계서 Part 4 §3 — soft delete. 감사 로그 보존을 위해 물리 삭제하지 않는다.
-   * GCS 문서 파일은 30일 경과 후 별도 정리한다(해당 배치는 아직 없음).
+   * 문서 파일 정리 배치가 여기 언급돼 있었으나, 문서 기능은 PR #83에서 접었다.
    */
   async softDelete(projectId: string, userId: string): Promise<void> {
     await this.findOneOrFail(projectId);
