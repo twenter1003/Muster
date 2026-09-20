@@ -4,7 +4,7 @@
 - **작업자 / 모델**: Claude Code (Claude Sonnet 5)
 - **현재 브랜치**: `main` ([PR #72](https://github.com/twenter1003/Muster/pull/72) 머지 완료, `a1fb436`)
 
-## 저장소 상태 — 낭비 판정→측정값 교체·마이그레이션 완료, 배포만 남음
+## 저장소 상태 — 낭비 판정→측정값 교체·마이그레이션·배포 전부 완료
 
 - ✅ **코드**: 이번 세션에서 `token-waste.ts`의 임계값 기반 낭비 판정을 실측 캐시 적중률·절감액·
   비용 분포로 교체(HANDOVER 후보 1, DESIGN_DRIFT 18번의 남은 과제). 백엔드 3곳(`usage-timeseries`,
@@ -17,9 +17,11 @@
   프로덕션 Supabase(session pooler)에 직접 적용했다. `migration:show` 기준 15개 전부 `[X]`.
   순수 컬럼 추가(nullable)라 다운타임 없음. 되돌리려면
   `DATABASE_URL='<세션 풀러 문자열>' pnpm --filter @muster/api migration:revert`.
-- ⚠️ **Cloud Run 미배포**: 프로덕션은 여전히 이전 리비전이다. 비용 7.6배 정정과 이번 캐시 지표
-  교체 모두 아직 사용자가 보는 화면에 반영되지 않았다. **이제 마이그레이션이 끝났으니 배포해도
-  안전하다.**
+- ✅ **Cloud Run 배포 완료** (2026-09-20): `./scripts/deploy-cloudrun.sh`로 커밋 `eea0d92`을
+  배포. 리비전 `muster-00042-v72`가 트래픽 100% 서빙 중. 헬스체크(`/api/v1/health` → 200),
+  SPA 루트(200), 알 수 없는 API 경로(JSON 404) 전부 확인. 롤백:
+  `gcloud run services update-traffic muster --region asia-northeast3 --to-revisions=muster-00041-fwc=100`.
+  이제 비용 7.6배 정정과 이번 세션의 캐시 지표 교체가 실제 사용자 화면에 반영된다.
 
 ---
 
