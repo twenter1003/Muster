@@ -76,4 +76,62 @@ describe('ModelPricingService', () => {
       expect(cost).toBe('0.3000');
     });
   });
+
+  /*
+   * 캐시 토큰을 정규 입력가로 세던 것이 비용을 부풀리던 원인이다.
+   * 실제 세션을 재어 보니 입력의 98.6%가 캐시 읽기였고 총액이 7.6배로 잡혔다.
+   */
+  describe('캐시 토큰 단가', () => {
+    it('캐시 읽기는 정규 입력가가 아니라 캐시 읽기 단가로 센다', () => {
+      // claude-sonnet-5: 입력 $2, 출력 $10, 캐시읽기 $0.2, 캐시쓰기 $2.5 (LLM_ECOSYSTEM_GUIDE 2장)
+      const cost = service.calculateCost({
+        model: 'claude-sonnet-5',
+        inputTokens: 100_000,
+        cacheWriteTokens: 100_000,
+        cacheReadTokens: 800_000,
+        outputTokens: 100_000,
+      });
+      // 0.1*2 + 0.1*2.5 + 0.8*0.2 + 0.1*10 = 0.2 + 0.25 + 0.16 + 1.0 = 1.61
+      expect(cost).toBe('1.6100');
+    });
+
+    it('같은 토큰을 합계로만 주면 훨씬 비싸게 잡힌다 — 내역을 보내야 하는 이유', () => {
+      const withBreakdown = Number(
+        service.calculateCost({
+          model: 'claude-sonnet-5',
+          inputTokens: 100_000,
+          cacheWriteTokens: 100_000,
+          cacheReadTokens: 800_000,
+          outputTokens: 100_000,
+        }),
+      );
+      const lumped = Number(
+        service.calculateCost({
+          model: 'claude-sonnet-5',
+          inputTokens: 1_000_000,
+          outputTokens: 100_000,
+        }),
+      );
+      expect(lumped).toBeGreaterThan(withBreakdown);
+    });
+
+    it('캐시 단가가 없는 모델(deepseek)은 정규 입력가로 센다 — 싸게 지어내지 않는다', () => {
+      // deepseek-chat: 입력 $0.14. 캐시 단가는 가이드에 없다.
+      const cost = service.calculateCost({
+        model: 'deepseek-chat',
+        inputTokens: 0,
+        cacheReadTokens: 1_000_000,
+        outputTokens: 0,
+      });
+      expect(cost).toBe('0.1400');
+    });
+
+    it('캐시 토큰만 있어도 0원으로 떨어지지 않는다', () => {
+      const cost = service.calculateCost({
+        model: 'claude-sonnet-5',
+        cacheReadTokens: 1_000_000,
+      });
+      expect(Number(cost)).toBeGreaterThan(0);
+    });
+  });
 });

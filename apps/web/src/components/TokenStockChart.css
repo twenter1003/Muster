@@ -288,8 +288,12 @@
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
 }
 
+/*
+ * 크기는 컴포넌트가 실제 렌더 폭을 재서 --chart-axis-font로 내려 준다(axisFontSizeFor).
+ * SVG가 viewBox 배율만큼 글자까지 줄이기 때문에, 고정값으로 두면 좁은 화면에서 5px로 그려진다.
+ */
 .chart-axis-label {
-  font-size: 10px;
+  font-size: var(--chart-axis-font, 10px);
   fill: var(--color-ink-mid, #6b7280);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
@@ -374,6 +378,12 @@
     justify-content: space-between;
     font-size: 11px;
     padding-top: 2px;
+  }
+
+  /* 폭이 270px로 고정돼 있으면 카드 밖으로 나가고, 셸이 가로 overflow를 잘라 안 보인다. */
+  .token-stock-chart__tooltip {
+    min-width: 0;
+    max-width: calc(100vw - var(--space-8, 32px));
   }
 }
 

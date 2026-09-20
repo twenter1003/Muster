@@ -1,5 +1,6 @@
 .modal:has(.akm__container) {
-  max-width: min(600px, calc(100vw - var(--space-4)));
+  /* 좌우 여백은 공용 모달(Modal.css)과 같은 --space-6으로 맞춘다. */
+  max-width: min(600px, calc(100vw - var(--space-6)));
 }
 
 .akm__container {
@@ -129,8 +130,13 @@
   line-height: 1.4;
 }
 
+/*
+ * 좁은 화면에서는 줄을 바꾼다. 라벨이 nowrap이고 버튼 글자가 길어서, 감싸지 않으면
+ * 입력칸이 먼저 찌그러지고 발급 버튼이 세로 한 글자씩 쪼개진다(360px에서 확인).
+ */
 .akm__issue-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
 }
@@ -142,7 +148,9 @@
 }
 
 .akm__input {
-  flex: 1;
+  /* min-width:0이 없으면 input의 기본 고유 너비(약 177px) 아래로 줄지 않아 줄바꿈이 깨진다. */
+  flex: 1 1 160px;
+  min-width: 0;
   padding: var(--space-2);
   font-size: var(--font-size-body);
 }
@@ -191,6 +199,7 @@
 
 .akm__key-item {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
@@ -199,10 +208,13 @@
   border-radius: var(--radius);
 }
 
+/* 이름·마스킹된 키·발급일이 한 줄에 다 들어가지 않으면 접는다. 안 접으면 폐기 버튼이 밀려난다. */
 .akm__item-info {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-1) var(--space-3);
+  min-width: 0;
   font-size: var(--font-size-meta);
 }
 
@@ -224,6 +236,7 @@
 
 .akm__confirm-group {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1);
 }

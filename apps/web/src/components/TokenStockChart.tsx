@@ -1,4 +1,4 @@
-import { useState, useId, useMemo, useRef, useEffect } from 'react';
+import { useState, useId, useMemo, useRef, useEffect, type CSSProperties } from 'react';
 import { formatCost, formatTokenCount } from '../lib/tokenIntelligence';
 import { getAgentTheme, getAgentLabel } from '../lib/agentFilter';
 import {
@@ -40,6 +40,48 @@ const SVG_WIDTH = 600;
 const DEFAULT_HEIGHT = 190;
 const PADDING = { top: 20, right: 20, bottom: 28, left: 20 };
 
+/**
+ * 축 라벨의 font-size(사용자 단위). SVG는 viewBox(600)를 실제 렌더 폭으로 늘리거나 줄이는데,
+ * 그 배율만큼 글자도 같이 늘거나 줄어든다. 그래서 화면에 몇 px로 보일지는 CSS에 적은 값이
+ * 아니라 "적은 값 × (렌더 폭 / 600)"이다.
+ *
+ * 폭 구간(@media)으로 잡지 않는 이유: 화면이 넓어도 차트가 좁아질 수 있다. 상세 화면은
+ * 1100px부터 2단이 되면서 차트 폭이 1009px에서 521px로 오히려 줄어, 데스크톱에서 8.7px로
+ * 그려지고 있었다(측정값). 뷰포트가 아니라 **차트 자신의 렌더 폭**을 보고 되돌려야 맞다.
+ */
+export function axisFontSizeFor(renderedWidth: number, targetPx = 10): number {
+  if (!Number.isFinite(renderedWidth) || renderedWidth <= 0) return targetPx;
+  const declared = (targetPx * SVG_WIDTH) / renderedWidth;
+  // 극단적인 폭에서 글자가 터무니없이 커지거나 작아지지 않게 가둔다.
+  const clamped = Math.min(32, Math.max(6, declared));
+  return Math.round(clamped * 10) / 10;
+}
+
+/**
+ * X축에 라벨을 그릴 인덱스. 전부 그리면 좁은 화면에서 글자가 서로 겹치므로 6개 안팎으로 솎는다.
+ *
+ * 마지막 점은 "지금"이라 항상 보여 주는데, 그것이 직전 라벨과 붙어 버리면(예: 14개 · step 3 →
+ * 12와 13이 이웃) 오히려 두 글자가 겹쳐 읽히지 않는다. 그럴 때는 직전 라벨을 뺀다 —
+ * 마지막 값을 포기하는 것보다 그 앞 눈금 하나를 포기하는 쪽이 읽기에 낫다.
+ */
+export function pickAxisLabelIndices(len: number): Set<number> {
+  if (len <= 0) return new Set();
+  if (len <= 7) return new Set(Array.from({ length: len }, (_, i) => i));
+
+  const step = Math.ceil(len / 6);
+  const indices = new Set<number>();
+  for (let i = 0; i < len; i += step) indices.add(i);
+
+  const last = len - 1;
+  if (!indices.has(last)) {
+    const prev = last - (last % step);
+    // 바로 옆(간격 1)이면 무조건 겹친다. 그보다 멀어도 스텝의 절반이 안 되면 눈에 띄게 촘촘하다.
+    if (last - prev < Math.max(2, step / 2)) indices.delete(prev);
+    indices.add(last);
+  }
+  return indices;
+}
+
 export function TokenStockChart({
   data = [],
   agentSeries,
@@ -60,7 +102,24 @@ export function TokenStockChart({
   const [showTotalLine, setShowTotalLine] = useState(true);
   const [showBurnRatePopover, setShowBurnRatePopover] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
   const gradId = useId();
+
+  /*
+   * 차트가 실제로 몇 px로 그려지는지 지켜본다. 축 라벨 크기를 이 값으로 되돌려야
+   * 좁은 폰에서도, 2단으로 접혀 차트가 좁아진 데스크톱에서도 같은 크기로 읽힌다.
+   */
+  const [renderedWidth, setRenderedWidth] = useState(SVG_WIDTH);
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width ?? 0;
+      if (width > 0) setRenderedWidth(width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   // 바깥 클릭 시 팝오버 닫기
   useEffect(() => {
@@ -224,18 +283,7 @@ export function TokenStockChart({
     setHoveredIdx(closestIdx);
   };
 
-  // X축 라벨 인덱스 선별 (최대 5~7개로 축약하여 모바일 겹침 방지)
-  const visibleLabelIndices = useMemo(() => {
-    const len = data.length;
-    if (len <= 7) return new Set(data.map((_, i) => i));
-    const step = Math.ceil(len / 6);
-    const indices = new Set<number>();
-    for (let i = 0; i < len; i += step) {
-      indices.add(i);
-    }
-    indices.add(len - 1);
-    return indices;
-  }, [data]);
+  const visibleLabelIndices = useMemo(() => pickAxisLabelIndices(data.length), [data.length]);
 
   return (
     <div className="token-stock-chart" data-testid="token-stock-chart">
@@ -459,7 +507,11 @@ export function TokenStockChart({
       )}
 
       {/* 3. 고반응형 SVG Area/Line 차트 */}
-      <div className="token-stock-chart__canvas-wrap">
+      <div
+        className="token-stock-chart__canvas-wrap"
+        ref={canvasRef}
+        style={{ '--chart-axis-font': `${axisFontSizeFor(renderedWidth)}px` } as CSSProperties}
+      >
         {isLoading && (
           <div className="token-stock-chart__overlay">
             <span className="meta">차트 갱신 중…</span>

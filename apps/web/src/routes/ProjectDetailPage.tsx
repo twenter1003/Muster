@@ -952,7 +952,6 @@ export function ProjectDetailPage() {
       <header className="detail__head">
         <div className="detail__head-row">
           <h1 className="page__title">{project.data?.name ?? EM_DASH}</h1>
-          <span className="badge badge--operational">운영 중</span>
           {activeAgents.length > 0 && (
             <span className="badge badge--pulse" style={{ fontSize: '11px' }}>
               ●{' '}

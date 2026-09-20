@@ -80,13 +80,29 @@ export function loadConfig(
  * transcript JSONL에서 어시스턴트 턴의 usage를 모두 더한다.
  * 실측 확인(2026-09-16): 각 줄은 {type, message:{usage:{input_tokens, output_tokens,
  * cache_creation_input_tokens, cache_read_input_tokens}}, ...} 형태이고, type이
- * "assistant"인 줄에만 usage가 있다. 캐시 토큰도 실제로 쓴 용량이므로 합산에 포함한다.
+ * "assistant"인 줄에만 usage가 있다.
+ *
+ * 네 종류를 **따로** 돌려준다. 예전에는 합계 하나만 보냈는데, 서버가 그 합계를 정규
+ * 입력가로 곱하는 바람에 비용이 크게 부풀려졌다 — 실제 세션을 재어 보니 입력의 98.6%가
+ * 캐시 읽기였고(정규가의 10%), 총액이 7.6배로 잡혔다.
+ * LLM_ECOSYSTEM_GUIDE 5장도 네 필드를 모두 수집하라고 적고 있다.
  */
 export function sumUsageFromTranscript(transcriptPath) {
-  if (!existsSync(transcriptPath)) return { tokens_used: 0, output_tokens: 0, turns: 0, model: undefined };
+  const empty = {
+    tokens_used: 0,
+    input_tokens: 0,
+    output_tokens: 0,
+    cache_read_tokens: 0,
+    cache_write_tokens: 0,
+    turns: 0,
+    model: undefined,
+  };
+  if (!existsSync(transcriptPath)) return empty;
 
-  let inputSide = 0;
-  let outputSide = 0;
+  let input = 0;
+  let output = 0;
+  let cacheRead = 0;
+  let cacheWrite = 0;
   let turns = 0;
   let model;
   const lines = readFileSync(transcriptPath, 'utf8').split('\n');
@@ -106,15 +122,23 @@ export function sumUsageFromTranscript(transcriptPath) {
     const usage = entry.message?.usage;
     if (!usage) continue;
 
-    inputSide +=
-      (usage.input_tokens ?? 0) +
-      (usage.cache_creation_input_tokens ?? 0) +
-      (usage.cache_read_input_tokens ?? 0);
-    outputSide += usage.output_tokens ?? 0;
+    input += usage.input_tokens ?? 0;
+    cacheWrite += usage.cache_creation_input_tokens ?? 0;
+    cacheRead += usage.cache_read_input_tokens ?? 0;
+    output += usage.output_tokens ?? 0;
     turns += 1;
   }
 
-  return { tokens_used: inputSide + outputSide, output_tokens: outputSide, turns, model };
+  return {
+    // 합계는 화면의 "토큰" 숫자가 그대로 쓰므로 종전과 같은 의미를 유지한다.
+    tokens_used: input + cacheWrite + cacheRead + output,
+    input_tokens: input,
+    output_tokens: output,
+    cache_read_tokens: cacheRead,
+    cache_write_tokens: cacheWrite,
+    turns,
+    model,
+  };
 }
 
 /**
@@ -128,8 +152,37 @@ export function estimateCost(usage, env) {
   const outputRate = Number(env.MUSTER_COST_PER_MTOK_OUTPUT);
   if (!Number.isFinite(inputRate) || !Number.isFinite(outputRate)) return undefined;
 
-  const inputSide = usage.tokens_used - usage.output_tokens;
-  const cost = (inputSide / 1_000_000) * inputRate + (usage.output_tokens / 1_000_000) * outputRate;
+  /*
+   * 내역 없이 합계만 들어오는 옛 모양도 받는다. 그때는 출력분을 뺀 나머지를 전부 정규
+   * 입력가로 센다(종전과 같은 값) — 내역이 없다고 0으로 보면 비용이 실제보다 싸게 잡혀,
+   * 부풀리는 것보다 더 나쁜 방향으로 틀린다.
+   */
+  const hasBreakdown =
+    usage.input_tokens !== undefined ||
+    usage.cache_read_tokens !== undefined ||
+    usage.cache_write_tokens !== undefined;
+
+  if (!hasBreakdown) {
+    const inputSide = (usage.tokens_used ?? 0) - (usage.output_tokens ?? 0);
+    const legacy =
+      (inputSide / 1_000_000) * inputRate + ((usage.output_tokens ?? 0) / 1_000_000) * outputRate;
+    return legacy.toFixed(6);
+  }
+
+  /*
+   * 캐시 요율은 선택이다. 주지 않으면 캐시 토큰도 정규 입력가로 센다 —
+   * 서버와 같은 원칙이다(근거 없는 할인율을 지어내느니 비싸게 잡는다).
+   */
+  const readRate = Number(env.MUSTER_COST_PER_MTOK_CACHE_READ);
+  const writeRate = Number(env.MUSTER_COST_PER_MTOK_CACHE_WRITE);
+  const read = Number.isFinite(readRate) ? readRate : inputRate;
+  const write = Number.isFinite(writeRate) ? writeRate : inputRate;
+
+  const cost =
+    ((usage.input_tokens ?? 0) / 1_000_000) * inputRate +
+    ((usage.cache_write_tokens ?? 0) / 1_000_000) * write +
+    ((usage.cache_read_tokens ?? 0) / 1_000_000) * read +
+    ((usage.output_tokens ?? 0) / 1_000_000) * outputRate;
   return cost.toFixed(6);
 }
 
@@ -181,10 +234,21 @@ async function handleSessionStart(hook, env) {
   writeFileSync(statePath, JSON.stringify({ run_id: run.id, cwd: hook.cwd }), 'utf8');
 }
 
-export async function sendHeartbeat(config, runId, tokensUsed, model) {
+/** 토큰 내역 4종을 요청 본문 모양으로. 서버가 캐시 단가를 적용하려면 이게 있어야 한다. */
+function breakdownOf(usage) {
+  return {
+    input_tokens: usage.input_tokens ?? 0,
+    output_tokens: usage.output_tokens ?? 0,
+    cache_read_tokens: usage.cache_read_tokens ?? 0,
+    cache_write_tokens: usage.cache_write_tokens ?? 0,
+  };
+}
+
+export async function sendHeartbeat(config, runId, usage) {
   return apiCall(config, 'PATCH', `/agent-runs/${runId}/heartbeat`, {
-    tokens_used: tokensUsed,
-    ...(model ? { model } : {}),
+    tokens_used: usage.tokens_used,
+    ...breakdownOf(usage),
+    ...(usage.model ? { model: usage.model } : {}),
   });
 }
 
@@ -201,7 +265,7 @@ export async function handleHeartbeat(hook, env) {
   const usage = sumUsageFromTranscript(transcriptPath);
   if (usage.tokens_used <= (state.last_heartbeat_tokens || 0)) return;
 
-  await sendHeartbeat(config, state.run_id, usage.tokens_used, usage.model);
+  await sendHeartbeat(config, state.run_id, usage);
   state.last_heartbeat_tokens = usage.tokens_used;
   writeFileSync(statePath, JSON.stringify(state), 'utf8');
 }
@@ -223,6 +287,7 @@ async function handleSessionEnd(hook, env) {
   await apiCall(config, 'PATCH', `/agent-runs/${state.run_id}`, {
     status: 'succeeded',
     tokens_used: usage.tokens_used,
+    ...breakdownOf(usage),
     ...(usage.model ? { model: usage.model } : {}),
     ...(cost !== undefined ? { cost } : {}),
   });

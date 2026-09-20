@@ -13,6 +13,7 @@ import { ModelPricingService } from './model-pricing.service';
 import { assessSessionWaste, type SessionWasteAssessment } from './token-waste';
 import type { CreateRunDto } from './dto/create-run.dto';
 import type { HeartbeatRunDto } from './dto/heartbeat-run.dto';
+import type { TokenBreakdownDto } from './dto/token-breakdown.dto';
 import type { RecordRunByRepoDto } from './dto/record-run-by-repo.dto';
 import type { UpdateRunDto } from './dto/update-run.dto';
 
@@ -197,6 +198,44 @@ export class AgentRunsService {
    * 사용량 재계산은 저장 **후**에, 그리고 저장 **전** 합계를 넘겨서 한다.
    * 임계치를 넘어서는 순간을 알아내려면 이 실행이 반영되기 전후를 비교해야 한다.
    */
+  /**
+   * 들어온 토큰 내역을 실행 기록에 반영한다. 보내지 않은 항목은 건드리지 않는다 —
+   * 하트비트가 일부만 보낼 수 있고, 그때 나머지를 0으로 덮으면 내역이 사라진다.
+   */
+  private applyTokenBreakdown(run: AgentRun, dto: TokenBreakdownDto): void {
+    if (dto.input_tokens !== undefined) run.input_tokens = dto.input_tokens;
+    if (dto.output_tokens !== undefined) run.output_tokens = dto.output_tokens;
+    if (dto.cache_read_tokens !== undefined) run.cache_read_tokens = dto.cache_read_tokens;
+    if (dto.cache_write_tokens !== undefined) run.cache_write_tokens = dto.cache_write_tokens;
+  }
+
+  /**
+   * 비용 계산. 내역이 있으면 캐시 단가까지 반영하고, 없으면 예전처럼 합계로 센다.
+   *
+   * 내역 없이 합계만 정규가로 곱하면 캐싱을 잘 쓸수록 비용이 부풀려진다(실측 7.6배).
+   * 그래서 내역이 하나라도 오면 그쪽을 진실로 본다.
+   */
+  private costFor(run: AgentRun, agentName?: string, model?: string): string {
+    const hasBreakdown =
+      run.input_tokens != null ||
+      run.output_tokens != null ||
+      run.cache_read_tokens != null ||
+      run.cache_write_tokens != null;
+
+    if (hasBreakdown) {
+      return this.modelPricing.calculateCost({
+        inputTokens: run.input_tokens ?? 0,
+        outputTokens: run.output_tokens ?? 0,
+        cacheReadTokens: run.cache_read_tokens ?? 0,
+        cacheWriteTokens: run.cache_write_tokens ?? 0,
+        agentName,
+        model,
+      });
+    }
+
+    return this.modelPricing.calculateCost({ tokens: run.tokens_used, agentName, model });
+  }
+
   async finish(runId: string, identity: RunIdentity, dto: UpdateRunDto): Promise<AgentRun> {
     const run =
       'apiKeyProjectId' in identity
@@ -209,15 +248,23 @@ export class AgentRunsService {
     if (dto.status !== undefined) run.status = dto.status;
     if (dto.tokens_used !== undefined) run.tokens_used = dto.tokens_used;
     if (dto.model !== undefined) run.model = dto.model;
+    this.applyTokenBreakdown(run, dto);
+
+    const hasBreakdown =
+      dto.input_tokens !== undefined ||
+      dto.output_tokens !== undefined ||
+      dto.cache_read_tokens !== undefined ||
+      dto.cache_write_tokens !== undefined;
+
     if (dto.cost !== undefined) {
       run.cost = dto.cost;
-    } else if ((!run.cost || Number(run.cost) === 0) && run.tokens_used > 0) {
+    } else if (hasBreakdown || ((!run.cost || Number(run.cost) === 0) && run.tokens_used > 0)) {
+      /*
+       * 내역이 새로 왔다면 하트비트가 합계로 계산해 둔 값이 남아 있어도 다시 낸다 —
+       * 종료 시점의 내역이 그 세션에 대해 우리가 가진 가장 정확한 자료다.
+       */
       const agent = await this.agents.findOneBy({ id: run.agent_id });
-      run.cost = this.modelPricing.calculateCost({
-        tokens: run.tokens_used,
-        agentName: agent?.name,
-        model: dto.model ?? run.model ?? undefined,
-      });
+      run.cost = this.costFor(run, agent?.name, dto.model ?? run.model ?? undefined);
     }
 
     // running이 아닌 상태로 옮겼는데 종료 시각이 없으면 "끝났지만 언제인지 모르는" 행이 남는다.
@@ -273,19 +320,17 @@ export class AgentRunsService {
     let newCost = dto.cost;
     const agent = await this.agents.findOneBy({ id: run.agent_id });
 
+    // 비용을 내기 전에 내역부터 반영한다 — costFor가 그 내역을 보고 캐시 단가를 적용한다.
+    run.tokens_used = newTokens;
+    this.applyTokenBreakdown(run, dto);
+
     if ((!newCost || Number(newCost) === 0) && newTokens > 0) {
-      newCost = this.modelPricing.calculateCost({
-        tokens: newTokens,
-        agentName: agent?.name,
-        model: dto.model ?? run.model ?? undefined,
-      });
+      newCost = this.costFor(run, agent?.name, dto.model ?? run.model ?? undefined);
     } else if (!newCost) {
       newCost = prevCost;
     }
 
     const deltaCost = Math.max(0, Number(newCost) - Number(prevCost)).toFixed(6);
-
-    run.tokens_used = newTokens;
     run.cost = newCost;
     if (dto.model !== undefined) {
       run.model = dto.model;

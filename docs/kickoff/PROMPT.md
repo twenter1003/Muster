@@ -8,99 +8,130 @@
 
 에이전트는 사용자에게 첫 응답을 하기 전, **반드시 아래 4단계를 순서대로 수행**해야 한다. (이 문서를 맹신하여 코드 조회를 건너뛰지 말 것)
 
-1. **지식 그래프 조회 (`graphify`) [필수]**:
-   - `CLAUDE.md`의 graphify 규칙을 확인한다.
-   - `graphify-out/graph.json`이 구축되어 있으므로, 차기 작업 키워드로 지식 그래프를 가장 먼저 쿼리하여 모듈 의존성을 파악한다.
-     ```bash
-     graphify query "<차기 과제 관련 키워드>"
-     ```
-   - 특정 노드 관계나 아키텍처 확인이 필요할 때는 `graphify explain "<심볼/파일명>"`, `graphify path "<A>" "<B>"`를 활용한다.
-2. **저장소 및 테스트 무결성 검증**:
-   - `git status` 및 `git log -n 5`로 최신 커밋 상태 확인.
-   - `pnpm -r test`를 실행하여 기존 테스트가 All Green인지 확인.
-3. **설계 괴리 및 배포 함정 확인**:
-   - [docs/DESIGN_DRIFT.md](../DESIGN_DRIFT.md) (설계서와 실제가 갈라진 17개 항목 — **최종 진실**)
-   - [docs/DEPLOY.md](../DEPLOY.md) (Cloud Run 배포 및 Supabase 함정)
-4. **4인 원팀(PM, 백엔드, 프론트엔드, QA) 설계안 제시 및 승인**:
-   - 임의로 코딩을 시작하지 않고, PM의 요구사항/API 계약, 백엔드/프론트엔드 구현 범위, QA 검증 계획을 포함한 Bounded/Architectural 설계를 제시하고 **사용자의 명시적 승인 후 구현에 착수**한다.
+1. **저장소 상태 정리 [이번엔 이것부터]**:
+   - `git fetch origin && git log --oneline origin/main -3`
+   - **미머지 커밋 6개가 `refactor/reorganize-god-files` 브랜치에 남아 있다.** 아래 "현재 상태" 절을 먼저 읽고 사용자와 처리 방법을 정할 것.
+2. **지식 그래프 조회 (`graphify`) [필수]**:
+   ```bash
+   graphify query "<차기 과제 관련 키워드>"
+   ```
+   특정 관계 확인은 `graphify explain "<심볼/파일명>"`, `graphify path "<A>" "<B>"`.
+3. **테스트 무결성 검증**: `pnpm -r test` (기준선 **769개** = API 511 + Web 236 + 훅 22).
+   훅 테스트는 워크스페이스 밖이라 따로 돌린다:
+   ```bash
+   node --test scripts/claude-code-hooks/report-agent-usage.test.mjs scripts/antigravity-hooks/report-agent-usage.test.mjs
+   ```
+4. **문서 확인**: [docs/HANDOVER.md](../HANDOVER.md) (이번 세션 전말) · [docs/DESIGN_DRIFT.md](../DESIGN_DRIFT.md) **18번**(비용 정정) · [docs/DEPLOY.md](../DEPLOY.md)
+5. **4인 원팀(PM, 백엔드, 프론트엔드, QA) 설계안 제시 및 승인**: 임의로 코딩을 시작하지 않는다.
+
+---
+
+## ⚠️ 현재 상태 — 깔끔하지 않다
+
+**PR #70은 머지됐지만 그 이후 커밋 6개가 어디에도 머지되지 않았다.**
+
+PR #70이 리팩토링 2건만 담은 채 머지(`ecab4be`)됐고, 이후 작업이 브랜치에만 있다.
+`origin/main`에 없는 커밋: `bab0566`(모바일+목서버) · `5e76d8a`(축 라벨) · `beea474`(iOS 입력 확대) ·
+`6b434a7`(HUD+초대문구) · `faa1fed`(운영중 배지) · `a29ce7a`(**비용 7.6배 정정**).
+
+- PR #70은 이미 MERGED라 **재사용 불가** → 새 PR을 열거나 `main` 직접 반영, 사용자와 정할 것
+- 로컬 `main`은 `ad4815d`에 머물러 있다 → `git pull` 먼저
+- 검증은 끝나 있다: 769개 통과, 빌드·린트 통과
+- **마이그레이션 `1788920000000-AddAgentRunTokenBreakdown`이 프로덕션에 적용되지 않았다**
+- **Cloud Run 미배포** — 이번 변경은 프로덕션에 반영되지 않았다
 
 ---
 
 ## 프로젝트 개요
 
-Claude Code/LLM 기반으로 여러 사이드 프로젝트를 진행하는 사용자가, GitHub 레포를 연동하면 커밋·배포·로그·에러·LLM 토큰/비용·목표 달성률을 한눈에 관제하는 개인용 대시보드.
+Claude Code/LLM 기반으로 여러 사이드 프로젝트를 진행하는 사용자가, GitHub 레포를 연동하면 커밋·배포·로그·에러·LLM 토큰/비용·목표 달성률을 한눈에 관제하는 **개인용** 대시보드.
 
-- **아키텍처 및 모듈 관계**: 정적 문서를 읽지 말고 **`graphify-out/` 지식 그래프**를 조회할 것.
-- **배포 환경**: Cloud Run(`muster`, GCP 프로젝트 `muster-twent`, 리전 `asia-northeast3`, 현재 리비전 `muster-00041-fwc`) + Supabase Postgres.
-- **핵심 문서**:
-  - `docs/HANDOVER.md` (전체 인수인계 종합 문서)
-  - `docs/DESIGN_DRIFT.md` (화면 구조/기능 설계의 최종 진실)
-  - `docs/LLM_ECOSYSTEM_GUIDE.md` (2026 최신 모델 라인업, 단가표, 프롬프트 캐싱 할인율)
-  - `docs/AGENT_TOKEN_REPORTING.md` (`npx muster-connect` 및 에이전트 훅)
-  - `docs/BUG_REPORTS.md` (5분 초고속 장애 진단 런북)
+- **아키텍처**: 정적 문서 대신 **`graphify-out/` 지식 그래프**를 조회할 것.
+- **배포**: Cloud Run(`muster`, GCP `muster-twent`, `asia-northeast3`) + Supabase Postgres.
+- **핵심 문서**: `docs/HANDOVER.md` · `docs/DESIGN_DRIFT.md`(최종 진실) · `docs/LLM_ECOSYSTEM_GUIDE.md`(**단가의 단일 원천**) · `docs/AGENT_TOKEN_REPORTING.md` · `docs/BUG_REPORTS.md`
 
----
+### 로그인 없이 화면 보는 법 (이번 세션 신규)
 
-## 최근 완료된 것 (최신순, 상세는 git log)
+프로덕션은 GitHub OAuth 뒤에 있어 UI를 열어 볼 수 없다. 목 서버를 쓴다:
 
-- **토큰 관제 6대 핵심 품질 개선 (PR #69 - d21f88b)**
-  - `TokenStockChart`: 하단 바 그래프를 토큰 수가 아닌 해당 구간의 소모 비용(`cost`, $ USD) 기준으로 독립 스케일링, 메트릭 힌트 뱃지(`선: 토큰 추이 · 막대: 구간 비용 ($)`) 추가, 툴팁 내 `전체 토큰`과 `구간 비용` 분리.
-  - 라우트 전환 시 격리: `useSse.ts` 및 `ProjectDetailPage.tsx`에서 프로젝트 `id` 변경 시 이전 SSE 이벤트 스트림 및 활성 틱/런 상태 즉시 초기화(flush).
-  - 실측 모델명 추출/바인딩: `agent_runs.model` 컬럼 추가 마이그레이션(`1788910000000-AddAgentRunModel`), Claude Code/Antigravity 훅에서 트랜스크립트 실측 모델명 파싱 및 SSE/DB 영속화, `muster-connect.mjs` 동기화.
-  - Gemini LLM 장애 복원력: 지수 백오프(1s, 2s, 4s + Jitter) 기반 3회 재시도, 30초 타임아웃, 429/500/502/503/504 및 네트워크 단절 대응 (`apps/api/src/common/llm/retry.ts`).
-  - 라이브 틱 단조 증가 보정: `Math.max`를 적용하여 틱 역전 방지 및 `burnRate.ts` 소모 속도 안정화.
-  - GitHub push 수신 시 목표 진행률 자동 갱신 훅: `CODE_PUSHED` 도메인 이벤트 비동기 발행 및 10분 쿨다운 가드 적용 (Ingest ↔ ProjectGoals 모듈 디커플링 유지).
-  - 테스트: 총 762개 전수 테스트 100% All Green (API 507개, Web 222개, Connect/Hooks 33개).
-  - 프로덕션 배포 완료: Supabase 마이그레이션 적용 및 Cloud Run 리비전 `muster-00041-fwc` 배포 완료 (`https://muster-54275961665.asia-northeast3.run.app`, 헬스체크 200 OK).
+```bash
+pnpm --filter @muster/web build && node scripts/mock-server.mjs   # → localhost:4173
+```
 
-- **세션 강제 중단(Abort) 기능 제거 및 UI/API 리팩터링 (PR #68 - 03b666b)**
-- **에이전트 세션별 토큰/비용 낭비 이력 내보내기(Export) 및 캐싱 절감 ROI 시뮬레이션 리포트 다운로드 구축 (PR #67 - 19cd598)**
-- **에이전트 세션별 토큰/비용 낭비 이력 딥다이브 모달 구축 (PR #66)**
-- **실시간 토큰 소모 속도(Burn Rate) 추적 및 예산 급증(Budget Spike) 조기 경보 HUD 구축 (PR #65)**
+`.claude/launch.json`에 `mock`으로 등록되어 있다. 실기기 확인은 iOS 시뮬레이터 Safari로
+`http://localhost:4173`을 열면 된다 — 크롬 에뮬레이션으로는 안 잡히는 것들이 있다(HANDOVER 2.3절).
+
+### 도달 가능한 화면은 5개뿐
+
+`/login`, `/invite/:token`, `/projects`, `/projects/:id`, `/import`.
+`ProjectOverviewPage`·`DashboardPage`·`ReportsPage`·`SettingsPage` 등 11개 화면 파일은
+**라우트가 없어 도달할 수 없다**(App.tsx:17-20). 고치기 전에 그 화면이 살아 있는지 먼저 볼 것.
 
 ---
 
-## 차기 세션 최우선 착수 과제 (Current Priority Task)
+## 최근 완료된 것 (최신순)
 
-### 🎯 과제명: 프로세스 외부 알림 채널 연동 (Incoming Webhook / Slack / Discord) — DESIGN_DRIFT 10번 & 16번 후속
+- **토큰 4종 분리 · 비용 7.6배 과다 계상 정정** (`a29ce7a`, DESIGN_DRIFT 18번)
+  - 훅이 `input+cache_creation+cache_read`를 합쳐 보내고 서버가 정규 입력가로 곱하고 있었다.
+    실제 세션 12개 집계 결과 입력의 98.6%가 캐시 읽기 → **$2,777 vs $364.94**.
+  - `AGENT_RUNS`에 토큰 4종 컬럼 추가, 단가표에 캐시 읽기·쓰기 단가 추가, `sync-embedded-hooks.mjs` 신규.
+- **iOS 실기기 발견 수정** (`beea474`, `6b434a7`, `faa1fed`): Safari 입력 확대(`pointer: coarse`),
+  A/B HUD가 목록 가림, 초대 문구 주어 누락, 하드코딩 "운영 중" 배지 제거.
+- **모바일 반응형 + 목 서버** (`bab0566`, `5e76d8a`): ApiKeyModal/Modal 레이아웃, 차트 축 라벨
+  5.1px → 전 구간 10px(`ResizeObserver` 보정), 터치 표적 44px.
+- **God-file 분리** (`53e9c71`, `0ada7e7` — PR #70 머지됨): `budget.service.ts` 977→159줄,
+  `ProjectOverviewPage.tsx` 1997→641줄. 순수 이동.
 
-> **상태 알림**: PR #69 머지 및 Cloud Run 리비전 `muster-00041-fwc` 배포 완료, 전체 762개 테스트 All Green 상태.  
-> **다음 세션 에이전트는 사용자와 논의 후 아래 4인 원팀 설계서에 따라 브랜치 생성 및 구현에 착수할 것.**
+---
 
-#### 1. 👥 4인 원팀 추천 설계 명세
+## 차기 세션 최우선 착수 과제
 
-- **📌 PM (기획 및 인터페이스 계약)**:
-  - **문제 정의**: 현재 `BUDGET_THRESHOLD_EXCEEDED` 및 `BUDGET_SPIKE_CRITICAL` 알림은 대시보드 화면을 열어둔 사용자에게만 SSE로 전달됨. 장시간 백그라운드 작업 중 브라우저를 닫고 있으면 토큰 폭주나 빌드/배포 실패를 제때 인지할 수 없음.
-  - **핵심 가치**: 사용자가 슬랙/디스코드/커스텀 웹훅 URL을 등록해 두면, 예산 급증 경보나 배포 실패 시 즉시 외부 메신저로 1건의 깔끔한 카드 메시지가 전송되어 비용 낭비와 장애를 조기에 막음.
+> **사용자 지시**: 서비스 범위를 넓히는 **신규 기능은 금지**. 개선에 필요한 추가 개발은 허용.
 
-- **⚙️ 백엔드 (Backend)**:
-  1. `Project` 엔티티 또는 별도 테이블에 `notification_webhook_url` (varchar, nullable) 필드 추가 및 마이그레이션.
-  2. 도메인 이벤트 리스너: `DomainEvent.BUDGET_THRESHOLD_EXCEEDED`, `DomainEvent.DEPLOYMENT_STATUS_CHANGED` (status=failure) 구독.
-  3. 웹훅 디스패처: 슬랙/디스코드 페이로드 어댑터 및 전송 실패 시 무음 처리(에러 격리) + 5분 쿨다운 가드.
+### 🎯 과제명: 낭비 판정·캐싱 ROI를 상수 추정에서 측정값으로 교체
 
-- **🎨 프론트엔드 (Frontend)**:
-  1. 프로젝트 상세 화면 헤더 또는 API 키 모달 인근에 `[🔔 알림 설정]` 진입점 제공.
-  2. Slack/Discord/Webhook URL 입력 폼 및 [테스트 발송] 버튼 제공.
-  3. 경보 발생 시 웹훅 발송 완료 피드백 배너 노출.
+#### 왜 지금인가
 
-- **🧪 QA (검증 및 시각적 증거)**:
-  1. 모의 웹훅 수신 서버(Node http)를 이용한 발송 단위/통합 테스트 작성.
-  2. 762+개 기존 테스트 All Green 유지 및 `pnpm -r build` 통과.
-  3. Chrome CDP 스크린샷 캡처 및 `graphify update .` 실행.
+`a29ce7a`로 진짜 캐시 수치가 들어오기 시작했다. 그런데 그 위에 얹힌 판단은 아직 전부 상수다.
+
+- `token-waste.ts`: 세션 토큰 5천만/1천만 초과 → 60%/25% 낭비로 판정. **토큰이 큰 이유가 대개
+  캐시 읽기가 쌓여서이므로, 캐싱이 가장 잘 든 세션이 가장 낭비가 심하다고 찍힌다**(실제 12개 중 5개).
+- 캐싱 ROI: 중복 읽기를 `총토큰 × 0.15`로 고정, 적중률은 낭비율에서 역산 → "$6.23 절감(42%)"처럼
+  측정값의 정밀도로 표시. **정확히 계산할 데이터를 이미 갖고 있으면서 추정한다.**
+
+#### 4인 원팀 설계 방향
+
+- **📌 PM**: 판정을 발표하지 말고 산수를 보여준다. 벤치마크한 제품 중 "낭비 토큰"이라는 숫자를
+  주장하는 곳은 하나도 없었다 — Helicone은 "73% 적중, $1,247 절감"(반사실), OpenRouter는
+  "어디서 캐시가 깨졌는지"(진단), Braintrust는 중앙값 대비 p99(분포)로 표현한다.
+- **⚙️ 백엔드**: 캐싱 절감액 = `cache_read_tokens × (정규 입력가 − 캐시 읽기가)`. 캐시 적중률 =
+  `cache_read / (input + cache_write + cache_read)`. 둘 다 실제 컬럼에서 바로 나온다.
+  임계값 기반 `assessSessionWaste`는 걷어내고, 세션당 비용 분포(중앙값·p99)를 낸다.
+  내역이 없는 옛 실행(nullable)은 "모름"으로 두고 집계에서 빼야 한다 — 0으로 세면 왜곡된다.
+- **🎨 프론트엔드**: "낭비 인텔리전스" 카드를 적중률·절감액·분포로 재구성. 이상치는 해당 세션으로
+  점프할 수 있게(숫자만 있고 갈 곳이 없는 것이 피어들이 피하는 형태다).
+- **🧪 QA**: 실제 트랜스크립트(`~/.claude/projects/*/*.jsonl`) 집계값과 화면 숫자를 대조한다.
+  이번 7.6배 발견이 그 방법으로 나왔다.
+
+#### 그다음 후보
+
+2. **상세 페이지 재편**(카드 12개 → 3~4묶음 + 상단 판정 한 줄, API 키는 설정으로) — Grafana 2026-04,
+   Sentry 2025-02, Vercel의 방향과 일치. 기능 추가 없이 재배치.
+3. **빈 상태 개선** — 레포를 막 가져오면 7개 카드 중 1개만 데이터가 있다.
+4. **도달 불가 화면 11개 처리 방침** — 지울지 되살릴지.
 
 ---
 
 ## 작업 관례 (사용자 필수 지침)
 
-- **4인 팀(PM, 백엔드, 프론트엔드, QA) 원팀 협업**:
-  - "항상 프론트, 백엔드, QA, PM 넷이서 한 팀으로 서로 소통하면서 움직여야 돼"
-  - PM의 계약 하에 백엔드와 프론트엔드가 소통하고, QA가 실측과 시각적 증거(스크린샷)로 검증한다.
-- **세션 내 완결 원칙**:
-  - 테스트·빌드 검증 → 새 브랜치 커밋 → 푸시 → PR 생성 → CI 통과 확인 → 머지 → 프로덕션 배포 → 로컬 main 동기화까지 한 세션 안에서 완료한다.
-- **프론트엔드 시각적 증거(스크린샷) 필수**:
-  - UI 수정 시 반드시 실제 렌더링된 화면 스크린샷(데스크톱 및 모바일 반응형)을 사용자에게 제시한다.
-- **코드 수정 후 graphify 갱신**:
-  - 주요 기능 완료 후 `graphify update .`를 실행하여 지식 그래프를 동기화한다.
-- **세션 종료 전 PROMPT.md 갱신**:
-  - 세션을 넘길 때 완료 내역과 다음 과제를 반영해 이 문서를 최신화한다.
-- **커밋 메시지**: Conventional Commits 스타일, 본문에 "왜"를 적고 자신의 모델명을 기재한다.
+- **한국어로 쓴다**: 사용자 응답·커밋 메시지·PR 본문 전부.
+- **4인 팀(PM, 백엔드, 프론트엔드, QA) 원팀 협업**: PM의 계약 하에 백엔드·프론트엔드가 소통하고,
+  QA가 실측과 시각적 증거로 검증한다.
+- **세션 내 완결 원칙**: 테스트·빌드 → 브랜치 커밋 → 푸시 → PR → CI → 머지 → 배포 → `main` 동기화.
+  **이번 세션은 이걸 못 지켰다**(미머지 6커밋). 다음 세션은 이것부터 정리할 것.
+- **근거 없는 숫자를 만들지 않는다**: 단가·할인율은 `LLM_ECOSYSTEM_GUIDE.md`가 단일 원천.
+  출처가 없으면 비워 두거나 비싸게 잡는다.
+- **훅 수정 시 임베딩 동기화**: `node scripts/sync-embedded-hooks.mjs` (검증 `--check`).
+- **프론트엔드 시각적 증거 필수**: 목 서버 + 실기기 스크린샷(데스크톱·모바일).
+- **코드 수정 후 `graphify update .`**.
+- **세션 종료 전 이 문서와 HANDOVER.md 갱신**.
