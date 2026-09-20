@@ -9,7 +9,6 @@ import { GoalChecklistDrawer, getUpNextItems } from '../components/GoalChecklist
 import { ApiError, apiFetch, apiPatch, apiPost, type Page } from '../lib/api';
 import { EM_DASH, LOG_LEVELS, formatDateTime, type LogLevel, type Measurable } from '../lib/domain';
 import { shouldConfirmDraftOverwrite } from '../lib/goalsDraft';
-import { getAnalyzeButtonLabel, getUnanalyzedStatusText } from '../lib/goalsProgress';
 import {
   getGoalsProgressStats,
   parseGoalChecklist,
@@ -130,19 +129,6 @@ interface UsageBreakdown {
 interface GoalsView {
   content_md: string | null;
   updated_at: string | null;
-}
-
-interface RemainingItem {
-  title: string;
-  description: string;
-}
-
-interface ProgressView {
-  percent: number;
-  summary: string;
-  remaining_items: RemainingItem[];
-  based_on_commit_sha: string | null;
-  analyzed_at: string;
 }
 
 const LEVEL_LABEL: Record<LogLevel, string> = { error: 'Error', warn: 'Warn', info: 'Info' };
@@ -296,20 +282,15 @@ function DeleteProjectDialog({
  */
 function GoalsProgressCard({ projectId }: { projectId: string }) {
   const goals = useApi<GoalsView>(`/projects/${projectId}/goals`);
-  const progressState = useApi<{ progress: ProgressView | null }>(
-    `/projects/${projectId}/progress`,
-  );
 
   const [editing, setEditing] = useState(false);
   const [draftText, setDraftText] = useState('');
   const [drafting, setDrafting] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmOverwrite, setConfirmOverwrite] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const progress = progressState.data?.progress ?? null;
   const checklistItems = useMemo(
     () => parseGoalChecklist(goals.data?.content_md),
     [goals.data?.content_md],
@@ -328,7 +309,7 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
   };
 
   const handleToggleCheck = (index: number) => {
-    if (!goals.data?.content_md || saving || analyzing) return;
+    if (!goals.data?.content_md || saving) return;
     const newContent = toggleGoalChecklist(goals.data.content_md, index);
     setSaving(true);
     setError(null);
@@ -336,7 +317,6 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
       () => {
         setSaving(false);
         goals.reload();
-        analyze();
       },
       (err: unknown) => {
         setSaving(false);
@@ -370,26 +350,6 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
     runGenerateDraft();
   };
 
-  const analyze = () => {
-    setAnalyzing(true);
-    setError(null);
-    apiPost<ProgressView>(`/projects/${projectId}/progress/analyze`).then(
-      () => {
-        setAnalyzing(false);
-        progressState.reload();
-      },
-      (err: unknown) => {
-        setAnalyzing(false);
-        if (err instanceof ApiError && err.code === 'CONFLICT') {
-          setError('먼저 목표를 확정해 주세요.');
-          startEditing();
-        } else {
-          setError(err instanceof ApiError ? `${err.message} (${err.code})` : String(err));
-        }
-      },
-    );
-  };
-
   const saveGoals = () => {
     if (draftText.trim() === '') return;
     setSaving(true);
@@ -399,7 +359,6 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
         setSaving(false);
         setEditing(false);
         goals.reload();
-        analyze();
       },
       (err: unknown) => {
         setSaving(false);
@@ -464,84 +423,19 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
                   : '아직 목표를 확정하지 않았다.'}
               </p>
             )}
-            {goals.loading || progressState.loading ? (
+            {goals.loading ? (
               <p className="meta">불러오는 중…</p>
-            ) : progress ? (
-              <>
-                <div className="detail__goals-bar" aria-hidden="true">
-                  <div
-                    className="detail__goals-bar-fill"
-                    style={{ width: `${progress.percent}%` }}
-                  />
-                </div>
-                <p className="detail__big">
-                  {progress.percent}%{' '}
-                  <span className="meta">
-                    {stats.total > 0
-                      ? `(${stats.completed}/${stats.total} 완료 · 결정론적 마일스톤)`
-                      : 'AI 추정 진행률'}
-                  </span>
-                </p>
-                <p className="meta">{progress.summary}</p>
-                {checklistItems.length > 0 ? (
-                  <div className="detail__goals-hud">
-                    <div className="detail__goals-hud-head">
-                      <span className="detail__goals-hud-label">⚡ 다음에 할 일 (Up Next)</span>
-                      {remainingPendingCount > 0 && (
-                        <span className="meta">외 {remainingPendingCount}개 대기 중</span>
-                      )}
-                    </div>
-
-                    {upNextItems.length > 0 ? (
-                      <div className="detail__goals-upnext-list">
-                        {upNextItems.map((item) => (
-                          <label key={item.index} className="detail__goals-upnext-item">
-                            <input
-                              type="checkbox"
-                              checked={item.completed}
-                              disabled={saving || analyzing}
-                              onChange={() => handleToggleCheck(item.index)}
-                            />
-                            <span className="detail__goals-upnext-title">{item.title}</span>
-                            <span className="meta">대기</span>
-                          </label>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="detail__goals-all-done">
-                        <span className="badge badge--ok">모든 목표 달성 완료</span>
-                        <span className="meta">
-                          전체 {stats.total}개 마일스톤을 모두 완료했습니다.
-                        </span>
-                      </div>
-                    )}
-
-                    <div className="detail__goals-cta-row">
-                      <button
-                        type="button"
-                        className="detail__goals-cta-btn"
-                        onClick={() => setDrawerOpen(true)}
-                      >
-                        전체 체크리스트 관리 ({stats.total}개) ↗
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  progress.remaining_items.length > 0 && (
-                    <ul className="detail__goals-remaining">
-                      {progress.remaining_items.map((item, i) => (
-                        <li key={i}>
-                          <strong>{item.title}</strong>
-                          {item.description && <span className="meta"> — {item.description}</span>}
-                        </li>
-                      ))}
-                    </ul>
-                  )
-                )}
-                <p className="meta">{formatDateTime(progress.analyzed_at)} 분석</p>
-              </>
             ) : checklistItems.length > 0 ? (
               <>
+                <div className="detail__goals-bar" aria-hidden="true">
+                  <div className="detail__goals-bar-fill" style={{ width: `${stats.percent}%` }} />
+                </div>
+                <p className="detail__big">
+                  {stats.percent}%{' '}
+                  <span className="meta">
+                    ({stats.completed}/{stats.total} 완료 · 마일스톤 기준)
+                  </span>
+                </p>
                 <div className="detail__goals-hud">
                   <div className="detail__goals-hud-head">
                     <span className="detail__goals-hud-label">⚡ 다음에 할 일 (Up Next)</span>
@@ -557,7 +451,7 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
                           <input
                             type="checkbox"
                             checked={item.completed}
-                            disabled={saving || analyzing}
+                            disabled={saving}
                             onChange={() => handleToggleCheck(item.index)}
                           />
                           <span className="detail__goals-upnext-title">{item.title}</span>
@@ -584,10 +478,9 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
                     </button>
                   </div>
                 </div>
-                <p className="meta">{getUnanalyzedStatusText(analyzing)}</p>
               </>
             ) : (
-              <p className="meta">{getUnanalyzedStatusText(analyzing)}</p>
+              <p className="meta">아직 체크리스트로 만든 목표가 없다.</p>
             )}
             {error !== null && (
               <p className="error-note" role="alert">
@@ -595,9 +488,6 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
               </p>
             )}
             <div className="detail__goals-actions">
-              <Button type="button" onClick={analyze} disabled={analyzing}>
-                {getAnalyzeButtonLabel(analyzing, progress !== null)}
-              </Button>
               <Button type="button" onClick={startEditing}>
                 목표 직접 편집
               </Button>
@@ -612,13 +502,11 @@ function GoalsProgressCard({ projectId }: { projectId: string }) {
         onClose={() => setDrawerOpen(false)}
         contentMd={goals.data?.content_md}
         saving={saving}
-        analyzing={analyzing}
         onToggleCheck={handleToggleCheck}
         onEditGoals={() => {
           setDrawerOpen(false);
           startEditing();
         }}
-        onAnalyzeProgress={analyze}
       />
       <Modal
         open={confirmOverwrite}

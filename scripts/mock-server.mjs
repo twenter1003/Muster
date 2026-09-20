@@ -934,28 +934,18 @@ function handleApi(req, res, url) {
         );
 
       case 'goals':
+        // 진행률은 프론트엔드가 이 체크리스트만으로 결정론적으로 계산한다(LLM 분석 없음).
         if (s[3] === 'draft') {
           return json(res, 200, {
-            goals_md:
+            content_md:
               '# 목표\n- [ ] 알림 웹훅 연동\n- [ ] 모바일 반응형 정리\n- [x] 토큰 관제 차트 개선',
+            source_paths: ['README.md'],
           });
         }
         return json(res, 200, {
-          goals_md:
+          content_md:
             '# 목표\n- [ ] 알림 웹훅 연동\n- [ ] 모바일 반응형 정리\n- [x] 토큰 관제 차트 개선',
           updated_at: iso(DAY),
-        });
-
-      case 'progress':
-        return json(res, 200, {
-          progress_percent: 62,
-          summary: '전체 8개 항목 중 5개가 완료되었습니다.',
-          items: [
-            { title: '토큰 관제 차트 개선', done: true },
-            { title: '모바일 반응형 정리', done: false },
-            { title: '알림 웹훅 연동', done: false },
-          ],
-          analyzed_at: iso(2 * HOUR),
         });
 
       default:
